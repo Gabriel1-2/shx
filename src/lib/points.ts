@@ -20,22 +20,13 @@ export interface LeaderboardEntry {
     totalFeesPaid?: number;
 }
 
-// 🐳 FAKE WHALES (Mock Data mixed with Real Data)
-const FAKE_WHALES: Omit<LeaderboardEntry, 'rank'>[] = [
-    { wallet: "Hyt...9s2", points: 154200, volume: 450000, tradeCount: 245, totalFeesPaid: 2250 },
-    { wallet: "8fr...k21", points: 120500, volume: 320000, tradeCount: 189, totalFeesPaid: 1600 },
-    { wallet: "3da...p99", points: 98000, volume: 280000, tradeCount: 156, totalFeesPaid: 1400 },
-    { wallet: "G2a...x12", points: 54000, volume: 120000, tradeCount: 87, totalFeesPaid: 600 },
-    { wallet: "W9s...m44", points: 32000, volume: 85000, tradeCount: 52, totalFeesPaid: 425 },
-];
-
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
         // Fetch Top 20 Real Users by volume
         const q = query(collection(db, "users"), orderBy("volume", "desc"), limit(20));
         const querySnapshot = await getDocs(q);
 
-        const realUsers: Omit<LeaderboardEntry, 'rank'>[] = [];
+        const realUsers: LeaderboardEntry[] = [];
 
         querySnapshot.forEach((doc) => {
             const data = doc.data();
@@ -45,17 +36,15 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
                 volume: data.volume || 0,
                 tradeCount: data.tradeCount || 0,
                 totalFeesPaid: data.totalFeesPaid || 0,
+                rank: 0 // Will assign later
             });
         });
 
-        // MERGE: Real Users + Fake Whales
-        const combinedData = [...realUsers, ...FAKE_WHALES];
+        // SORT: By Volume Descending
+        realUsers.sort((a, b) => b.volume - a.volume);
 
-        // SORT: By Volume Descending (for milestone system)
-        combinedData.sort((a, b) => b.volume - a.volume);
-
-        // RANK & LIMIT: Assign ranks and take Top 50
-        const leaderboard: LeaderboardEntry[] = combinedData
+        // RANK & LIMIT
+        const leaderboard: LeaderboardEntry[] = realUsers
             .map((entry, index) => ({
                 ...entry,
                 rank: index + 1
@@ -65,7 +54,7 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
         return leaderboard;
     } catch (error) {
         console.error("Error fetching leaderboard:", error);
-        return FAKE_WHALES.map((w, i) => ({ ...w, rank: i + 1 }));
+        return [];
     }
 }
 
