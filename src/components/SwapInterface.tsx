@@ -66,7 +66,7 @@ export function SwapInterface() {
                 window.Jupiter.init({
                     displayMode: "integrated",
                     integratedTargetId: "integrated-terminal",
-                    endpoint: "https://mainnet.helius-rpc.com/?api-key=e36d269b-1bf1-4c2a-9efd-47d319ca4882",
+                    // endpoint: removed to use Jupiter's default RPC (avoids rate limits)
                     platformFeeAndAccounts: {
                         referralAccount: "315sEtamwE8CvKJrARkBRW6kwMDxP8WRPnFnBY4CBA7r",
                         // DYNAMIC FEE based on holdings + mode
