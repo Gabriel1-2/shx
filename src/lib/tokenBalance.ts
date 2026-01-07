@@ -70,18 +70,20 @@ export async function getShulevitzBalance(walletAddress: string): Promise<number
  */
 export async function getShulevitzPriceUSD(): Promise<number> {
     try {
-        // Jupiter Price API
+        // DexScreener API (Free & Public)
         const response = await fetch(
-            `https://price.jup.ag/v6/price?ids=${SHULEVITZ_MINT}`
+            `https://api.dexscreener.com/latest/dex/tokens/${SHULEVITZ_MINT}`
         );
 
         if (!response.ok) {
-            console.warn("[PRICE] Jupiter API failed, using fallback");
+            console.warn("[PRICE] DexScreener API failed");
             return 0;
         }
 
         const data = await response.json();
-        const price = data.data?.[SHULEVITZ_MINT]?.price || 0;
+        // Get price from the first pair
+        const priceStr = data.pairs?.[0]?.priceUsd;
+        const price = priceStr ? parseFloat(priceStr) : 0;
 
         console.log("[PRICE] SHULEVITZ price:", price);
         return price;
