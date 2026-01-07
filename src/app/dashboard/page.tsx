@@ -64,23 +64,23 @@ export default function DashboardPage() {
             <div className="container mx-auto p-4 md:p-8">
                 <h1 className="mb-8 text-3xl font-bold text-primary">TRADER DASHBOARD</h1>
 
-                {/* Platform Transparency (Global Mock Data) */}
+                {/* Platform Transparency (Real Data Pending Aggregation) */}
                 <div className="mb-8 grid gap-6 md:grid-cols-4">
                     <div className="rounded-xl border border-white/5 bg-white/5 p-4">
                         <div className="text-xs text-muted-foreground">SHX 24h Volume</div>
-                        <div className="mt-1 text-2xl font-bold text-white">$425.5K</div>
+                        <div className="mt-1 text-2xl font-bold text-white">$0</div>
                     </div>
                     <div className="rounded-xl border border-white/5 bg-white/5 p-4">
                         <div className="text-xs text-muted-foreground">Active Wallets</div>
-                        <div className="mt-1 text-2xl font-bold text-white">842</div>
+                        <div className="mt-1 text-2xl font-bold text-white">0</div>
                     </div>
                     <div className="rounded-xl border border-white/5 bg-white/5 p-4">
                         <div className="text-xs text-muted-foreground">Total Swaps</div>
-                        <div className="mt-1 text-2xl font-bold text-white">1,842</div>
+                        <div className="mt-1 text-2xl font-bold text-white">0</div>
                     </div>
                     <div className="rounded-xl border border-white/5 bg-white/5 p-4">
                         <div className="text-xs text-muted-foreground">SHX Burned</div>
-                        <div className="mt-1 text-2xl font-bold text-primary">450K 🔥</div>
+                        <div className="mt-1 text-2xl font-bold text-primary">0 🔥</div>
                     </div>
                 </div>
 
