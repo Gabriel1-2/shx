@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const preferredRegion = "fra1"; // Force Frankfurt to bypass geo-blocking
-export const runtime = "edge"; // Use Edge for lower latency
+export const runtime = "nodejs"; // MUST be nodejs to respect preferredRegion
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
@@ -23,13 +23,13 @@ export async function GET(request: NextRequest) {
         if (!response.ok) {
             const errorText = await response.text();
             console.error(`[PROXY] Jupiter API Error: ${response.status} - ${errorText}`);
-            return NextResponse.json({ error: "Failed to fetch quote from Jupiter" }, { status: response.status });
+            return NextResponse.json({ error: "Failed to fetch quote from Jupiter", details: errorText }, { status: response.status });
         }
 
         const data = await response.json();
         return NextResponse.json(data);
-    } catch (error) {
+    } catch (error: any) {
         console.error("[PROXY] Internal Error:", error);
-        return NextResponse.json({ error: "Internal Proxy Error" }, { status: 500 });
+        return NextResponse.json({ error: "Internal Proxy Error", details: error.message }, { status: 500 });
     }
 }

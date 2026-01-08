@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const preferredRegion = "fra1"; // Force Frankfurt to bypass geo-blocking
-export const runtime = "edge"; // Use Edge for lower latency
+export const runtime = "nodejs"; // MUST be nodejs to respect preferredRegion
 
 export async function POST(request: NextRequest) {
     try {
@@ -14,7 +14,9 @@ export async function POST(request: NextRequest) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "User-Agent": "SHX-Exchange-Proxy/1.0"
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Origin": "https://jup.ag",
+                "Referer": "https://jup.ag/"
             },
             body: JSON.stringify(body)
         });
@@ -22,13 +24,13 @@ export async function POST(request: NextRequest) {
         if (!response.ok) {
             const errorText = await response.text();
             console.error(`[PROXY] Jupiter Swap API Error: ${response.status} - ${errorText}`);
-            return NextResponse.json({ error: "Failed to construct swap transaction" }, { status: response.status });
+            return NextResponse.json({ error: "Failed to construct swap transaction", details: errorText }, { status: response.status });
         }
 
         const data = await response.json();
         return NextResponse.json(data);
-    } catch (error) {
+    } catch (error: any) {
         console.error("[PROXY] Internal Error:", error);
-        return NextResponse.json({ error: "Internal Proxy Error" }, { status: 500 });
+        return NextResponse.json({ error: "Internal Proxy Error", details: error.message }, { status: 500 });
     }
 }
