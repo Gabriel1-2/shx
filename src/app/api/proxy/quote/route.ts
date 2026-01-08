@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const preferredRegion = "fra1"; // Force Frankfurt to bypass geo-blocking
+export const runtime = "edge"; // Use Edge for lower latency
+
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const queryString = searchParams.toString();
