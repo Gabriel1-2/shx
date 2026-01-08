@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 
 export function useTokenBalance(tokenMint: string, decimals: number = 9) {
     const { connection } = useConnection();
@@ -24,23 +24,19 @@ export function useTokenBalance(tokenMint: string, decimals: number = 9) {
                     return;
                 }
 
-                // Handle SPL Tokens
-                // Note: In a production app, we might use getParsedTokenAccountsByOwner once and cache it
-                // usage of getParsedTokenAccountsByOwner is rate-limited on free RPCs, so be careful.
-                // For "Harder / Pro" version, we try to use the specific account fetch if possible, 
-                // but finding the ATA address requires client-side derivation.
+                // Handle SPL Tokens - Optimized: Check ATA directly
+                const token = new PublicKey(tokenMint);
+                const owner = publicKey;
 
-                // Simplified approach: Get all accounts and find match (heavier but easier to implement)
-                const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-                    programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
-                });
+                // Derive ATA
+                const ata = await getAssociatedTokenAddress(token, owner);
 
-                const match = accounts.value.find(
-                    (account) => account.account.data.parsed.info.mint === tokenMint
-                );
+                // Fetch account info
+                const response = await connection.getParsedAccountInfo(ata);
 
-                if (match) {
-                    setBalance(match.account.data.parsed.info.tokenAmount.uiAmount || 0);
+                if (response.value) {
+                    const data = response.value.data as any;
+                    setBalance(data.parsed.info.tokenAmount.uiAmount || 0);
                 } else {
                     setBalance(0);
                 }
@@ -76,10 +72,22 @@ export function useTokenPrice(tokenMint: string) {
             }
 
             try {
+                // Primary: DexScreener (Rich data)
                 const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
-                const data = await res.json();
-                if (data.pairs && data.pairs.length > 0) {
-                    setPrice(parseFloat(data.pairs[0].priceUsd));
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.pairs && data.pairs.length > 0) {
+                        setPrice(parseFloat(data.pairs[0].priceUsd));
+                        return;
+                    }
+                }
+
+                // Fallback: Jupiter Price API (Reliable for majors/long-tail)
+                console.log("DexScreener failed, trying Jup...");
+                const jupRes = await fetch(`https://api.jup.ag/price/v2?ids=${tokenMint}`);
+                const jupData = await jupRes.json();
+                if (jupData.data && jupData.data[tokenMint]) {
+                    setPrice(parseFloat(jupData.data[tokenMint].price));
                 }
             } catch (e) {
                 console.error("Price fetch failed", e);
