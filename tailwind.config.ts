@@ -8,6 +8,21 @@ const config: Config = {
     ],
     theme: {
         extend: {
+            animation: {
+                "pulse-slow": "pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                "shine": "shine 1s",
+                "tilt": "tilt 10s infinite linear",
+            },
+            keyframes: {
+                shine: {
+                    "100%": { left: "125%" },
+                },
+                tilt: {
+                    "0%, 50%, 100%": { transform: "rotate(0deg)" },
+                    "25%": { transform: "rotate(0.5deg)" },
+                    "75%": { transform: "rotate(-0.5deg)" },
+                }
+            },
             colors: {
                 background: "hsl(var(--background))",
                 foreground: "hsl(var(--foreground))",

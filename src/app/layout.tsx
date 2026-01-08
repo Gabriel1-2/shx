@@ -3,12 +3,13 @@ import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SolanaProvider } from "@/components/SolanaProvider";
 import { Header } from "@/components/Header";
+import { ToastProvider } from "@/components/Toast";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SHX Exchange",
-  description: "Trader-first, non-custodial Solana exchange.",
+  title: "SHX | Swap Anything From Anywhere",
+  description: "The trader-first DEX that works when others don't. Zero KYC. Self-custody. Access from any region.",
 };
 
 export default function RootLayout({
@@ -20,8 +21,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={mono.className} suppressHydrationWarning>
         <SolanaProvider>
-          <Header />
-          {children}
+          <ToastProvider>
+            <Header />
+            {children}
+          </ToastProvider>
         </SolanaProvider>
       </body>
     </html>
