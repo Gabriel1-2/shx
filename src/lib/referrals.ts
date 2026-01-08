@@ -63,7 +63,8 @@ export async function registerReferral(newUserWallet: string, referralCode: stri
 }
 
 // Add referral earnings when a referred user trades
-export async function addReferralEarnings(traderWallet: string, feeUSD: number) {
+// Add referral earnings when a referred user trades
+export async function addReferralEarnings(traderWallet: string, feeUSD: number, volumeUSD: number = 0) {
     try {
         // Check if this user was referred
         const userRef = doc(db, "users", traderWallet);
@@ -76,15 +77,19 @@ export async function addReferralEarnings(traderWallet: string, feeUSD: number) 
         const referrerWallet = userDoc.data().referredBy;
         const referralEarning = feeUSD * 0.10; // 10% of fees go to referrer
 
+        // Bonus: Referrer gets points equal to 20% of the volume traded by their referral
+        const referralPoints = Math.floor(volumeUSD * 0.20);
+
         // Add to referrer's earnings
         const referrerRef = doc(db, "users", referrerWallet);
         await setDoc(referrerRef, {
             referralEarnings: increment(referralEarning),
+            points: increment(referralPoints), // Add points bonus
             wallet: referrerWallet,
             lastReferralEarning: new Date().toISOString()
         }, { merge: true });
 
-        console.log(`Added $${referralEarning.toFixed(2)} referral earnings to ${referrerWallet}`);
+        console.log(`[REFERRAL] Added $${referralEarning.toFixed(2)} + ${referralPoints} XP to ${referrerWallet}`);
     } catch (error) {
         console.error("Error adding referral earnings:", error);
     }

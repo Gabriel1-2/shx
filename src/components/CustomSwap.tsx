@@ -205,7 +205,7 @@ export default function CustomSwap() {
                 addPoints(publicKey.toString(), Math.floor(volumeUSD * 10)),
                 addVolume(publicKey.toString(), volumeUSD),
                 addFeesPaid(publicKey.toString(), feeUSD),
-                addReferralEarnings(publicKey.toString(), feeUSD),
+                addReferralEarnings(publicKey.toString(), feeUSD, volumeUSD),
                 saveSwapTransaction({
                     wallet: publicKey.toString(),
                     inputToken: tokens.input.symbol,
