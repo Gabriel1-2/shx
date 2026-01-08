@@ -72,16 +72,7 @@ export function Header() {
 
                 {/* Wallet Button */}
                 <div className="shx-wallet-adapter">
-                    <WalletMultiButton style={{
-                        backgroundColor: 'hsl(var(--primary))',
-                        color: 'black',
-                        fontFamily: 'inherit',
-                        fontWeight: 'bold',
-                        fontSize: '12px',
-                        padding: '8px 16px',
-                        height: '36px',
-                        borderRadius: '8px'
-                    }} />
+                    <WalletMultiButton />
                 </div>
             </div>
         </header>

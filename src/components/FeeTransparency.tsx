@@ -93,15 +93,15 @@ export function FeeTransparency() {
                 {/* Where Fees Go */}
                 <div className="space-y-2">
                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Fee Distribution</div>
-                    <div className="flex items-center gap-3">
+                    <div className="grid grid-cols-3 gap-2">
                         {[
-                            { label: "Buyback & Burn", pct: "40%", color: "text-orange-400" },
+                            { label: "Buyback", pct: "40%", color: "text-orange-400" },
                             { label: "Referrers", pct: "10%", color: "text-blue-400" },
                             { label: "Treasury", pct: "50%", color: "text-purple-400" },
                         ].map((item, i) => (
-                            <div key={i} className="flex-1 text-center p-2 rounded-lg bg-white/5 border border-white/5">
+                            <div key={i} className="text-center p-2 rounded-lg bg-white/5 border border-white/5">
                                 <div className={`text-sm font-bold ${item.color}`}>{item.pct}</div>
-                                <div className="text-[9px] text-muted-foreground">{item.label}</div>
+                                <div className="text-[9px] text-muted-foreground whitespace-nowrap">{item.label}</div>
                             </div>
                         ))}
                     </div>
