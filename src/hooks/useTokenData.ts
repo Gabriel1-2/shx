@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { getAssociatedTokenAddress } from "@solana/spl-token";

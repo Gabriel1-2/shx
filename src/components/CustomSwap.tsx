@@ -529,11 +529,10 @@ export default function CustomSwap() {
                                 txState === 'confirming' ? "CONFIRMING..." :
                                     txState === 'success' ? "SUCCESS! 🚀" :
                                         txState === 'error' ? "FAILED ❌" :
-                                            txState === 'error' ? "FAILED ❌" :
-                                                !amount || Number(amount) <= 0 ? "ENTER AMOUNT" :
-                                                    loading ? "FETCHING QUOTE..." : // Move specific loading text here
-                                                        !quote ? "NO ROUTE FOUND / RETRY" : // If not loading and no quote, it failed
-                                                            "SWAP NOW"}
+                                            !amount || Number(amount) <= 0 ? "ENTER AMOUNT" :
+                                                loading ? "FETCHING QUOTE..." :
+                                                    !quote ? "NO ROUTE FOUND / RETRY" :
+                                                        "SWAP NOW"}
                     </button>
                 )}
             </div>
