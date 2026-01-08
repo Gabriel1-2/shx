@@ -8,7 +8,8 @@ export async function GET(request: NextRequest) {
     const queryString = searchParams.toString();
 
     try {
-        const jupUrl = `https://quote-api.jup.ag/v6/quote?${queryString}`;
+        // Use QuickNode public endpoint as primary (bypasses geoblock & DNS issues)
+        const jupUrl = `https://public.jupiterapi.com/quote?${queryString}`;
         console.log(`[PROXY] Forwarding quote request to: ${jupUrl}`);
 
         const response = await fetch(jupUrl, {

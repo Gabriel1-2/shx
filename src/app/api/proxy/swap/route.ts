@@ -9,8 +9,8 @@ export async function POST(request: NextRequest) {
 
         console.log(`[PROXY] Forwarding swap construction request...`);
 
-        // Forward to Jupiter Swap API
-        const response = await fetch("https://quote-api.jup.ag/v6/swap", {
+        // Forward to Jupiter Swap API (QuickNode Public)
+        const response = await fetch("https://public.jupiterapi.com/swap", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
