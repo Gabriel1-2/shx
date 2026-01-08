@@ -100,8 +100,13 @@ export default function CustomSwap() {
             setQuote(null);
             return;
         }
+
         setLoading(true);
         setQuote(null);
+
+        // AbortController to cancel previous requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
         try {
             const amountAtoms = Math.floor(Number(amount) * Math.pow(10, tokens.input.decimals));
@@ -112,18 +117,33 @@ export default function CustomSwap() {
                 outputMint: tokens.output.address,
                 amount: amountAtoms.toString(),
                 slippageBps: slippageBps.toString(),
-                platformFeeBps: feeBps.toString(), // Dynamic fee based on $SHULEVITZ holdings
+                platformFeeBps: feeBps.toString(),
             });
 
-            const res = await fetch(`/api/proxy/quote?${params.toString()}`);
+            console.log("Fetching quote for:", params.toString());
+
+            const res = await fetch(`/api/proxy/quote?${params.toString()}`, {
+                signal: controller.signal
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`API Error: ${res.status} ${errText}`);
+            }
+
             const data = await res.json();
 
             if (data.error) throw new Error(data.error);
             setQuote(data);
-        } catch (error) {
-            console.error("Quote Error:", error);
-            setQuote(null);
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.log('Quote fetch timed out or aborted');
+            } else {
+                console.error("Quote Error:", error);
+                setQuote(null);
+            }
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     }, [amount, slippage, tokens, feeBps]);
@@ -509,9 +529,11 @@ export default function CustomSwap() {
                                 txState === 'confirming' ? "CONFIRMING..." :
                                     txState === 'success' ? "SUCCESS! 🚀" :
                                         txState === 'error' ? "FAILED ❌" :
-                                            !amount || Number(amount) <= 0 ? "ENTER AMOUNT" :
-                                                !quote ? "FETCHING QUOTE..." :
-                                                    "SWAP NOW"}
+                                            txState === 'error' ? "FAILED ❌" :
+                                                !amount || Number(amount) <= 0 ? "ENTER AMOUNT" :
+                                                    loading ? "FETCHING QUOTE..." : // Move specific loading text here
+                                                        !quote ? "NO ROUTE FOUND / RETRY" : // If not loading and no quote, it failed
+                                                            "SWAP NOW"}
                     </button>
                 )}
             </div>
