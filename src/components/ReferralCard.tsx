@@ -61,21 +61,33 @@ export function ReferralCard() {
                 </div>
             </div>
 
-            {/* Referral Code */}
+            {/* Referral Link */}
             <div className="mb-3">
-                <div className="text-[10px] text-muted-foreground mb-1.5">Your Referral Code</div>
+                <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-muted-foreground">Your Referral Link</span>
+                    <span className="text-[10px] text-green-400 font-bold opacity-0 transition-opacity duration-300 data-[visible=true]:opacity-100" data-visible={copied}>
+                        Copied!
+                    </span>
+                </div>
                 <div className="flex items-center gap-2">
-                    <code className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-primary">
-                        {stats.referralCode || "Loading..."}
-                    </code>
+                    <div className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 flex items-center gap-2 overflow-hidden">
+                        <span className="text-xs text-muted-foreground truncate">shx.app/?ref=</span>
+                        <span className="text-sm font-mono font-bold text-primary">{stats.referralCode || "..."}</span>
+                    </div>
                     <button
                         onClick={copyReferralLink}
-                        className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors"
+                        className="px-4 py-2 rounded-lg bg-primary text-black font-bold text-xs hover:bg-primary/90 transition-colors flex items-center gap-2 whitespace-nowrap"
                     >
                         {copied ? (
-                            <Check size={16} className="text-green-400" />
+                            <>
+                                <Check size={14} />
+                                <span>Copied</span>
+                            </>
                         ) : (
-                            <Copy size={16} className="text-primary" />
+                            <>
+                                <Copy size={14} />
+                                <span>Copy Link</span>
+                            </>
                         )}
                     </button>
                 </div>
@@ -83,10 +95,15 @@ export function ReferralCard() {
 
             {/* Reward Info */}
             <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/5 border border-green-500/10">
-                <Gift size={14} className="text-green-400" />
-                <span className="text-[10px] text-green-400">
-                    Earn 10% of fees from referred traders!
-                </span>
+                <Gift size={14} className="text-green-400 shrink-0" />
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-green-400 font-bold">
+                        Earn 10% of fees
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                        + 20% volume bonus in XP!
+                    </span>
+                </div>
             </div>
         </div>
     );
