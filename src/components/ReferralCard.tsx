@@ -71,7 +71,7 @@ export function ReferralCard() {
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 flex items-center gap-2 overflow-hidden">
-                        <span className="text-xs text-muted-foreground truncate">shx.app/?ref=</span>
+                        <span className="text-xs text-muted-foreground truncate">shx.exchange/?ref=</span>
                         <span className="text-sm font-mono font-bold text-primary">{stats.referralCode || "..."}</span>
                     </div>
                     <button
