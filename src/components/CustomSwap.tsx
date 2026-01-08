@@ -160,6 +160,14 @@ export default function CustomSwap() {
     const outputAmount = quote ? (Number(quote.outAmount) / Math.pow(10, tokens.output.decimals)) : 0;
     const outputUSD = outputAmount * outputPrice;
 
+    // Switch Tokens Helper
+    const switchTokens = () => {
+        const temp = tokens.input;
+        setTokens({ input: tokens.output, output: temp });
+        setAmount("");
+        setQuote(null);
+    };
+
     // Execute Swap via PROXY
     const executeSwap = async () => {
         if (!quote || !publicKey || !signTransaction) return;
@@ -368,10 +376,10 @@ export default function CustomSwap() {
             )}
 
             {/* Swap Card */}
-            <div className="rounded-2xl border border-white/10 bg-[#0A0A0A] p-5 shadow-xl">
+            <div className="rounded-3xl border border-white/10 bg-[#0A0A0A] p-6 shadow-2xl space-y-2">
 
                 {/* Input Section */}
-                <div className="rounded-xl bg-black/50 p-4 border border-white/5">
+                <div className="rounded-2xl bg-black/50 p-5 border border-white/5 hover:border-white/10 transition-colors">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-xs text-muted-foreground font-medium">YOU PAY</span>
                         <button
@@ -413,20 +421,13 @@ export default function CustomSwap() {
                     </div>
                 </div>
 
-                {/* Swap Direction Button */}
-                <div className="relative -my-4 z-10 flex justify-center">
+                {/* Switch Button */}
+                <div className="relative -my-5 z-10 flex justify-center">
                     <button
-                        onClick={() => {
-                            const temp = tokens.input;
-                            setTokens({ input: tokens.output, output: temp });
-                            setAmount("");
-                            setQuote(null);
-                        }}
-                        className="bg-[#0A0A0A] p-1.5 rounded-xl border border-white/10 hover:border-white/20 transition-colors hover:rotate-180 duration-300"
+                        onClick={switchTokens}
+                        className="p-3 bg-neutral-900 border-4 border-[#0A0A0A] rounded-xl text-primary hover:text-white hover:scale-110 hover:rotate-180 transition-all shadow-lg"
                     >
-                        <div className="bg-white/5 p-2 rounded-lg text-white/50 hover:text-primary transition-colors">
-                            <ArrowDownCircle size={20} />
-                        </div>
+                        <ArrowUpDown size={20} strokeWidth={2.5} />
                     </button>
                 </div>
 
