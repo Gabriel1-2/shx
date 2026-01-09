@@ -3,8 +3,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { VersionedTransaction } from "@solana/web3.js";
-import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X } from "lucide-react";
+import { VersionedTransaction, PublicKey } from "@solana/web3.js";
+import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
 import { calculateFeeBps } from "@/lib/feeTiers";
 import { getShulevitzHoldingsUSD, clearBalanceCache } from "@/lib/tokenBalance";
@@ -18,6 +18,8 @@ import { useSwapEffects } from "@/hooks/useSwapEffects";
 // Constants
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 const SHULEVITZ_MINT = "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q";
+const TOKEN_PROGRAM_ID_STR = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const DEFAULT_FEE_ACCOUNT = "315sEtamwE8CvKJrARkBRW6kwMDxP8WRPnFnBY4CBA7r"; // platform fee account
 
 interface TokenInfo {
     symbol: string;
@@ -146,7 +148,7 @@ export default function CustomSwap() {
             clearTimeout(timeoutId);
             setLoading(false);
         }
-    }, [amount, slippage, tokens, feeBps]);
+    }, [amount, slippage, tokens, feeBps, connection]);
 
     // Debounced Quote Fetch
     useEffect(() => {
@@ -168,42 +170,83 @@ export default function CustomSwap() {
         setQuote(null);
     };
 
-    // Execute Swap via PROXY
+    // Helper: check if user has ATA for output token
+    const ensureOutputATAExists = async (): Promise<boolean> => {
+        try {
+            if (!publicKey) return false;
+            // SOL is native, no ATA required
+            if (tokens.output.address === SOL_MINT) return true;
+
+            const ownerPub = publicKey;
+            const tokenProgramId = new PublicKey(TOKEN_PROGRAM_ID_STR);
+            const accounts = await connection.getParsedTokenAccountsByOwner(ownerPub, { programId: tokenProgramId });
+            const has = accounts.value.some(acc => acc.account.data?.parsed?.info?.mint === tokens.output.address);
+            if (has) return true;
+
+            // If missing, prompt the user to create an ATA (we avoid auto-creating to keep flow simple)
+            showToast({
+                type: 'error',
+                title: 'Missing Token Account',
+                message: `You do not have an associated token account for ${tokens.output.symbol}. Please create it in your wallet to receive tokens.`
+            });
+            return false;
+        } catch (e) {
+            console.error('ATA check failed', e);
+            return false;
+        }
+    };
+
+    // Execute Swap via PROXY (collect platform fee properly)
     const executeSwap = async () => {
         if (!quote || !publicKey || !signTransaction) return;
         setTxState("signing");
 
         try {
+            // Ensure user can receive output tokens
+            const hasAta = await ensureOutputATAExists();
+            if (!hasAta) {
+                setTxState('idle');
+                return;
+            }
+
+            // Construct request body for swap. Use platformFee object to collect fees.
+            const body = {
+                quoteResponse: quote,
+                userPublicKey: publicKey.toString(),
+                wrapAndUnwrapSol: true,
+                platformFee: {
+                    feeBps: feeBps, // e.g. 50 for 0.5%
+                    feeAccount: DEFAULT_FEE_ACCOUNT
+                }
+            };
+
             const swapRes = await fetch("/api/proxy/swap", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    quoteResponse: quote,
-                    userPublicKey: publicKey.toString(),
-                    wrapAndUnwrapSol: true,
-                    feeAccount: "315sEtamwE8CvKJrARkBRW6kwMDxP8WRPnFnBY4CBA7r"
-                })
+                body: JSON.stringify(body)
             });
+
+            if (!swapRes.ok) {
+                const errText = await swapRes.text();
+                throw new Error(`Swap proxy error: ${swapRes.status} ${errText}`);
+            }
 
             const swapData = await swapRes.json();
             if (swapData.error) throw new Error(swapData.error);
 
-            // Deserialize Transaction
-            const binaryString = atob(swapData.swapTransaction);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
+            // Robust base64 -> Uint8Array
+            const rawBase64 = swapData.swapTransaction as string;
+            const bytes = Uint8Array.from(atob(rawBase64), c => c.charCodeAt(0));
             const transaction = VersionedTransaction.deserialize(bytes);
 
             // Sign Transaction
             const signedTx = await signTransaction(transaction);
 
-            // Send Transaction
+            // Send Transaction — don't skip preflight so we surface errors earlier
             setTxState("confirming");
             const rawTransaction = signedTx.serialize();
             const txid = await connection.sendRawTransaction(rawTransaction, {
-                skipPreflight: true,
+                skipPreflight: false,
                 maxRetries: 2
             });
 
@@ -258,6 +301,17 @@ export default function CustomSwap() {
 
         } catch (error: any) {
             console.error("Swap Failed:", error);
+
+            // If error contains a signature or txid we can fetch on-chain metadata
+            if (error?.signature) {
+                try {
+                    const txMeta = await connection.getTransaction(error.signature, { commitment: "confirmed" });
+                    console.error("On-chain transaction meta:", txMeta?.meta);
+                } catch (metaErr) {
+                    console.error("Failed to fetch transaction metadata:", metaErr);
+                }
+            }
+
             setTxState("error");
             showToast({
                 type: "error",
@@ -377,7 +431,6 @@ export default function CustomSwap() {
 
             {/* Swap Card */}
             <div className="rounded-3xl border border-white/10 bg-[#0A0A0A] p-6 shadow-2xl space-y-2">
-
                 {/* Input Section */}
                 <div className="rounded-2xl bg-black/50 p-5 border border-white/5 hover:border-white/10 transition-colors">
                     <div className="flex items-center justify-between mb-3">
@@ -402,7 +455,7 @@ export default function CustomSwap() {
                                 className="w-full bg-transparent text-3xl font-bold text-white placeholder-white/20 outline-none"
                             />
                             <div className="text-xs text-muted-foreground mt-1 font-mono">
-                                ≈ ${(Number(amount || 0) * inputPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ≈ ${$(Number(amount || 0) * inputPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         <button
