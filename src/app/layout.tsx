@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { SolanaProvider } from "@/components/SolanaProvider";
 import { Header } from "@/components/Header";
@@ -24,6 +25,7 @@ export default function RootLayout({
           <ToastProvider>
             <Header />
             {children}
+            <SpeedInsights />
           </ToastProvider>
         </SolanaProvider>
       </body>
