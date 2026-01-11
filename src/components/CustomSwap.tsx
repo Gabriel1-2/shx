@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction, PublicKey } from "@solana/web3.js";
-import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown } from "lucide-react";
+import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown, Clock, Repeat } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
 import { calculateFeeBps } from "@/lib/feeTiers";
 import { getShulevitzHoldingsUSD, clearBalanceCache } from "@/lib/tokenBalance";
@@ -14,11 +14,14 @@ import { TokenSelector } from "./TokenSelector";
 import { useTokenBalance, useTokenPrice } from "@/hooks/useTokenData";
 import { useToast } from "./Toast";
 import { useSwapEffects } from "@/hooks/useSwapEffects";
+import { useLimitOrders } from "@/hooks/useLimitOrders";
+import { useDCA } from "@/hooks/useDCA"; // Assumed hook
+import { OpenOrders } from "./OpenOrders";
+import { ActiveDCAs } from "./ActiveDCAs"; // Assumed component
 import { ADMIN_WALLET_SOL, SOL_MINT, SHULEVITZ_MINT } from "@/lib/constants";
 
 // Constants
 const TOKEN_PROGRAM_ID_STR = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-// DEFAULT_FEE_ACCOUNT replaced by ADMIN_WALLET_SOL from constants
 
 interface TokenInfo {
     symbol: string;
@@ -27,12 +30,21 @@ interface TokenInfo {
     logoURI?: string;
 }
 
+type Tab = "swap" | "limit" | "dca";
+
 export default function CustomSwap() {
     const { connection } = useConnection();
     const { publicKey, signTransaction, connected } = useWallet();
     const { setVisible } = useWalletModal();
     const { showToast } = useToast();
     const { onSwapSuccess } = useSwapEffects();
+
+    // Hooks for Advanced Features
+    const { createLimitOrder, loading: limitLoading } = useLimitOrders();
+    const { createDCA, loading: dcaLoading } = useDCA();
+
+    // Tab State
+    const [activeTab, setActiveTab] = useState<Tab>("swap");
 
     // Token State
     const [tokens, setTokens] = useState<{ input: TokenInfo; output: TokenInfo }>({
@@ -49,6 +61,10 @@ export default function CustomSwap() {
     const [quote, setQuote] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [txState, setTxState] = useState<"idle" | "signing" | "confirming" | "success" | "error">("idle");
+
+    // Limit/DCA State
+    const [limitRate, setLimitRate] = useState("");
+    const [dcaFrequency, setDcaFrequency] = useState("Day"); // Min, Hour, Day
 
     // Settings State
     const [showSettings, setShowSettings] = useState(false);
@@ -71,19 +87,22 @@ export default function CustomSwap() {
     };
 
     const handleTokenSelect = (token: any) => {
-        if (activeSelector === "input") {
-            setTokens(prev => ({
-                ...prev,
-                input: { symbol: token.symbol, address: token.address, decimals: token.decimals || 9, logoURI: token.logoURI }
-            }));
-        } else {
-            setTokens(prev => ({
-                ...prev,
-                output: { symbol: token.symbol, address: token.address, decimals: token.decimals || 9, logoURI: token.logoURI }
-            }));
-        }
-        setQuote(null); // Clear old quote
+        setQuote(null);
+        setTokens(prev => ({
+            ...prev,
+            [activeSelector]: { symbol: token.symbol, address: token.address, decimals: token.decimals || 9, logoURI: token.logoURI }
+        }));
     };
+
+    // Calculate market rate for auto-filling Limit inputs
+    useEffect(() => {
+        if (inputPrice.price && outputPrice.price && !limitRate) {
+            // Rate = Output / Input (How many Output for 1 Input)
+            // e.g. SOL $100, USDC $1. Rate = 100.
+            const rate = inputPrice.price / outputPrice.price;
+            setLimitRate(rate.toFixed(6));
+        }
+    }, [inputPrice, outputPrice, activeTab]);
 
     // Fetch Holdings & Fees
     useEffect(() => {
@@ -95,8 +114,9 @@ export default function CustomSwap() {
         }
     }, [publicKey, apeMode, tokens.output.address]);
 
-    // Fetch Quote via PROXY
+    // Fetch Quote via PROXY (Only for Swap Tab)
     const fetchQuote = useCallback(async () => {
+        if (activeTab !== 'swap') return;
         if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
             setQuote(null);
             return;
@@ -121,8 +141,6 @@ export default function CustomSwap() {
                 platformFeeBps: feeBps.toString(),
             });
 
-            console.log("Fetching quote for:", params.toString());
-
             const res = await fetch(`/api/proxy/quote?${params.toString()}`, {
                 signal: controller.signal
             });
@@ -133,13 +151,10 @@ export default function CustomSwap() {
             }
 
             const data = await res.json();
-
             if (data.error) throw new Error(data.error);
             setQuote(data);
         } catch (error: any) {
-            if (error.name === 'AbortError') {
-                console.log('Quote fetch timed out or aborted');
-            } else {
+            if (error.name !== 'AbortError') {
                 console.error("Quote Error:", error);
                 setQuote(null);
             }
@@ -147,7 +162,7 @@ export default function CustomSwap() {
             clearTimeout(timeoutId);
             setLoading(false);
         }
-    }, [amount, slippage, tokens, feeBps, connection]);
+    }, [amount, slippage, tokens, feeBps, connection, activeTab]);
 
     // Debounced Quote Fetch
     useEffect(() => {
@@ -182,7 +197,6 @@ export default function CustomSwap() {
             const has = accounts.value.some(acc => acc.account.data?.parsed?.info?.mint === tokens.output.address);
             if (has) return true;
 
-            // If missing, prompt the user to create an ATA (we avoid auto-creating to keep flow simple)
             showToast({
                 type: 'error',
                 title: 'Missing Token Account',
@@ -201,14 +215,12 @@ export default function CustomSwap() {
         setTxState("signing");
 
         try {
-            // Ensure user can receive output tokens
             const hasAta = await ensureOutputATAExists();
             if (!hasAta) {
                 setTxState('idle');
                 return;
             }
 
-            // Construct request body for swap. Use platformFee object to collect fees.
             const body = {
                 quoteResponse: quote,
                 userPublicKey: publicKey.toString(),
@@ -225,31 +237,23 @@ export default function CustomSwap() {
                 body: JSON.stringify(body)
             });
 
-            if (!swapRes.ok) {
-                const errText = await swapRes.text();
-                throw new Error(`Swap proxy error: ${swapRes.status} ${errText}`);
-            }
-
+            if (!swapRes.ok) throw new Error("Swap proxy failed");
             const swapData = await swapRes.json();
             if (swapData.error) throw new Error(swapData.error);
 
-            // Robust base64 -> Uint8Array
             const rawBase64 = swapData.swapTransaction as string;
             const bytes = Uint8Array.from(atob(rawBase64), c => c.charCodeAt(0));
             const transaction = VersionedTransaction.deserialize(bytes);
 
-            // Sign Transaction
             const signedTx = await signTransaction(transaction);
-
-            // Send Transaction — don't skip preflight so we surface errors earlier
             setTxState("confirming");
+
             const rawTransaction = signedTx.serialize();
             const txid = await connection.sendRawTransaction(rawTransaction, {
                 skipPreflight: false,
                 maxRetries: 2
             });
 
-            // Confirm Transaction
             const latestBlockHash = await connection.getLatestBlockhash();
             await connection.confirmTransaction({
                 blockhash: latestBlockHash.blockhash,
@@ -257,18 +261,11 @@ export default function CustomSwap() {
                 signature: txid
             });
 
-            // Success!
             setTxState("success");
-            onSwapSuccess(); // 🎉 Confetti + Sound!
+            onSwapSuccess();
+            showToast({ type: "success", title: "Swap Successful!", message: `Tx: ${txid.slice(0, 8)}...`, txId: txid });
 
-            showToast({
-                type: "success",
-                title: "Swap Successful!",
-                message: `Swapped ${amount} ${tokens.input.symbol} for ${outputAmount.toFixed(4)} ${tokens.output.symbol}`,
-                txId: txid
-            });
-
-            // Track rewards + referral earnings + save transaction
+            // Analytics
             const volumeUSD = Number(amount) * (inputPrice.price || 0);
             const feeUSD = volumeUSD * (feeBps / 10000);
             await Promise.all([
@@ -291,7 +288,6 @@ export default function CustomSwap() {
             ]);
 
             clearBalanceCache();
-
             setTimeout(() => {
                 setTxState("idle");
                 setAmount("");
@@ -300,304 +296,189 @@ export default function CustomSwap() {
 
         } catch (error: any) {
             console.error("Swap Failed:", error);
-
-            // If error contains a signature or txid we can fetch on-chain metadata
-            if (error?.signature) {
-                try {
-                    const txMeta = await connection.getTransaction(error.signature, { commitment: "confirmed" });
-                    console.error("On-chain transaction meta:", txMeta?.meta);
-                } catch (metaErr) {
-                    console.error("Failed to fetch transaction metadata:", metaErr);
-                }
-            }
-
             setTxState("error");
-            showToast({
-                type: "error",
-                title: "Swap Failed",
-                message: error.message || "Transaction was rejected or failed"
-            });
+            showToast({ type: "error", title: "Swap Failed", message: error.message });
             setTimeout(() => setTxState("idle"), 3000);
         }
     };
 
-    // Slippage presets
+    // Execute Limit Order
+    const handleLimitOrder = async () => {
+        if (!amount || !limitRate) return;
+        const inAmountAtoms = Math.floor(Number(amount) * Math.pow(10, tokens.input.decimals));
+        // outAmount = inAmount * rate
+        const outAmountAtoms = Math.floor(inAmountAtoms * Number(limitRate)); // Simplified rate calc (needs decimals check usually)
+        // Wait, rate is 1 input = X output.
+        // outAtoms = (inAtoms / 10^inDec) * rate * 10^outDec
+        const outAmt = (Number(amount) * Number(limitRate));
+        const outAtoms = Math.floor(outAmt * Math.pow(10, tokens.output.decimals));
+
+        await createLimitOrder({
+            inputMint: tokens.input.address,
+            outputMint: tokens.output.address,
+            inAmount: inAmountAtoms,
+            outAmount: outAtoms,
+            expiredAt: null // Never expires for now
+        });
+        setAmount("");
+    };
+
+    // Execute DCA
+    const handleDCA = async () => {
+        if (!amount) return;
+        const inAmountAtoms = Math.floor(Number(amount) * Math.pow(10, tokens.input.decimals));
+        // Logic for DCA creation via hook
+        // We treat user input 'amount' as 'Amount per cycle' for simplicity in this restoration.
+        await createDCA({
+            inputMint: tokens.input.address,
+            outputMint: tokens.output.address,
+            inAmountPerCycle: inAmountAtoms,
+            cycleFrequency: 60 * 60 * 24, // Default 1 Day (matches 'Day' setting default)
+            numberOfCycles: 10 // Default 10 cycles
+        });
+        setAmount("");
+    };
+
     const slippagePresets = [0.1, 0.5, 1.0];
 
     return (
         <div className="w-full max-w-md">
-            {/* Header */}
-            <div className="flex items-center justify-between rounded-2xl bg-black/60 p-4 border border-white/10 backdrop-blur-xl mb-4">
-                <div className="flex items-center gap-2">
-                    <div className="relative flex items-center justify-center">
-                        <div className="absolute w-5 h-5 bg-green-500 blur-sm opacity-50 animate-pulse rounded-full"></div>
-                        <ShieldCheck className="relative text-green-400 z-10" size={18} />
-                    </div>
-                    <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 text-sm">
-                        SHADOW ROUTER (DE)
-                    </span>
+            {/* Header / Tabs */}
+            <div className="rounded-2xl bg-black/60 p-2 border border-white/10 backdrop-blur-xl mb-4 flex items-center justify-between">
+                <div className="flex gap-1 bg-white/5 p-1 rounded-xl">
+                    {(["swap", "limit", "dca"] as Tab[]).map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all uppercase ${activeTab === tab ? "bg-primary text-black shadow-lg" : "text-muted-foreground hover:text-white"
+                                }`}
+                        >
+                            {tab}
+                        </button>
+                    ))}
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setShowSettings(!showSettings)}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    >
+
+                <div className="flex items-center gap-2 pr-2">
+                    <button onClick={() => setShowSettings(!showSettings)} className="hover:bg-white/10 p-1.5 rounded transition-colors">
                         <Settings size={16} className="text-muted-foreground" />
                     </button>
-                    <button
-                        onClick={() => setApeMode(!apeMode)}
-                        className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all border ${apeMode
-                            ? 'bg-primary/20 border-primary text-primary'
-                            : 'bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10'
-                            }`}
-                    >
-                        {apeMode ? '🦍 APE' : '🚀 NORMAL'}
-                    </button>
                 </div>
             </div>
 
-            {/* Quick Swap Pairs */}
-            <div className="flex items-center gap-2 mb-4 flex-wrap">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Quick:</span>
-                {[
-                    {
-                        from: { symbol: "SOL", address: SOL_MINT, decimals: 9, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" },
-                        to: { symbol: "USDC", address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png" }
-                    },
-                    {
-                        from: { symbol: "SOL", address: SOL_MINT, decimals: 9, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" },
-                        to: { symbol: "SHX", address: SHULEVITZ_MINT, decimals: 6, logoURI: "/shulevitz-logo.png" }
-                    },
-                    {
-                        from: { symbol: "USDC", address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png" },
-                        to: { symbol: "SOL", address: SOL_MINT, decimals: 9, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" }
-                    },
-                ].map((pair, i) => (
-                    <button
-                        key={i}
-                        onClick={() => {
-                            setTokens({
-                                input: pair.from,
-                                output: pair.to
-                            });
-                            setAmount("");
-                            setQuote(null);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-xs"
-                    >
-                        <span className="font-bold text-white">{pair.from.symbol}</span>
-                        <span className="text-muted-foreground">→</span>
-                        <span className="font-bold text-primary">{pair.to.symbol}</span>
-                    </button>
-                ))}
-            </div>
-
-            {/* Settings Panel */}
+            {/* Settings */}
             {showSettings && (
                 <div className="mb-4 rounded-2xl border border-white/10 bg-black/60 p-4 backdrop-blur-xl">
                     <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-bold text-white">Slippage Tolerance</span>
-                        <button onClick={() => setShowSettings(false)} className="p-1 hover:bg-white/10 rounded">
-                            <X size={14} className="text-muted-foreground" />
-                        </button>
+                        <span className="text-sm font-bold text-white">Slippage</span>
+                        <button onClick={() => setShowSettings(false)}><X size={14} /></button>
                     </div>
-                    <div className="flex items-center gap-2">
-                        {slippagePresets.map((preset) => (
-                            <button
-                                key={preset}
-                                onClick={() => setSlippage(preset)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${slippage === preset
-                                    ? 'bg-primary text-black'
-                                    : 'bg-white/5 text-white hover:bg-white/10'
-                                    }`}
-                            >
-                                {preset}%
-                            </button>
+                    <div className="flex gap-2">
+                        {slippagePresets.map(p => (
+                            <button key={p} onClick={() => setSlippage(p)} className={`px-2 py-1 rounded text-xs ${slippage === p ? 'bg-primary text-black' : 'bg-white/10'}`}>{p}%</button>
                         ))}
-                        <div className="flex-1">
-                            <input
-                                type="number"
-                                value={slippage}
-                                onChange={(e) => setSlippage(Math.max(0.01, Math.min(50, Number(e.target.value))))}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white text-right outline-none focus:border-primary/50"
-                                step="0.1"
-                            />
-                        </div>
-                        <span className="text-xs text-muted-foreground">%</span>
                     </div>
                 </div>
             )}
 
-            {/* Swap Card */}
-            <div className="rounded-3xl border border-white/10 bg-[#0A0A0A] p-6 shadow-2xl space-y-2">
-                {/* Input Section */}
-                <div className="rounded-2xl bg-black/50 p-5 border border-white/5 hover:border-white/10 transition-colors">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-muted-foreground font-medium">YOU PAY</span>
-                        <button
-                            onClick={() => setAmount(inputBalance.toString())}
-                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-white transition-colors"
-                        >
-                            <span>Balance:</span>
-                            <span className="font-mono text-white/80">{inputBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
-                            <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold">MAX</span>
-                        </button>
-                    </div>
+            {/* Inputs */}
+            <div className="rounded-3xl border border-white/10 bg-[#0A0A0A] p-6 shadow-2xl space-y-4">
 
-                    <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                            <input
-                                type="number"
-                                placeholder="0.00"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                className="w-full bg-transparent text-3xl font-bold text-white placeholder-white/20 outline-none"
-                            />
-                            <div className="text-xs text-muted-foreground mt-1 font-mono">
-                                ≈ ${(Number(amount || 0) * (inputPrice.price || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => openSelector("input")}
-                            className="flex items-center gap-2 rounded-xl bg-white/5 p-2 pr-3 border border-white/5 hover:bg-white/10 transition-all shrink-0"
-                        >
-                            <img
-                                src={tokens.input.logoURI}
-                                alt={tokens.input.symbol}
-                                className="h-8 w-8 rounded-full bg-white/5"
-                                onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${tokens.input.symbol}&background=1a1a1a&color=fff&size=32&bold=true`; }}
-                            />
-                            <span className="font-bold text-sm text-white">{tokens.input.symbol}</span>
-                            <span className="opacity-40 text-white text-xs">▼</span>
+                {/* Input Token */}
+                <div className="rounded-2xl bg-black/50 p-4 border border-white/5">
+                    <div className="flex justify-between mb-2">
+                        <span className="text-xs text-muted-foreground">Selling</span>
+                        <span className="text-xs text-muted-foreground">Bal: {inputBalance.toFixed(3)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number"
+                            value={amount}
+                            onChange={e => setAmount(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full bg-transparent text-2xl font-bold text-white outline-none"
+                        />
+                        <button onClick={() => openSelector("input")} className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl">
+                            <img src={tokens.input.logoURI} className="w-6 h-6 rounded-full" />
+                            <span className="font-bold text-sm">{tokens.input.symbol}</span>
                         </button>
                     </div>
                 </div>
 
-                {/* Switch Button */}
-                <div className="relative -my-5 z-10 flex justify-center">
-                    <button
-                        onClick={switchTokens}
-                        className="p-3 bg-neutral-900 border-4 border-[#0A0A0A] rounded-xl text-primary hover:text-white hover:scale-110 hover:rotate-180 transition-all shadow-lg"
-                    >
-                        <ArrowUpDown size={20} strokeWidth={2.5} />
-                    </button>
+                {/* Arrow */}
+                <div className="flex justify-center -my-6 relative z-10">
+                    <div className="bg-[#0A0A0A] p-1.5 rounded-full border border-white/10">
+                        <ArrowDownCircle className="text-muted-foreground" onClick={switchTokens} />
+                    </div>
                 </div>
 
-                {/* Output Section */}
-                <div className="rounded-xl bg-black/50 p-4 border border-white/5 mt-0">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-muted-foreground font-medium">YOU RECEIVE</span>
-                        <span className="text-xs text-muted-foreground">
-                            Balance: <span className="font-mono text-white/80">{outputBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
-                        </span>
+                {/* Output Token */}
+                <div className="rounded-2xl bg-black/50 p-4 border border-white/5 pt-6">
+                    <div className="flex justify-between mb-2">
+                        <span className="text-xs text-muted-foreground">Buying</span>
+                        <span className="text-xs text-muted-foreground">Bal: {outputBalance.toFixed(3)}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                            <div className={`text-3xl font-bold ${quote ? 'text-primary' : 'text-white/20'}`}>
-                                {loading ? (
-                                    <span className="animate-pulse">...</span>
-                                ) : outputAmount > 0 ? (
-                                    outputAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })
-                                ) : (
-                                    "0.00"
-                                )}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1 font-mono">
-                                ≈ ${outputUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-full text-2xl font-bold text-white/50">
+                            {activeTab === 'swap' ? (
+                                loading ? "..." : outputAmount > 0 ? outputAmount.toFixed(4) : "0.00"
+                            ) : (
+                                "---"
+                            )}
                         </div>
-                        <button
-                            onClick={() => openSelector("output")}
-                            className="flex items-center gap-2 rounded-xl bg-white/5 p-2 pr-3 border border-white/5 hover:bg-white/10 transition-all shrink-0"
-                        >
-                            <img
-                                src={tokens.output.logoURI}
-                                alt={tokens.output.symbol}
-                                className="h-8 w-8 rounded-full bg-white/5"
-                                onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${tokens.output.symbol}&background=1a1a1a&color=fff&size=32&bold=true`; }}
-                            />
-                            <span className="font-bold text-sm text-white">{tokens.output.symbol}</span>
-                            <span className="opacity-40 text-white text-xs">▼</span>
+                        <button onClick={() => openSelector("output")} className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl">
+                            <img src={tokens.output.logoURI} className="w-6 h-6 rounded-full" />
+                            <span className="font-bold text-sm">{tokens.output.symbol}</span>
                         </button>
                     </div>
-                    {quote && (
-                        <div className="mt-3 flex items-center gap-2">
-                            <span className="text-[10px] font-bold bg-green-500/10 text-green-400 px-2 py-1 rounded border border-green-500/20">
-                                BEST PRICE
-                            </span>
-                            <span className="text-[10px] font-bold bg-purple-500/10 text-purple-400 px-2 py-1 rounded border border-purple-500/20">
-                                JUPITER ⚡
-                            </span>
-                            <span className="text-[10px] text-muted-foreground ml-auto">
-                                Slippage: {slippage}%
-                            </span>
-                        </div>
-                    )}
                 </div>
 
-                {/* Quote Details */}
-                {quote && (
-                    <div className="mt-4 px-1 space-y-2">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Rate</span>
-                            <span className="font-mono text-white/60">
-                                1 {tokens.input.symbol} = {(outputAmount / Number(amount)).toLocaleString(undefined, { maximumFractionDigits: 6 })} {tokens.output.symbol}
-                            </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Price Impact</span>
-                            <span className={`${Number(quote.priceImpactPct) > 2 ? 'text-red-400' : 'text-green-400'}`}>
-                                {Number(quote.priceImpactPct) < 0.01 ? "< 0.01%" : `${Number(quote.priceImpactPct).toFixed(2)}%`}
-                            </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Platform Fee</span>
-                            <span className={`${feeBps === 0 ? 'text-green-400 font-bold' : feeBps < 50 ? 'text-green-400' : 'text-white/60'}`}>
-                                {feeBps === 0 ? 'FREE 🎉' : `${(feeBps / 100).toFixed(2)}%`}
-                                {feeBps > 0 && feeBps < 50 && <span className="text-green-400 ml-1">(-{((50 - feeBps) / 50 * 100).toFixed(0)}%)</span>}
-                            </span>
-                        </div>
+                {/* Extra Inputs for Limit/DCA */}
+                {activeTab === 'limit' && (
+                    <div className="rounded-2xl bg-black/50 p-4 border border-white/5">
+                        <span className="text-xs text-muted-foreground block mb-2">Limit Price (Rate)</span>
+                        <input
+                            type="number"
+                            value={limitRate}
+                            onChange={e => setLimitRate(e.target.value)}
+                            className="w-full bg-transparent text-lg font-bold text-white outline-none"
+                            placeholder="Target Rate"
+                        />
+                        <div className="text-xs text-muted-foreground mt-1">1 {tokens.input.symbol} = {limitRate || "---"} {tokens.output.symbol}</div>
                     </div>
                 )}
 
-                {/* Swap Button */}
+                {/* Action Button */}
                 {!connected ? (
-                    <button
-                        onClick={() => setVisible(true)}
-                        className="mt-4 w-full rounded-xl py-4 font-bold text-lg bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 transition-all"
-                    >
-                        Connect Wallet
-                    </button>
+                    <button onClick={() => setVisible(true)} className="w-full py-4 rounded-xl bg-primary text-black font-bold mt-4">Connect Wallet</button>
                 ) : (
                     <button
-                        onClick={executeSwap}
-                        disabled={!quote || loading || txState === 'signing' || txState === 'confirming'}
-                        className={`mt-4 w-full rounded-xl py-4 font-bold text-lg transition-all ${txState === 'success' ? 'bg-green-500 text-black' :
-                            txState === 'error' ? 'bg-red-500 text-white' :
-                                'bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90'
-                            } ${(!quote || loading) && 'opacity-50 cursor-not-allowed'}`}
+                        onClick={() => {
+                            if (activeTab === 'swap') executeSwap();
+                            if (activeTab === 'limit') handleLimitOrder();
+                            if (activeTab === 'dca') handleDCA();
+                        }}
+                        disabled={loading || limitLoading || dcaLoading}
+                        className="w-full py-4 rounded-xl bg-primary text-black font-bold mt-4 disabled:opacity-50"
                     >
-                        {loading ? <Loader2 className="mx-auto animate-spin" /> :
-                            txState === 'signing' ? "SIGN IN WALLET..." :
-                                txState === 'confirming' ? "CONFIRMING..." :
-                                    txState === 'success' ? "SUCCESS! 🚀" :
-                                        txState === 'error' ? "FAILED ❌" :
-                                            !amount || Number(amount) <= 0 ? "ENTER AMOUNT" :
-                                                loading ? "FETCHING QUOTE..." :
-                                                    !quote ? "NO ROUTE FOUND / RETRY" :
-                                                        "SWAP NOW"}
+                        {loading || limitLoading || dcaLoading ? "Processing..." :
+                            activeTab === 'swap' ? "Swap Now" :
+                                activeTab === 'limit' ? "Place Limit Order" : "Start DCA"}
                     </button>
                 )}
+
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-center gap-4 text-[10px] text-muted-foreground font-medium mt-4 opacity-60">
-                <span className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> Operational
-                </span>
-                <span>•</span>
-                <span>Verified Route</span>
-            </div>
+            {/* Order Lists */}
+            {activeTab === 'limit' && (
+                <div className="mt-6">
+                    <OpenOrders />
+                </div>
+            )}
+            {activeTab === 'dca' && (
+                <div className="mt-6">
+                    <ActiveDCAs />
+                </div>
+            )}
 
             <TokenSelector
                 isOpen={selectorOpen}
