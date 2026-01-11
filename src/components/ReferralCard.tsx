@@ -98,7 +98,7 @@ export function ReferralCard() {
                 <Gift size={14} className="text-green-400 shrink-0" />
                 <div className="flex flex-col">
                     <span className="text-[10px] text-green-400 font-bold">
-                        Earn 10% of fees
+                        Instant 10% Payouts (Per Trade)
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                         + 20% volume bonus in XP!

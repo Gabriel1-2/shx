@@ -1,0 +1,5 @@
+src/hooks/useLimitOrders.ts(36,59): error TS2554: Expected 1 arguments, but got 2.
+src/hooks/useLimitOrders.ts(85,58): error TS2554: Expected 1 arguments, but got 2.
+src/hooks/useLimitOrders.ts(91,65): error TS2554: Expected 1 arguments, but got 2.
+src/hooks/useLimitOrders.ts(130,42): error TS2554: Expected 1 arguments, but got 2.
+src/hooks/useLimitOrders.ts(135,49): error TS2554: Expected 1 arguments, but got 2.

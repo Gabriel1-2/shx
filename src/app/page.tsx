@@ -24,10 +24,10 @@ function HomeContent() {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAyKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50"></div>
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-6 md:py-12">
+      <div className="relative z-10 container mx-auto px-4 py-6 md:py-12 flex flex-col lg:block">
 
         {/* Hero Section */}
-        <div className="text-center mb-6 md:mb-10">
+        <div className="text-center mb-6 md:mb-10 order-2 lg:order-none mt-8 lg:mt-0">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
             <span className="text-xs font-medium text-primary">Frankfurt Node Active • Geo-Bypass Enabled</span>
@@ -46,7 +46,7 @@ function HomeContent() {
         </div>
 
         {/* Feature Pills */}
-        <div className="flex flex-wrap justify-center gap-3 mb-10">
+        <div className="flex flex-wrap justify-center gap-3 mb-10 order-3 lg:order-none">
           {[
             { icon: Shield, label: "Non-Custodial", color: "text-green-400" },
             { icon: Globe, label: "No Geo-Blocks", color: "text-blue-400" },
@@ -61,7 +61,7 @@ function HomeContent() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-12 max-w-7xl mx-auto">
+        <div className="grid gap-6 lg:grid-cols-12 max-w-7xl mx-auto order-1 lg:order-none w-full">
 
           {/* Left Sidebar - Market Watch */}
           <div className="hidden xl:block xl:col-span-3 space-y-4">

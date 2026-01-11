@@ -60,7 +60,7 @@ export function useTokenBalance(tokenMint: string, decimals: number = 9) {
 }
 
 export function useTokenPrice(tokenMint: string) {
-    const [price, setPrice] = useState<number>(0);
+    const [data, setData] = useState({ price: 0, pairAddress: "" });
 
     useEffect(() => {
         if (!tokenMint) return;
@@ -68,7 +68,7 @@ export function useTokenPrice(tokenMint: string) {
         const fetchPrice = async () => {
             // USDC hardcode
             if (tokenMint === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v") {
-                setPrice(1);
+                setData({ price: 1, pairAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" }); // This might need a real USDC pair for chart
                 return;
             }
 
@@ -76,9 +76,14 @@ export function useTokenPrice(tokenMint: string) {
                 // Primary: DexScreener (Rich data)
                 const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
                 if (res.ok) {
-                    const data = await res.json();
-                    if (data.pairs && data.pairs.length > 0) {
-                        setPrice(parseFloat(data.pairs[0].priceUsd));
+                    const apiData = await res.json();
+                    if (apiData.pairs && apiData.pairs.length > 0) {
+                        // Find best pair (usually first one is highest liquidity)
+                        const bestPair = apiData.pairs[0];
+                        setData({
+                            price: parseFloat(bestPair.priceUsd),
+                            pairAddress: bestPair.pairAddress
+                        });
                         return;
                     }
                 }
@@ -88,7 +93,10 @@ export function useTokenPrice(tokenMint: string) {
                 const jupRes = await fetch(`https://api.jup.ag/price/v2?ids=${tokenMint}`);
                 const jupData = await jupRes.json();
                 if (jupData.data && jupData.data[tokenMint]) {
-                    setPrice(parseFloat(jupData.data[tokenMint].price));
+                    setData({
+                        price: parseFloat(jupData.data[tokenMint].price),
+                        pairAddress: "" // No chart data from Jup Price API
+                    });
                 }
             } catch (e) {
                 console.error("Price fetch failed", e);
@@ -98,5 +106,5 @@ export function useTokenPrice(tokenMint: string) {
         fetchPrice();
     }, [tokenMint]);
 
-    return price;
+    return data;
 }

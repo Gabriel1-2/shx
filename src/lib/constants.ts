@@ -1,0 +1,8 @@
+
+import { PublicKey } from "@solana/web3.js";
+
+// REPLACE THIS WITH YOUR MAIN SOL WALLET ADDRESS
+export const ADMIN_WALLET_SOL = new PublicKey("JDrrSGeaeW7AR2GbVLybBjGyC2aZg942WD7GkizGTqvq");
+
+export const SOL_MINT = "So11111111111111111111111111111111111111112";
+export const SHULEVITZ_MINT = "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q";

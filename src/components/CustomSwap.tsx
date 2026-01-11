@@ -14,12 +14,11 @@ import { TokenSelector } from "./TokenSelector";
 import { useTokenBalance, useTokenPrice } from "@/hooks/useTokenData";
 import { useToast } from "./Toast";
 import { useSwapEffects } from "@/hooks/useSwapEffects";
+import { ADMIN_WALLET_SOL, SOL_MINT, SHULEVITZ_MINT } from "@/lib/constants";
 
 // Constants
-const SOL_MINT = "So11111111111111111111111111111111111111112";
-const SHULEVITZ_MINT = "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q";
 const TOKEN_PROGRAM_ID_STR = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-const DEFAULT_FEE_ACCOUNT = "315sEtamwE8CvKJrARkBRW6kwMDxP8WRPnFnBY4CBA7r"; // platform fee account
+// DEFAULT_FEE_ACCOUNT replaced by ADMIN_WALLET_SOL from constants
 
 interface TokenInfo {
     symbol: string;
@@ -160,7 +159,7 @@ export default function CustomSwap() {
 
     // Calculate output amount from quote
     const outputAmount = quote ? (Number(quote.outAmount) / Math.pow(10, tokens.output.decimals)) : 0;
-    const outputUSD = outputAmount * outputPrice;
+    const outputUSD = outputAmount * (outputPrice.price || 0);
 
     // Switch Tokens Helper
     const switchTokens = () => {
@@ -216,7 +215,7 @@ export default function CustomSwap() {
                 wrapAndUnwrapSol: true,
                 platformFee: {
                     feeBps: feeBps, // e.g. 50 for 0.5%
-                    feeAccount: DEFAULT_FEE_ACCOUNT
+                    feeAccount: ADMIN_WALLET_SOL.toString()
                 }
             };
 
@@ -270,7 +269,7 @@ export default function CustomSwap() {
             });
 
             // Track rewards + referral earnings + save transaction
-            const volumeUSD = Number(amount) * inputPrice;
+            const volumeUSD = Number(amount) * (inputPrice.price || 0);
             const feeUSD = volumeUSD * (feeBps / 10000);
             await Promise.all([
                 addPoints(publicKey.toString(), Math.floor(volumeUSD * 10)),
@@ -455,7 +454,7 @@ export default function CustomSwap() {
                                 className="w-full bg-transparent text-3xl font-bold text-white placeholder-white/20 outline-none"
                             />
                             <div className="text-xs text-muted-foreground mt-1 font-mono">
-                                ≈ ${$(Number(amount || 0) * inputPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ≈ ${(Number(amount || 0) * (inputPrice.price || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         <button

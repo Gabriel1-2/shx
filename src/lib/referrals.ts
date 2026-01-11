@@ -170,3 +170,19 @@ export async function getTopReferrers(limitCount: number = 10) {
         return [];
     }
 }
+
+// Get the wallet address of the person who referred this user
+export async function getReferrer(userWallet: string): Promise<string | null> {
+    try {
+        const userRef = doc(db, "users", userWallet);
+        const userDoc = await getDoc(userRef);
+
+        if (userDoc.exists() && userDoc.data().referredBy) {
+            return userDoc.data().referredBy;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error getting referrer:", error);
+        return null;
+    }
+}
