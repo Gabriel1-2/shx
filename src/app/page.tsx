@@ -7,6 +7,8 @@ import { SystemStatus } from "@/components/SystemStatus";
 import { MarketWatch } from "@/components/MarketWatch";
 import { LiveFeed } from "@/components/LiveFeed";
 import CustomSwap from "@/components/CustomSwap";
+import { TradingViewWidget } from "@/components/TradingViewWidget";
+import { SHULEVITZ_MINT } from "@/lib/constants";
 import { useReferralCapture } from "@/hooks/useReferralCapture";
 import { Zap, Shield, Globe, TrendingUp } from "lucide-react";
 
@@ -60,20 +62,25 @@ function HomeContent() {
           ))}
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-12 max-w-7xl mx-auto order-1 lg:order-none w-full">
+        {/* Main Content Grid (Pro Mode: 8:4) */}
+        <div className="grid gap-6 lg:grid-cols-12 max-w-[1600px] mx-auto order-1 lg:order-none w-full px-4">
 
-          {/* Left Sidebar - Market Watch */}
-          <div className="hidden xl:block xl:col-span-3 space-y-4">
-            <MarketWatch />
-            <LiveFeed />
+          {/* Left Column: Chart */}
+          <div className="hidden lg:block lg:col-span-8 space-y-4">
+            {/* Chart Widget - Using SHX Mint as pair address */}
+            <TradingViewWidget pairAddress={SHULEVITZ_MINT} />
+
+            <div className="grid grid-cols-2 gap-4">
+              <MarketWatch />
+              <LiveFeed />
+            </div>
           </div>
 
-          {/* Center - Swap Interface */}
-          <div className="lg:col-span-12 xl:col-span-6 flex flex-col items-center">
+          {/* Right Column: Swap Interface */}
+          <div className="lg:col-span-4 flex flex-col">
             <CustomSwap />
 
-            {/* Trust Badges */}
+            {/* Trust Badges moved here */}
             <div className="flex items-center justify-center gap-6 mt-6 text-muted-foreground">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
@@ -81,26 +88,18 @@ function HomeContent() {
               </div>
               <div className="h-3 w-px bg-white/10"></div>
               <span className="text-[10px] uppercase tracking-wider">Verified Routes</span>
-              <div className="h-3 w-px bg-white/10"></div>
-              <span className="text-[10px] uppercase tracking-wider">Best Prices</span>
             </div>
 
-            {/* Mobile sidebars */}
-            <div className="xl:hidden w-full max-w-md mt-8 space-y-4">
+            {/* Mobile-only additional widgets below swap */}
+            <div className="lg:hidden mt-8 space-y-4">
               <MarketWatch />
               <LiveFeed />
-              <FeeTransparency />
-              <SystemStatus />
+            </div>
+
+            <div className="hidden lg:block mt-4">
+              <Leaderboard />
             </div>
           </div>
-
-          {/* Right Sidebar */}
-          <div className="hidden xl:block xl:col-span-3 space-y-4">
-            <Leaderboard />
-            <FeeTransparency />
-            <SystemStatus />
-          </div>
-
         </div>
 
         {/* Bottom Stats Bar */}

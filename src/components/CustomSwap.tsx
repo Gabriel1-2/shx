@@ -373,8 +373,8 @@ export default function CustomSwap() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all z-10 ${activeTab === tab
-                                ? "bg-white/10 text-white shadow-lg border border-white/10"
-                                : "text-muted-foreground hover:text-white hover:bg-white/5"
+                            ? "bg-white/10 text-white shadow-lg border border-white/10"
+                            : "text-muted-foreground hover:text-white hover:bg-white/5"
                             }`}
                     >
                         {tab}
@@ -394,6 +394,10 @@ export default function CustomSwap() {
                         {
                             from: { symbol: "SOL", address: SOL_MINT, decimals: 9, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" },
                             to: { symbol: "SHX", address: SHULEVITZ_MINT, decimals: 6, logoURI: "/shulevitz-logo.png" }
+                        },
+                        {
+                            from: { symbol: "SHX", address: SHULEVITZ_MINT, decimals: 6, logoURI: "/shulevitz-logo.png" },
+                            to: { symbol: "SOL", address: SOL_MINT, decimals: 9, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" }
                         },
                     ].map((pair, i) => (
                         <button
@@ -620,8 +624,8 @@ export default function CustomSwap() {
                         }}
                         disabled={loading || limitLoading || dcaLoading || (activeTab === 'swap' && !quote)}
                         className={`mt-4 w-full rounded-xl py-4 font-bold text-lg transition-all ${txState === 'success' ? 'bg-green-500 text-black' :
-                                txState === 'error' ? 'bg-red-500 text-white' :
-                                    'bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
+                            txState === 'error' ? 'bg-red-500 text-white' :
+                                'bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
                             } ${(!quote && activeTab === 'swap') || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {loading ? <Loader2 className="mx-auto animate-spin" /> :
