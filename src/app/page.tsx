@@ -31,41 +31,39 @@ function HomeContent() {
 
       <div className={`relative z-10 container mx-auto px-4 py-6 md:py-12 flex flex-col lg:block transition-all duration-500 ${isChartVisible ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
 
-        {/* Hero Section (Condensed if Chart is open) */}
-        <div className={`text-center mb-6 md:mb-10 order-2 lg:order-none mt-8 lg:mt-0 transition-all ${isChartVisible ? 'opacity-50 hover:opacity-100 scale-90' : ''}`}>
-          {!isChartVisible && (
-            <>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4 transition-all">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                <span className="text-xs font-medium text-primary">Frankfurt Node Active • Geo-Bypass Enabled</span>
-              </div>
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black mb-4">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-lime-400 to-emerald-500">
-                  SWAP ANYTHING
-                </span>
-                <br />
-                <span className="text-white">FROM ANYWHERE</span>
-              </h1>
-            </>
-          )}
+        {/* Hero Section - Always Visible */}
+        <div className={`text-center mb-6 md:mb-10 order-2 lg:order-none mt-8 lg:mt-0 transition-all duration-500`}>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4 transition-all">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span className="text-xs font-medium text-primary">Frankfurt Node Active • Geo-Bypass Enabled</span>
+          </div>
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-black mb-4">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-lime-400 to-emerald-500">
+              SWAP ANYTHING
+            </span>
+            <br />
+            <span className="text-white">FROM ANYWHERE</span>
+          </h1>
+          <p className="text-muted-foreground max-w-xl mx-auto text-sm md:text-base">
+            The trader-first DEX that works when others don't.
+            Zero KYC. Self-custody. Access from any region.
+          </p>
         </div>
 
-        {/* Feature Pills (Hidden in Chart Mode to save space) */}
-        {!isChartVisible && (
-          <div className="flex flex-wrap justify-center gap-3 mb-10 order-3 lg:order-none">
-            {[
-              { icon: Shield, label: "Non-Custodial", color: "text-green-400" },
-              { icon: Globe, label: "No Geo-Blocks", color: "text-blue-400" },
-              { icon: Zap, label: "Jupiter Routing", color: "text-yellow-400" },
-              { icon: TrendingUp, label: "Fee Rewards", color: "text-purple-400" },
-            ].map((feature, i) => (
-              <div key={i} className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
-                <feature.icon size={14} className={feature.color} />
-                <span className="text-xs font-medium text-white">{feature.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Feature Pills - Always Visible */}
+        <div className="flex flex-wrap justify-center gap-3 mb-10 order-3 lg:order-none">
+          {[
+            { icon: Shield, label: "Non-Custodial", color: "text-green-400" },
+            { icon: Globe, label: "No Geo-Blocks", color: "text-blue-400" },
+            { icon: Zap, label: "Jupiter Routing", color: "text-yellow-400" },
+            { icon: TrendingUp, label: "Fee Rewards", color: "text-purple-400" },
+          ].map((feature, i) => (
+            <div key={i} className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
+              <feature.icon size={14} className={feature.color} />
+              <span className="text-xs font-medium text-white">{feature.label}</span>
+            </div>
+          ))}
+        </div>
 
         {/* Dynamic Grid */}
         <div className={`grid gap-6 transition-all duration-500 ${isChartVisible ? 'lg:grid-cols-12' : 'lg:grid-cols-1 justify-center'}`}>
@@ -101,9 +99,19 @@ function HomeContent() {
                 <span className="text-[10px] uppercase tracking-wider">Verified Routes</span>
               </div>
 
-              <div className="hidden lg:block mt-4">
-                <Leaderboard />
-              </div>
+              {/* Show sidebar widgets on mobile or if chart is NOT visible (to fill space)? 
+                    Actually, in centered mode, we might miss the sidebar content that was there before.
+                    User asked "where is the rest of the stuff".
+                    In the OLD layout, we had specific sidebars.
+                    I should add them back for the "Simple Mode" (Centered) at least, maybe below or side-by-side on desktop.
+                    Let's restore the sidebars for Desktop Simple Mode.
+                */}
+
+              {/* Re-adding sidebars for Simple Mode Desktop */}
+            </div>
+
+            <div className="hidden lg:block mt-4">
+              <Leaderboard />
             </div>
           </div>
         </div>
