@@ -38,11 +38,11 @@ function HomeContent() {
             <span className="text-xs font-medium text-primary">Frankfurt Node Active • Geo-Bypass Enabled</span>
           </div>
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-black mb-4">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-lime-400 to-emerald-500">
-              SWAP ANYTHING
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
+              SHADOW ROUTER
             </span>
             <br />
-            <span className="text-white">FROM ANYWHERE</span>
+            <span className="text-white">UNSTOPPABLE DEX</span>
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto text-sm md:text-base">
             The trader-first DEX that works when others don't.
@@ -66,21 +66,34 @@ function HomeContent() {
         </div>
 
         {/* Dynamic Grid */}
-        <div className={`grid gap-6 transition-all duration-500 ${isChartVisible ? 'lg:grid-cols-12' : 'lg:grid-cols-1 justify-center'}`}>
+        <div className={`grid gap-6 transition-all duration-500 ${isChartVisible ? 'lg:grid-cols-12' : 'lg:grid-cols-12 xl:grid-cols-12'}`}>
+          {/* Note: Using 12-col grid for both modes allows flexible rearrangement */}
 
-          {/* Left Column: Chart (Conditionally Rendered) */}
-          {isChartVisible && (
+          {/* LEFT COLUMN */}
+          {/* Chart Mode: Chart (8 cols) */}
+          {/* Simple Mode: Market Watch (3 cols) */}
+          {isChartVisible ? (
             <div className="hidden lg:block lg:col-span-8 space-y-4 animate-in fade-in slide-in-from-right duration-500">
               <TradingViewWidget pairAddress={chartPairAddress} />
+              {/* Stats under chart */}
               <div className="grid grid-cols-2 gap-4">
                 <MarketWatch />
                 <LiveFeed />
               </div>
             </div>
+          ) : (
+            <div className="hidden xl:block xl:col-span-3 space-y-4 animate-in fade-in slide-in-from-left duration-500">
+              <MarketWatch />
+              <LiveFeed />
+              {/* Mobile/Tablet users might miss this content if we hide it too aggressively on lg. 
+                    Let's keep it XL only for the full dashboard look. */}
+            </div>
           )}
 
-          {/* Right Column: Swap Interface */}
-          <div className={`${isChartVisible ? 'lg:col-span-4' : 'lg:col-span-12 flex justify-center'} flex-col transition-all duration-500`}>
+          {/* CENTER/RIGHT COLUMN */}
+          {/* Chart Mode: Swap (4 cols) */}
+          {/* Simple Mode: Swap (6 cols centered) */}
+          <div className={`${isChartVisible ? 'lg:col-span-4' : 'lg:col-span-12 xl:col-span-6 flex flex-col items-center'} transition-all duration-500`}>
             {/* Wrapper to control width in centered mode */}
             <div className={`w-full ${isChartVisible ? '' : 'max-w-md mx-auto'} transition-all`}>
               <CustomSwap
@@ -99,21 +112,30 @@ function HomeContent() {
                 <span className="text-[10px] uppercase tracking-wider">Verified Routes</span>
               </div>
 
-              {/* Show sidebar widgets on mobile or if chart is NOT visible (to fill space)? 
-                    Actually, in centered mode, we might miss the sidebar content that was there before.
-                    User asked "where is the rest of the stuff".
-                    In the OLD layout, we had specific sidebars.
-                    I should add them back for the "Simple Mode" (Centered) at least, maybe below or side-by-side on desktop.
-                    Let's restore the sidebars for Desktop Simple Mode.
-                */}
-
-              {/* Re-adding sidebars for Simple Mode Desktop */}
-            </div>
-
-            <div className="hidden lg:block mt-4">
-              <Leaderboard />
+              {/* Mobile Sidebars Stack */}
+              <div className="xl:hidden w-full mt-8 space-y-4">
+                {/* Show these if not in chart mode or if using mobile */}
+                {!isChartVisible && (
+                  <>
+                    <MarketWatch />
+                    <LiveFeed />
+                    <FeeTransparency />
+                    <SystemStatus />
+                  </>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* RIGHT COLUMN (Simple Mode Only) */}
+          {/* Only visible when Chart is CLOSED */}
+          {!isChartVisible && (
+            <div className="hidden xl:block xl:col-span-3 space-y-4 animate-in fade-in slide-in-from-right duration-500">
+              <Leaderboard />
+              <FeeTransparency />
+              <SystemStatus />
+            </div>
+          )}
         </div>
 
         {/* Footer */}
