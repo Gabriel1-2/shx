@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction, PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown, Clock, BarChart2, Maximize2, Minimize2 } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
 import { calculateFeeBps } from "@/lib/feeTiers";
@@ -240,13 +241,30 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                 return;
             }
 
+            // Calculate correct Fee Account
+            let feeAccount = ADMIN_WALLET_SOL.toString();
+            if (feeBps > 0 && tokens.output.address !== SOL_MINT) {
+                try {
+                    const adminPub = new PublicKey(ADMIN_WALLET_SOL);
+                    const mintPub = new PublicKey(tokens.output.address);
+                    // We must find the ATA for the admin wallet for this specific output token
+                    // Note: This assumes the admin wallet ALREADY has this ATA created.
+                    const ata = await getAssociatedTokenAddress(mintPub, adminPub);
+                    feeAccount = ata.toString();
+                } catch (e) {
+                    console.error("Failed to derive Admin ATA", e);
+                    // Fallback to SOL wallet (will likely fail if Jup strict, but safe fallback)
+                    feeAccount = ADMIN_WALLET_SOL.toString();
+                }
+            }
+
             const body = {
                 quoteResponse: quote,
                 userPublicKey: publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 platformFee: {
                     feeBps: feeBps,
-                    feeAccount: ADMIN_WALLET_SOL.toString()
+                    feeAccount: feeAccount
                 }
             };
 
@@ -413,8 +431,8 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all z-10 ${activeTab === tab
-                                ? "bg-white/10 text-white shadow-lg border border-white/10"
-                                : "text-muted-foreground hover:text-white hover:bg-white/5"
+                            ? "bg-white/10 text-white shadow-lg border border-white/10"
+                            : "text-muted-foreground hover:text-white hover:bg-white/5"
                             }`}
                     >
                         {tab}
@@ -640,8 +658,8 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                                             key={int}
                                             onClick={() => setDcaInterval(int)}
                                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${dcaInterval === int
-                                                    ? 'bg-primary/20 border-primary text-primary'
-                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                ? 'bg-primary/20 border-primary text-primary'
+                                                : 'bg-white/5 border-white/10 hover:bg-white/10'
                                                 }`}
                                         >
                                             {int}
@@ -696,8 +714,8 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                         }}
                         disabled={loading || limitLoading || dcaLoading || (activeTab === 'swap' && !quote)}
                         className={`mt-4 w-full rounded-xl py-4 font-bold text-lg transition-all ${txState === 'success' ? 'bg-green-500 text-black' :
-                                txState === 'error' ? 'bg-red-500 text-white' :
-                                    'bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
+                            txState === 'error' ? 'bg-red-500 text-white' :
+                                'bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
                             } ${(!quote && activeTab === 'swap') || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {loading ? <Loader2 className="mx-auto animate-spin" /> :
