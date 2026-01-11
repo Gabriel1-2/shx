@@ -52,8 +52,9 @@ export function useLimitOrders() {
                 base: new PublicKey(params.inputMint).toBase58(), // Usually input mint is base
             };
 
-            // 2. Fetch Transaction from Jupiter
-            const response = await fetch("https://api.jup.ag/trigger/v1/createOrder", {
+            // 2. Fetch Transaction from Jupiter Limit Order API (Public)
+            // https://jup.ag/api/limit/v1/createOrder
+            const response = await fetch("https://jup.ag/api/limit/v1/createOrder", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
@@ -106,7 +107,7 @@ export function useLimitOrders() {
                 orders: [orderPubkey]
             };
 
-            const response = await fetch("https://api.jup.ag/trigger/v1/cancelOrders", {
+            const response = await fetch("https://jup.ag/api/limit/v1/cancelOrders", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),

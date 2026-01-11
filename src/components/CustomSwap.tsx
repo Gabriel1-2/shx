@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction, PublicKey } from "@solana/web3.js";
-import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown, Clock } from "lucide-react";
+import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown, Clock, BarChart2, Maximize2, Minimize2 } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
 import { calculateFeeBps } from "@/lib/feeTiers";
 import { getShulevitzHoldingsUSD, clearBalanceCache } from "@/lib/tokenBalance";
@@ -32,7 +32,13 @@ interface TokenInfo {
 
 type Tab = "swap" | "limit" | "dca";
 
-export default function CustomSwap() {
+interface CustomSwapProps {
+    onToggleChart?: () => void;
+    onPairChange?: (address: string) => void;
+    isChartOpen?: boolean;
+}
+
+export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = false }: CustomSwapProps) {
     const { connection } = useConnection();
     const { publicKey, signTransaction, connected } = useWallet();
     const { setVisible } = useWalletModal();
@@ -65,6 +71,9 @@ export default function CustomSwap() {
     // Limit State
     const [limitRate, setLimitRate] = useState("");
 
+    // DCA State
+    const [dcaInterval, setDcaInterval] = useState<"Day" | "Hour" | "Minute">("Day");
+
     // Settings State
     const [showSettings, setShowSettings] = useState(false);
     const [slippage, setSlippage] = useState(0.5); // Default 0.5%
@@ -87,10 +96,22 @@ export default function CustomSwap() {
 
     const handleTokenSelect = (token: any) => {
         setQuote(null);
-        setTokens(prev => ({
-            ...prev,
-            [activeSelector]: { symbol: token.symbol, address: token.address, decimals: token.decimals || 9, logoURI: token.logoURI }
-        }));
+        setTokens(prev => {
+            const newTokens = {
+                ...prev,
+                [activeSelector]: { symbol: token.symbol, address: token.address, decimals: token.decimals || 9, logoURI: token.logoURI }
+            };
+
+            // Notify parent of output token change (usually want to chart the output or the pair)
+            // Strategy: Chart the non-SOL token if possible, else output.
+            if (onPairChange) {
+                const target = activeSelector === 'output' ? token.address : prev.output.address;
+                // If target is SOL, maybe chart the other one?
+                if (target === SOL_MINT && prev.input.address !== SOL_MINT) onPairChange(prev.input.address);
+                else onPairChange(target);
+            }
+            return newTokens;
+        });
     };
 
     // Calculate market rate for auto-filling Limit inputs
@@ -179,6 +200,7 @@ export default function CustomSwap() {
         setTokens({ input: tokens.output, output: temp });
         setAmount("");
         setQuote(null);
+        if (onPairChange) onPairChange(temp.address); // Sync chart to new output (which was input)
     };
 
     // Helper: check if user has ATA for output token
@@ -322,12 +344,16 @@ export default function CustomSwap() {
         if (!amount) return;
         const inAmountAtoms = Math.floor(Number(amount) * Math.pow(10, tokens.input.decimals));
 
+        let cycleSeconds = 60 * 60 * 24; // Day
+        if (dcaInterval === "Hour") cycleSeconds = 60 * 60;
+        if (dcaInterval === "Minute") cycleSeconds = 60;
+
         await createDCA({
             inputMint: tokens.input.address,
             outputMint: tokens.output.address,
             inAmountPerCycle: inAmountAtoms,
-            cycleFrequency: 60 * 60 * 24, // Default 1 Day
-            numberOfCycles: 10
+            cycleFrequency: cycleSeconds,
+            numberOfCycles: 10 // Default 10 cycles for now, could be input too
         });
         setAmount("");
     };
@@ -335,7 +361,7 @@ export default function CustomSwap() {
     const slippagePresets = [0.1, 0.5, 1.0];
 
     return (
-        <div className="w-full max-w-md">
+        <div className="w-full">
             {/* Header */}
             <div className="flex items-center justify-between rounded-2xl bg-black/60 p-4 border border-white/10 backdrop-blur-xl mb-4">
                 <div className="flex items-center gap-2">
@@ -343,11 +369,25 @@ export default function CustomSwap() {
                         <div className="absolute w-5 h-5 bg-green-500 blur-sm opacity-50 animate-pulse rounded-full"></div>
                         <ShieldCheck className="relative text-green-400 z-10" size={18} />
                     </div>
-                    <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 text-sm">
-                        SHADOW ROUTER
-                    </span>
+                    {/* Hide Title if Chart Open to save space on mobile/compact */}
+                    {!isChartOpen && (
+                        <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 text-sm hidden sm:block">
+                            SHADOW ROUTER
+                        </span>
+                    )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Toggle Chart Button */}
+                    {onToggleChart && (
+                        <button
+                            onClick={onToggleChart}
+                            className={`p-2 rounded-lg transition-colors border ${isChartOpen ? 'bg-primary/20 border-primary text-primary' : 'hover:bg-white/10 border-transparent text-muted-foreground'}`}
+                            title="Toggle Chart"
+                        >
+                            {isChartOpen ? <Minimize2 size={16} /> : <BarChart2 size={16} />}
+                        </button>
+                    )}
+
                     <button
                         onClick={() => setShowSettings(!showSettings)}
                         className="p-2 hover:bg-white/10 rounded-lg transition-colors"
@@ -361,7 +401,7 @@ export default function CustomSwap() {
                             : 'bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10'
                             }`}
                     >
-                        {apeMode ? '🦍 APE' : '🚀 NORMAL'}
+                        {apeMode ? '🦍 APE' : 'NORMAL'}
                     </button>
                 </div>
             </div>
@@ -373,8 +413,8 @@ export default function CustomSwap() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all z-10 ${activeTab === tab
-                            ? "bg-white/10 text-white shadow-lg border border-white/10"
-                            : "text-muted-foreground hover:text-white hover:bg-white/5"
+                                ? "bg-white/10 text-white shadow-lg border border-white/10"
+                                : "text-muted-foreground hover:text-white hover:bg-white/5"
                             }`}
                     >
                         {tab}
@@ -406,6 +446,7 @@ export default function CustomSwap() {
                                 setTokens({ input: pair.from, output: pair.to });
                                 setAmount("");
                                 setQuote(null);
+                                if (onPairChange) onPairChange(pair.to.address);
                             }}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-xs"
                         >
@@ -582,6 +623,37 @@ export default function CustomSwap() {
                     </div>
                 )}
 
+                {/* DCA Configuration */}
+                {activeTab === 'dca' && (
+                    <div className="rounded-2xl bg-black/50 p-4 border border-white/5">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Clock size={14} className="text-primary" />
+                            <span className="text-xs text-muted-foreground font-bold">DCA CONFIGURATION</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <span className="text-xs text-muted-foreground block mb-2">Interval</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {(['Minute', 'Hour', 'Day'] as const).map(int => (
+                                        <button
+                                            key={int}
+                                            onClick={() => setDcaInterval(int)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${dcaInterval === int
+                                                    ? 'bg-primary/20 border-primary text-primary'
+                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                }`}
+                                        >
+                                            {int}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+
                 {/* Quote Details (Swap Only) */}
                 {quote && activeTab === 'swap' && (
                     <div className="mt-4 px-1 space-y-2 border-t border-white/5 pt-3">
@@ -624,8 +696,8 @@ export default function CustomSwap() {
                         }}
                         disabled={loading || limitLoading || dcaLoading || (activeTab === 'swap' && !quote)}
                         className={`mt-4 w-full rounded-xl py-4 font-bold text-lg transition-all ${txState === 'success' ? 'bg-green-500 text-black' :
-                            txState === 'error' ? 'bg-red-500 text-white' :
-                                'bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
+                                txState === 'error' ? 'bg-red-500 text-white' :
+                                    'bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
                             } ${(!quote && activeTab === 'swap') || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {loading ? <Loader2 className="mx-auto animate-spin" /> :

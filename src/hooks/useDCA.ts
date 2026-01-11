@@ -60,7 +60,8 @@ export function useDCA() {
 
             // Note: If this 404s, we might need to use the SDK.
             // For now, attempting the direct transaction construction endpoint.
-            const response = await fetch("https://dca-api.jup.ag/v1/create", {
+            // Use local proxy to bypass CORS
+            const response = await fetch("/api/proxy/dca", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
@@ -112,7 +113,8 @@ export function useDCA() {
 
         try {
             // Endpoint: https://dca-api.jup.ag/v1/user?wallet=...
-            const response = await fetch(`https://dca-api.jup.ag/v1/user?wallet=${publicKey.toString()}`);
+            // Use local proxy
+            const response = await fetch(`/api/proxy/dca?wallet=${publicKey.toString()}`);
             if (!response.ok) return;
 
             const data = await response.json();
