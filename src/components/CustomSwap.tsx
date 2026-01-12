@@ -244,21 +244,21 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             }
 
             // Calculate correct Fee Account
+            let finalFeeBps = feeBps;
             let feeAccount = ADMIN_WALLET_SOL.toString();
-            if (feeBps > 0 && tokens.output.address !== SOL_MINT) {
+
+            if (finalFeeBps > 0 && tokens.output.address !== SOL_MINT) {
                 try {
                     const adminPub = new PublicKey(ADMIN_WALLET_SOL);
                     const mintPub = new PublicKey(tokens.output.address);
-                    // We must find the ATA for the admin wallet for this specific output token
-                    // Note: This assumes the admin wallet ALREADY has this ATA created.
                     const ata = await getAssociatedTokenAddress(mintPub, adminPub);
                     feeAccount = ata.toString();
                 } catch (e) {
                     console.error("Failed to derive Admin ATA", e);
-                    // SAFETY FALLBACK: If we cannot derive the correct ATA, we MUST disable the fee.
-                    // Sending SPL tokens to the SOL address will cause the transaction to fail or trigger simulation warnings.
-                    feeBps = 0;
-                    feeAccount = ADMIN_WALLET_SOL.toString(); // Irrelevant since feeBps is 0
+                    // SAFETY FALLBACK: Disable fee if ATA fails
+                    console.warn("Disabling fee: Admin ATA missing");
+                    finalFeeBps = 0;
+                    feeAccount = ADMIN_WALLET_SOL.toString();
                 }
             }
 
@@ -267,7 +267,7 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                 userPublicKey: publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 platformFee: {
-                    feeBps: feeBps,
+                    feeBps: finalFeeBps,
                     feeAccount: feeAccount
                 }
             };
