@@ -54,7 +54,8 @@ export function useLimitOrders() {
 
             // 2. Fetch Transaction from Jupiter Limit Order API (Public)
             // https://jup.ag/api/limit/v1/createOrder
-            const response = await fetch("https://jup.ag/api/limit/v1/createOrder", {
+            // 2. Fetch Transaction from Local Proxy
+            const response = await fetch("/api/proxy/limit?action=create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
@@ -107,7 +108,7 @@ export function useLimitOrders() {
                 orders: [orderPubkey]
             };
 
-            const response = await fetch("https://jup.ag/api/limit/v1/cancelOrders", {
+            const response = await fetch("/api/proxy/limit?action=cancel", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
@@ -146,7 +147,8 @@ export function useLimitOrders() {
         try {
             // Endpoint: https://jup.ag/api/limit/v1/openOrders?wallet=...
             // Note: Trigger API might have a different one, but let's try this standard one first.
-            const response = await fetch(`https://jup.ag/api/limit/v1/openOrders?wallet=${publicKey.toString()}`);
+            // Endpoint: /api/proxy/limit?wallet=...
+            const response = await fetch(`/api/proxy/limit?wallet=${publicKey.toString()}`);
             if (!response.ok) return;
 
             const data = await response.json();

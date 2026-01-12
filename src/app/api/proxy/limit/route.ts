@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "nodejs"; // Force Node.js runtime for stability
+export const runtime = "nodejs";
 
-// Helper to forward requests to Jupiter DCA API
+// Helper to forward requests to Jupiter Limit API
 async function forwardToJupiter(endpoint: string, method: string, body?: any) {
     try {
-        // Base URL for DCA is dca-api.jup.ag/v1
-        const url = `https://dca-api.jup.ag/v1/${endpoint}`;
+        const url = `https://jup.ag/api/limit/v1/${endpoint}`;
         const options: RequestInit = {
             method,
             headers: {
                 "Content-Type": "application/json",
-                // Mimic browser headers for potential CORS strictness on Jup backend
                 "Origin": "https://jup.ag",
                 "Referer": "https://jup.ag/",
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -26,15 +24,15 @@ async function forwardToJupiter(endpoint: string, method: string, body?: any) {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`DCA Proxy Error (${endpoint}):`, response.status, errorText);
-            return NextResponse.json({ error: `Jupiter API Error: ${errorText}` }, { status: response.status });
+            console.error(`Limit Proxy Error (${endpoint}):`, response.status, errorText);
+            return NextResponse.json({ error: errorText }, { status: response.status });
         }
 
         const data = await response.json();
         return NextResponse.json(data);
 
     } catch (error: any) {
-        console.error(`DCA Proxy Internal Error (${endpoint}):`, error);
+        console.error(`Limit Proxy Internal Error (${endpoint}):`, error);
         return NextResponse.json({ error: "Internal Proxy Error" }, { status: 500 });
     }
 }
@@ -42,22 +40,21 @@ async function forwardToJupiter(endpoint: string, method: string, body?: any) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
+        // Determine action based on body content or query param?
+        // Actually, user hook calls specific endpoints.
+        // We can use a query param `?action=create` or `?action=cancel`
+
         const { searchParams } = new URL(req.url);
         const action = searchParams.get("action");
 
-        // dca-api.jup.ag/v1/create
         if (action === "create") {
-            return await forwardToJupiter("create", "POST", body);
+            return await forwardToJupiter("createOrder", "POST", body);
+        } else if (action === "cancel") {
+            return await forwardToJupiter("cancelOrders", "POST", body);
+        } else {
+            return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }
-        // dca-api.jup.ag/v1/close
-        else if (action === "close") {
-            return await forwardToJupiter("close", "POST", body);
-        }
-        else {
-            // Default to create if no action specified (backward compatibility)
-            return await forwardToJupiter("create", "POST", body);
-        }
-    } catch (error) {
+    } catch (e) {
         return NextResponse.json({ error: "Invalid Request" }, { status: 400 });
     }
 }
@@ -65,8 +62,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const wallet = searchParams.get("wallet");
-    if (!wallet) return NextResponse.json({ error: "Missing wallet parameter" }, { status: 400 });
+    if (!wallet) return NextResponse.json({ error: "Missing wallet" }, { status: 400 });
 
-    // dca-api.jup.ag/v1/user?wallet=...
-    return await forwardToJupiter(`user?wallet=${wallet}`, "GET");
+    return await forwardToJupiter(`openOrders?wallet=${wallet}`, "GET");
 }
