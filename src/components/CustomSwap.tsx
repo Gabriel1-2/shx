@@ -590,11 +590,27 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                                 ) : activeTab === 'swap' ? (
                                     outputAmount > 0 ? outputAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : "0.00"
                                 ) : (
-                                    "---"
+                                    // Estimate for Limit/DCA based on Oracle Price or Limit Rate
+                                    (() => {
+                                        const rate = activeTab === 'limit' && Number(limitRate) > 0
+                                            ? Number(limitRate)
+                                            : (inputPrice.price && outputPrice.price ? inputPrice.price / outputPrice.price : 0);
+
+                                        const est = Number(amount) * rate;
+                                        return est > 0 ? (
+                                            <div className="flex flex-col">
+                                                <span className="text-white">~ {est.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+                                                <span className="text-[10px] text-muted-foreground font-normal">
+                                                    {activeTab === 'dca' ? 'Est. per order' : 'Est. execution'}
+                                                </span>
+                                            </div>
+                                        ) : "---"
+                                    })()
                                 )}
                             </div>
                             <div className="text-xs text-muted-foreground mt-1 font-mono">
-                                ≈ ${outputUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ≈ ${outputUSD > 0 ? outputUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) :
+                                    (Number(amount) * inputPrice.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         <button
