@@ -73,7 +73,8 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
     const [limitRate, setLimitRate] = useState("");
 
     // DCA State
-    const [dcaInterval, setDcaInterval] = useState<"Day" | "Hour" | "Minute">("Day");
+    const [dcaInterval, setDcaInterval] = useState<"Day" | "Hour" | "Minute">("Minute");
+    const [dcaFrequency, setDcaFrequency] = useState("1");
     const [dcaCycles, setDcaCycles] = useState("10");
 
     // Settings State
@@ -363,9 +364,12 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         if (!amount) return;
         const inAmountAtoms = Math.floor(Number(amount) * Math.pow(10, tokens.input.decimals));
 
-        let cycleSeconds = 60 * 60 * 24; // Day
-        if (dcaInterval === "Hour") cycleSeconds = 60 * 60;
-        if (dcaInterval === "Minute") cycleSeconds = 60;
+        let unitSeconds = 60; // Minute
+        if (dcaInterval === "Hour") unitSeconds = 60 * 60;
+        if (dcaInterval === "Day") unitSeconds = 60 * 60 * 24;
+
+        const freq = Number(dcaFrequency) || 1;
+        const cycleSeconds = unitSeconds * freq;
 
         await createDCA({
 
@@ -652,25 +656,34 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <span className="text-xs text-muted-foreground block mb-2">Interval</span>
-                                <div className="flex flex-wrap gap-2">
-                                    {(['Minute', 'Hour', 'Day'] as const).map(int => (
-                                        <button
-                                            key={int}
-                                            onClick={() => setDcaInterval(int)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${dcaInterval === int
-                                                ? 'bg-primary/20 border-primary text-primary'
-                                                : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                }`}
-                                        >
-                                            {int}
-                                        </button>
-                                    ))}
+                            <div className="col-span-2">
+                                <span className="text-xs text-muted-foreground block mb-2">Frequency (Every X...)</span>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="number"
+                                        value={dcaFrequency}
+                                        onChange={e => setDcaFrequency(e.target.value)}
+                                        className="w-20 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-primary/50 text-center"
+                                        placeholder="1"
+                                    />
+                                    <div className="flex flex-1 gap-1">
+                                        {(['Minute', 'Hour', 'Day'] as const).map(int => (
+                                            <button
+                                                key={int}
+                                                onClick={() => setDcaInterval(int)}
+                                                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${dcaInterval === int
+                                                    ? 'bg-primary/20 border-primary text-primary'
+                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                    }`}
+                                            >
+                                                {int}{Number(dcaFrequency) > 1 ? 's' : ''}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                            <div>
-                                <span className="text-xs text-muted-foreground block mb-2">Number of Orders</span>
+                            <div className="col-span-2">
+                                <span className="text-xs text-muted-foreground block mb-2">Number of Orders (Total: {Number(dcaCycles)} buys)</span>
                                 <input
                                     type="number"
                                     value={dcaCycles}
