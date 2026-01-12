@@ -255,8 +255,10 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                     feeAccount = ata.toString();
                 } catch (e) {
                     console.error("Failed to derive Admin ATA", e);
-                    // Fallback to SOL wallet (will likely fail if Jup strict, but safe fallback)
-                    feeAccount = ADMIN_WALLET_SOL.toString();
+                    // SAFETY FALLBACK: If we cannot derive the correct ATA, we MUST disable the fee.
+                    // Sending SPL tokens to the SOL address will cause the transaction to fail or trigger simulation warnings.
+                    feeBps = 0;
+                    feeAccount = ADMIN_WALLET_SOL.toString(); // Irrelevant since feeBps is 0
                 }
             }
 
