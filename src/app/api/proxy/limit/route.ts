@@ -25,7 +25,14 @@ async function forwardToJupiter(endpoint: string, method: string, body?: any) {
         if (!response.ok) {
             const errorText = await response.text();
             console.error(`Limit Proxy Error (${endpoint}):`, response.status, errorText);
-            return NextResponse.json({ error: errorText }, { status: response.status });
+            // Try to parse JSON from upstream if possible
+            let details = errorText;
+            try {
+                const json = JSON.parse(errorText);
+                if (json.message) details = json.message;
+                if (json.error) details = json.error;
+            } catch (e) { }
+            return NextResponse.json({ error: details }, { status: response.status });
         }
 
         const data = await response.json();

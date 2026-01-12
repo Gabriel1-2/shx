@@ -68,10 +68,9 @@ export function useDCA() {
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                // If 404, we might need to just mock it for MVP or implement SDK.
-                console.error("DCA API Error:", errorText);
-                throw new Error("Failed to initialize DCA. API might be restricted.");
+                const errorData = await response.json();
+                console.error("DCA API Error:", errorData);
+                throw new Error(errorData.error || "Failed to initialize DCA. API might be restricted.");
             }
 
             const { tx } = await response.json();

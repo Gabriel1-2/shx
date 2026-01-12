@@ -74,6 +74,7 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
 
     // DCA State
     const [dcaInterval, setDcaInterval] = useState<"Day" | "Hour" | "Minute">("Day");
+    const [dcaCycles, setDcaCycles] = useState("10");
 
     // Settings State
     const [showSettings, setShowSettings] = useState(false);
@@ -367,11 +368,12 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         if (dcaInterval === "Minute") cycleSeconds = 60;
 
         await createDCA({
+
             inputMint: tokens.input.address,
             outputMint: tokens.output.address,
             inAmountPerCycle: inAmountAtoms,
             cycleFrequency: cycleSeconds,
-            numberOfCycles: 10 // Default 10 cycles for now, could be input too
+            numberOfCycles: Number(dcaCycles) || 10
         });
         setAmount("");
     };
@@ -666,6 +668,16 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+                            <div>
+                                <span className="text-xs text-muted-foreground block mb-2">Number of Orders</span>
+                                <input
+                                    type="number"
+                                    value={dcaCycles}
+                                    onChange={e => setDcaCycles(e.target.value)}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-primary/50"
+                                    placeholder="10"
+                                />
                             </div>
                         </div>
                     </div>

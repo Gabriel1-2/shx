@@ -63,7 +63,7 @@ export function useLimitOrders() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || "Failed to create order");
+                throw new Error(errorData.error || errorData.message || "Failed to create order");
             }
 
             const { tx } = await response.json();
