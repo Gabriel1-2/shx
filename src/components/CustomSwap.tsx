@@ -305,7 +305,9 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             }
 
             // Calculate correct Fee Account
-            let finalFeeBps = feeBps;
+            // DEBUG: Force 0 fee to debug "Malicious" warning.
+            // If this clears the warning, the issue is the Fee Account address validation.
+            let finalFeeBps = 0; // feeBps; 
             let feeAccount = ADMIN_WALLET_SOL.toString();
 
             if (finalFeeBps > 0 && tokens.output.address !== SOL_MINT) {

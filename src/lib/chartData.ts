@@ -15,19 +15,32 @@ const BASE_URL = "https://api.geckoterminal.com/api/v2";
 
 /**
  * Fetch top pool for a token pair to get OHLCV data.
- * GeckoTerminal groups data by POOL, not just Mint.
- * Strategy: Find the top liquidity pool for the token on Solana.
+ * Strategy: 
+ * 1. Try GeckoTerminal (Solana Network).
+ * 2. Fallback to DexScreener to find the pair address, then map to Gecko.
  */
 async function getTopPool(tokenAddress: string): Promise<string | null> {
     try {
+        // 1. Try GeckoTerminal Direct Search
         const res = await fetch(`${BASE_URL}/networks/solana/tokens/${tokenAddress}/pools?page=1`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        const pools = data.data;
-        if (!pools || pools.length === 0) return null;
+        if (res.ok) {
+            const data = await res.json();
+            const pools = data.data;
+            if (pools && pools.length > 0) return pools[0].attributes.address;
+        }
 
-        // Return the first pool's address (usually highest liquidity)
-        return pools[0].attributes.address;
+        // 2. Fallback: DexScreener (Better indexing)
+        console.log("Gecko search failed, trying DexScreener...");
+        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
+        if (dexRes.ok) {
+            const dexData = await dexRes.json();
+            // Find best SOL pair
+            const bestPair = dexData.pairs?.find((p: any) => p.chainId === 'solana' && p.quoteToken.symbol === 'SOL');
+            if (bestPair) return bestPair.pairAddress;
+            if (dexData.pairs?.length > 0) return dexData.pairs[0].pairAddress;
+        }
+
+        return null;
     } catch (e) {
         console.error("Failed to fetch pool", e);
         return null;
@@ -45,7 +58,7 @@ export async function fetchOHLCV(tokenAddress: string, timeframe: "day" | "hour"
             if (cached) {
                 const { timestamp, data } = JSON.parse(cached);
                 if (Date.now() - timestamp < CACHE_TTL) {
-                    console.log("Serving cached chart data");
+                    // console.log("Serving cached chart data");
                     return data;
                 }
             }
