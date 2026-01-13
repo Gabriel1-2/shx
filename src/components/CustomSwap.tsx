@@ -4,7 +4,8 @@ import { useState, useCallback, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction, PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
+import { Transaction } from "@solana/web3.js"; // Needed for manual tx building
 import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown, Clock, BarChart2, Maximize2, Minimize2 } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
 import { calculateFeeBps } from "@/lib/feeTiers";
@@ -130,6 +131,47 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             setLimitRate(rate.toFixed(6));
         }
     }, [inputPrice, outputPrice, activeTab]);
+
+    // Check if Output ATA exists (for Manual Init Feature)
+    const [isOutputATAMissing, setIsOutputATAMissing] = useState(false);
+    useEffect(() => {
+        if (!publicKey || tokens.output.address === SOL_MINT) {
+            setIsOutputATAMissing(false);
+            return;
+        }
+        const checkATA = async () => {
+            const ata = await getAssociatedTokenAddress(new PublicKey(tokens.output.address), publicKey);
+            const info = await connection.getAccountInfo(ata);
+            setIsOutputATAMissing(!info);
+        };
+        checkATA();
+    }, [publicKey, tokens.output.address, connection, txState]); // Re-check after tx
+
+    const handleCreateATA = async () => {
+        if (!publicKey || !signTransaction) return;
+        setLoading(true);
+        try {
+            const mint = new PublicKey(tokens.output.address);
+            const ata = await getAssociatedTokenAddress(mint, publicKey);
+            const tx = new Transaction().add(
+                createAssociatedTokenAccountInstruction(publicKey, ata, publicKey, mint)
+            );
+            const { blockhash } = await connection.getLatestBlockhash();
+            tx.recentBlockhash = blockhash;
+            tx.feePayer = publicKey;
+
+            const signed = await signTransaction(tx);
+            const sig = await connection.sendRawTransaction(signed.serialize());
+            await connection.confirmTransaction(sig);
+
+            showToast({ type: "success", title: "Account Initialized", message: "You can now receive " + tokens.output.symbol });
+            setIsOutputATAMissing(false);
+        } catch (e: any) {
+            showToast({ type: "error", title: "Failed", message: e.message });
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Fetch Holdings & Fees
     useEffect(() => {
@@ -606,6 +648,15 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                         <span className="text-xs text-muted-foreground font-medium">YOU RECEIVE</span>
                         <span className="text-xs text-muted-foreground">
                             Balance: <span className="font-mono text-white/80">{outputBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                            {isOutputATAMissing && (
+                                <button
+                                    onClick={handleCreateATA}
+                                    className="ml-2 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded hover:bg-primary/30 transition-colors uppercase font-bold tracking-wider"
+                                    title="Click to initialize this token account (Cost: ~0.002 SOL)"
+                                >
+                                    + Init Account
+                                </button>
+                            )}
                         </span>
                     </div>
                     <div className="flex items-center gap-3">

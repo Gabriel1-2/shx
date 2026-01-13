@@ -36,37 +36,59 @@ async function getTopPool(tokenAddress: string): Promise<string | null> {
 
 export async function fetchOHLCV(tokenAddress: string, timeframe: "day" | "hour" | "minute" = "hour"): Promise<CandleData[]> {
     try {
-        // 1. Get Pool Address (Cache this in prod!)
-        // Note: For simple Swap pairs (SOL-USDC), we might hardcode or lookup.
-        // For dynamic tokens, we fetch the top pool.
+        const CACHE_KEY = `ohlcv_${tokenAddress}_${timeframe}`;
+        const CACHE_TTL = 5 * 60 * 1000; // 5 Minutes
+
+        // 1. Check Cache
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                const { timestamp, data } = JSON.parse(cached);
+                if (Date.now() - timestamp < CACHE_TTL) {
+                    console.log("Serving cached chart data");
+                    return data;
+                }
+            }
+        }
+
+        // 2. Fetch Fresh Data
+        // ... (API Logic) ...
         const poolAddress = await getTopPool(tokenAddress);
         if (!poolAddress) return [];
 
-        // 2. Map timeframe to API format
-        // GeckoTerminal: day, hour, minute
         const resolution = timeframe;
-
-        // 3. Fetch Data
-        // Endpoint: /networks/{network}/pools/{pool_address}/ohlcv/{timeframe}
         const url = `${BASE_URL}/networks/solana/pools/${poolAddress}/ohlcv/${resolution}?limit=100`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("API Limit or Error");
 
         const json = await res.json();
-        const rawData = json.data.attributes.ohlcv_list; // [[time, open, high, low, close, vol], ...]
+        const rawData = json.data.attributes.ohlcv_list;
 
-        // 4. Format for Lightweight Charts
-        // Library expects { time: number (seconds), open, high, low, close }
-        return rawData.map((candle: number[]) => ({
+        const params = rawData.map((candle: number[]) => ({
             time: candle[0],
             open: candle[1],
             high: candle[2],
             low: candle[3],
             close: candle[4]
-        })).reverse(); // API often returns desc, library usually likes asc (check this)
+        })).reverse();
+
+        // 3. Save to Cache
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                data: params
+            }));
+        }
+
+        return params;
 
     } catch (e) {
         console.error("OHLCV Fetch Error", e);
+        // Fallback: Try to serve stale cache if API failed
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem(`ohlcv_${tokenAddress}_${timeframe}`);
+            if (cached) return JSON.parse(cached).data;
+        }
         return [];
     }
 }
