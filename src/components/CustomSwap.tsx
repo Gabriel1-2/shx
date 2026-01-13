@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction, PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
+import { getAssociatedTokenAddress, createAssociatedTokenAccountIdempotentInstruction } from "@solana/spl-token";
 import { Transaction } from "@solana/web3.js"; // Needed for manual tx building
 import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown, Clock, BarChart2, Maximize2, Minimize2 } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
@@ -153,9 +153,12 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         try {
             const mint = new PublicKey(tokens.output.address);
             const ata = await getAssociatedTokenAddress(mint, publicKey);
+
+            // Use IDEMPOTENT instruction to prevent "Account already exists" failure/malicious flags
             const tx = new Transaction().add(
-                createAssociatedTokenAccountInstruction(publicKey, ata, publicKey, mint)
+                createAssociatedTokenAccountIdempotentInstruction(publicKey, ata, publicKey, mint)
             );
+
             const { blockhash } = await connection.getLatestBlockhash();
             tx.recentBlockhash = blockhash;
             tx.feePayer = publicKey;
@@ -320,15 +323,19 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                 }
             }
 
-            const body = {
+            const body: any = {
                 quoteResponse: quote,
                 userPublicKey: publicKey.toString(),
-                wrapAndUnwrapSol: true,
-                platformFee: {
+                wrapAndUnwrapSol: true
+            };
+
+            // Only attach platformFee if we actually have a fee > 0 and a valid verified fee account
+            if (finalFeeBps > 0) {
+                body.platformFee = {
                     feeBps: finalFeeBps,
                     feeAccount: feeAccount
-                }
-            };
+                };
+            }
 
             const swapRes = await fetch("/api/proxy/swap", {
                 method: "POST",
