@@ -237,13 +237,26 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         }
     }, [amount, slippage, tokens, feeBps, connection, activeTab]);
 
-    // Debounced Quote Fetch
+    // Debounced Quote Fetch + Auto-Refresh
     useEffect(() => {
-        const timer = setTimeout(() => {
+        // Initial Fetch on change
+        const debounceTimer = setTimeout(() => {
             if (amount && Number(amount) > 0) fetchQuote();
         }, 500);
-        return () => clearTimeout(timer);
-    }, [amount, fetchQuote]);
+
+        // Auto-Refresh every 20s to ensure fresh blockhash/price (Prevent Phantom Simulation Failures)
+        const refreshInterval = setInterval(() => {
+            if (amount && Number(amount) > 0 && activeTab === 'swap') {
+                console.log("Refreshing quote...");
+                fetchQuote();
+            }
+        }, 20000);
+
+        return () => {
+            clearTimeout(debounceTimer);
+            clearInterval(refreshInterval);
+        };
+    }, [amount, fetchQuote, activeTab]);
 
     // Calculate output amount from quote
     const outputAmount = quote ? (Number(quote.outAmount) / Math.pow(10, tokens.output.decimals)) : 0;
