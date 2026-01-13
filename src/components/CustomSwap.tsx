@@ -328,7 +328,10 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             const body: any = {
                 quoteResponse: quote,
                 userPublicKey: publicKey.toString(),
-                wrapAndUnwrapSol: true
+                wrapAndUnwrapSol: true,
+                // Critical: Auto-Fail Simulation Fixes
+                prioritizationFeeLamports: apeMode ? "auto" : "auto", // Can implement "autoMultiplier": 2 later for Ape Mode
+                dynamicComputeUnitLimit: true // Ensures tx doesn't run out of compute
             };
 
             // Only attach platformFee if we actually have a fee > 0 and a valid verified fee account
