@@ -3,9 +3,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { VersionedTransaction, PublicKey } from "@solana/web3.js";
+import { VersionedTransaction, PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createAssociatedTokenAccountIdempotentInstruction } from "@solana/spl-token";
-import { Transaction } from "@solana/web3.js"; // Needed for manual tx building
 import { Loader2, ArrowDownCircle, Settings, ShieldCheck, X, ArrowUpDown, Clock, BarChart2, Maximize2, Minimize2 } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
 import { calculateFeeBps } from "@/lib/feeTiers";
@@ -155,7 +154,10 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             const ata = await getAssociatedTokenAddress(mint, publicKey);
 
             // Use IDEMPOTENT instruction to prevent "Account already exists" failure/malicious flags
+            // Use IDEMPOTENT instruction + Priority Fees to prevent warnings
             const tx = new Transaction().add(
+                ComputeBudgetProgram.setComputeUnitLimit({ units: 50_000 }),
+                ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
                 createAssociatedTokenAccountIdempotentInstruction(publicKey, ata, publicKey, mint)
             );
 
