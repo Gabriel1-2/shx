@@ -6,18 +6,25 @@ import { FeeTransparency } from "@/components/FeeTransparency";
 import { SystemStatus } from "@/components/SystemStatus";
 import { MarketWatch } from "@/components/MarketWatch";
 import { LiveFeed } from "@/components/LiveFeed";
+import dynamic from "next/dynamic";
 import CustomSwap from "@/components/CustomSwap";
-import { TradingViewWidget } from "@/components/TradingViewWidget";
+// import { NativeChart } from "@/components/NativeChart"; // Remove static import
 import { SHULEVITZ_MINT } from "@/lib/constants";
 import { useReferralCapture } from "@/hooks/useReferralCapture";
 import { Zap, Shield, Globe, TrendingUp } from "lucide-react";
+
+// Dynamically import Chart to avoid SSR issues (Canvas/Window not found)
+const NativeChart = dynamic(() => import("@/components/NativeChart").then(mod => mod.NativeChart), {
+  ssr: false,
+  loading: () => <div className="w-full h-[600px] bg-white/5 animate-pulse rounded-3xl" />
+});
 
 function HomeContent() {
   useReferralCapture();
 
   // State for Dynamic Layout
   const [isChartVisible, setIsChartVisible] = useState(false);
-  const [chartPairAddress, setChartPairAddress] = useState(SHULEVITZ_MINT);
+  const [chartToken, setChartToken] = useState({ address: SHULEVITZ_MINT, symbol: "SHULEVITZ" });
 
   return (
     <main className="min-h-screen bg-background relative overflow-hidden">
@@ -74,7 +81,7 @@ function HomeContent() {
           {/* Simple Mode: Market Watch (3 cols) */}
           {isChartVisible ? (
             <div className="hidden lg:block lg:col-span-8 space-y-4 animate-in fade-in slide-in-from-right duration-500">
-              <TradingViewWidget pairAddress={chartPairAddress} />
+              <NativeChart tokenAddress={chartToken.address} symbol={chartToken.symbol} />
               {/* Stats under chart */}
               <div className="grid grid-cols-2 gap-4">
                 <MarketWatch />
@@ -98,7 +105,7 @@ function HomeContent() {
             <div className={`w-full ${isChartVisible ? '' : 'max-w-md mx-auto'} transition-all`}>
               <CustomSwap
                 onToggleChart={() => setIsChartVisible(!isChartVisible)}
-                onPairChange={(addr) => setChartPairAddress(addr)}
+                onPairChange={(addr, sym) => setChartToken({ address: addr, symbol: sym })}
                 isChartOpen={isChartVisible}
               />
 

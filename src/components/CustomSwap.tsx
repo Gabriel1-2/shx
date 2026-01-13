@@ -35,7 +35,7 @@ type Tab = "swap" | "limit" | "dca";
 
 interface CustomSwapProps {
     onToggleChart?: () => void;
-    onPairChange?: (address: string) => void;
+    onPairChange?: (address: string, symbol: string) => void;
     isChartOpen?: boolean;
 }
 
@@ -108,10 +108,15 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             // Notify parent of output token change (usually want to chart the output or the pair)
             // Strategy: Chart the non-SOL token if possible, else output.
             if (onPairChange) {
-                const target = activeSelector === 'output' ? token.address : prev.output.address;
-                // If target is SOL, maybe chart the other one?
-                if (target === SOL_MINT && prev.input.address !== SOL_MINT) onPairChange(prev.input.address);
-                else onPairChange(target);
+                const targetAddr = activeSelector === 'output' ? token.address : prev.output.address;
+                const targetSym = activeSelector === 'output' ? token.symbol : prev.output.symbol;
+
+                // If target is SOL, try to chart the other token if possible
+                if (targetAddr === SOL_MINT && prev.input.address !== SOL_MINT && activeSelector === 'output') {
+                    onPairChange(prev.input.address, prev.input.symbol);
+                } else {
+                    onPairChange(targetAddr, targetSym);
+                }
             }
             return newTokens;
         });
@@ -203,7 +208,18 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         setTokens({ input: tokens.output, output: temp });
         setAmount("");
         setQuote(null);
-        if (onPairChange) onPairChange(temp.address); // Sync chart to new output (which was input)
+
+        if (onPairChange) {
+            // Chart the NEW output (temp)
+            // Unless new output is SOL, then chart NEW input (tokens.output which is now Input)
+            // Wait, logic: temp is OLD Input, becoming NEW Output.
+
+            if (temp.address === SOL_MINT && tokens.output.address !== SOL_MINT) {
+                onPairChange(tokens.output.address, tokens.output.symbol);
+            } else {
+                onPairChange(temp.address, temp.symbol);
+            }
+        }
     };
 
     // Helper: check if user has ATA for output token
@@ -472,7 +488,15 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                                 setTokens({ input: pair.from, output: pair.to });
                                 setAmount("");
                                 setQuote(null);
-                                if (onPairChange) onPairChange(pair.to.address);
+                                if (onPairChange) {
+                                    // Logic: Chart the NEW output (pair.to) unless it is SOL. If SOL, chart input (pair.from).
+                                    // Usually "Quick Swaps" target a specific token (SHX, USDC), so we chart the non-SOL one.
+                                    if (pair.to.address === SOL_MINT && pair.from.address !== SOL_MINT) {
+                                        onPairChange(pair.from.address, pair.from.symbol);
+                                    } else {
+                                        onPairChange(pair.to.address, pair.to.symbol);
+                                    }
+                                }
                             }}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-xs"
                         >
