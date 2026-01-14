@@ -108,8 +108,21 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                 // Verify valid numbers
                 const valid = unique.filter(c => !isNaN(c.open) && !isNaN(c.close));
 
+                console.log(`[Chart] Setting data: ${valid.length} candles. Sample:`, valid[0]);
+
+                if (valid.length === 0) {
+                    console.warn("[Chart] Data valid logic removed all candles!");
+                }
+
                 seriesInstance.current.setData(valid);
-                if (chartInstance.current) chartInstance.current.timeScale().fitContent();
+
+                // Force fit content with delay to handle flex layout
+                if (chartInstance.current) {
+                    chartInstance.current.timeScale().fitContent();
+                    setTimeout(() => {
+                        if (chartInstance.current) chartInstance.current.timeScale().fitContent();
+                    }, 100);
+                }
             } else {
                 console.warn("[Chart] No data returned");
             }
