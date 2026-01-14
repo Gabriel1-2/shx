@@ -45,16 +45,10 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                 borderColor: "#171717",
                 visible: true,
                 autoScale: true,
-                // Critical for SHX/Meme tokens: 8 decimals precision
-                format: {
-                    type: 'price',
-                    precision: 8,
-                    minMove: 0.00000001,
-                },
             },
-        } as any) as any;
+        }) as any;
 
-        // Add Series
+        // Add Series with Critical Precision Settings
         try {
             const series = chart.addCandlestickSeries({
                 upColor: "#22c55e",
@@ -62,6 +56,11 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                 borderVisible: false,
                 wickUpColor: "#22c55e",
                 wickDownColor: "#ef4444",
+                priceFormat: {
+                    type: 'price',
+                    precision: 8,
+                    minMove: 0.00000001,
+                },
             }) as any;
             seriesInstance.current = series;
         } catch (e) {
