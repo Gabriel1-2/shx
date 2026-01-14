@@ -89,10 +89,17 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
 
     // Fetch Data
     const loadData = useCallback(async () => {
-        if (!seriesInstance.current) return;
+        if (!seriesInstance.current) {
+            console.warn("[Chart] No series instance found on loadData call");
+            setLoading(false); // Stop spinner!
+            return;
+        }
+
         setLoading(true);
         try {
             const data = await fetchOHLCV(tokenAddress, timeframe);
+            if (!seriesInstance.current) return; // double check
+
             if (data && data.length > 0) {
                 console.log(`[Chart] Loaded ${data.length} candles for ${symbol}`);
                 // Remove duplicates and sort asc
