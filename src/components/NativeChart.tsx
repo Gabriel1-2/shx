@@ -43,8 +43,16 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
             },
             rightPriceScale: {
                 borderColor: "#171717",
+                visible: true,
+                autoScale: true,
+                // Critical for SHX/Meme tokens: 8 decimals precision
+                format: {
+                    type: 'price',
+                    precision: 8,
+                    minMove: 0.00000001,
+                },
             },
-        }) as any; // Force cast to any to avoid IChartApi build error
+        } as any) as any;
 
         // Add Series
         try {
@@ -54,7 +62,7 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                 borderVisible: false,
                 wickUpColor: "#22c55e",
                 wickDownColor: "#ef4444",
-            }) as any; // Force cast
+            }) as any;
             seriesInstance.current = series;
         } catch (e) {
             console.error("Failed to add series", e);
@@ -86,11 +94,18 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
         try {
             const data = await fetchOHLCV(tokenAddress, timeframe);
             if (data && data.length > 0) {
+                console.log(`[Chart] Loaded ${data.length} candles for ${symbol}`);
                 // Remove duplicates and sort asc
                 const sorted = data.sort((a, b) => a.time - b.time);
                 const unique = sorted.filter((v, i, a) => a.findIndex(t => t.time === v.time) === i);
-                seriesInstance.current.setData(unique);
+
+                // Verify valid numbers
+                const valid = unique.filter(c => !isNaN(c.open) && !isNaN(c.close));
+
+                seriesInstance.current.setData(valid);
                 if (chartInstance.current) chartInstance.current.timeScale().fitContent();
+            } else {
+                console.warn("[Chart] No data returned");
             }
         } catch (e) {
             console.error("Chart Data Error", e);
