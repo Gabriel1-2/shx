@@ -148,16 +148,22 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
 
     const handleCreateATA = async () => {
         if (!publicKey || !signTransaction) return;
+
+        // 1. Check SOL Balance for Rent (~0.002 SOL) + Fees
+        if (inputBalance < 0.004 && tokens.input.address === SOL_MINT) {
+            showToast({ type: "error", title: "Insufficient SOL", message: "You need at least 0.004 SOL to initialize an account (Rent + Fees)." });
+            return;
+        }
+
         setLoading(true);
         try {
             const mint = new PublicKey(tokens.output.address);
             const ata = await getAssociatedTokenAddress(mint, publicKey);
 
-            // Use IDEMPOTENT instruction to prevent "Account already exists" failure/malicious flags
-            // Use IDEMPOTENT instruction + Priority Fees to prevent warnings
+            // Increase CU Limit to 100k (Safe for ATA)
             const tx = new Transaction().add(
-                ComputeBudgetProgram.setComputeUnitLimit({ units: 50_000 }),
-                ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
+                ComputeBudgetProgram.setComputeUnitLimit({ units: 100_000 }),
+                ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }), // Prioritize this
                 createAssociatedTokenAccountIdempotentInstruction(publicKey, ata, publicKey, mint)
             );
 
@@ -165,13 +171,23 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             tx.recentBlockhash = blockhash;
             tx.feePayer = publicKey;
 
+            // 2. Client-Side Simulation (Catch error before Wallet)
+            const simulationResult = await connection.simulateTransaction(tx);
+            if (simulationResult.value.err) {
+                console.error("ATA Simulation Failed:", simulationResult.value.err, simulationResult.value.logs);
+                throw new Error("Simulation Failed: Likely insufficient SOL or Account exists.");
+            }
+
             const signed = await signTransaction(tx);
-            const sig = await connection.sendRawTransaction(signed.serialize());
+
+            // 3. Send with SkipPreflight (Since we simulated)
+            const sig = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: true });
             await connection.confirmTransaction(sig);
 
             showToast({ type: "success", title: "Account Initialized", message: "You can now receive " + tokens.output.symbol });
             setIsOutputATAMissing(false);
         } catch (e: any) {
+            console.error("ATA Init Failed:", e);
             showToast({ type: "error", title: "Failed", message: e.message });
         } finally {
             setLoading(false);
