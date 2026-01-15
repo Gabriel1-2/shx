@@ -1,111 +1,88 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getRecentTransactions, SwapTransaction } from "@/lib/transactions";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import { fetchPoolTrades, TradeData } from "@/lib/chartData";
+import { ExternalLink, ArrowUpRight, ArrowDownRight } from "lucide-react";
 
-export function LiveFeed() {
-    const [transactions, setTransactions] = useState<SwapTransaction[]>([]);
+interface LiveFeedProps {
+    tokenAddress?: string; // Optional, defaults to SHULEVITZ if not provided? Or handled by parent.
+}
+
+export function LiveFeed({ tokenAddress }: LiveFeedProps) {
+    const [trades, setTrades] = useState<TradeData[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const activeToken = tokenAddress || "4FSiK5G5jH936d5e1H8y9564f332152a2334"; // Default fallback
+
     useEffect(() => {
-        const fetchTransactions = async () => {
-            const txs = await getRecentTransactions(8);
-            setTransactions(txs);
+        const loadTrades = async () => {
+            // Don't set loading on poll to avoid flicker
+            const data = await fetchPoolTrades(activeToken);
+            if (data && data.length > 0) {
+                setTrades(data);
+            }
             setLoading(false);
         };
 
-        fetchTransactions();
-        // Poll every 15 seconds
-        const interval = setInterval(fetchTransactions, 15000);
+        loadTrades();
+        const interval = setInterval(loadTrades, 10000); // Poll every 10s
         return () => clearInterval(interval);
-    }, []);
+    }, [activeToken]);
 
-    const formatTime = (date: Date) => {
-        const now = new Date();
-        const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-        if (diff < 60) return `${diff}s ago`;
-        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-        return date.toLocaleDateString();
+    const formatTime = (ts: number) => {
+        const date = new Date(ts);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     };
 
-    const shortenWallet = (wallet: string) =>
-        `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
-
-    if (loading) {
-        return (
-            <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-4">
-                <h3 className="text-sm font-bold text-white mb-4">Live Activity</h3>
-                <div className="space-y-3">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex items-center gap-3 animate-pulse">
-                            <div className="w-8 h-8 rounded-full bg-white/10"></div>
-                            <div className="flex-1 space-y-1">
-                                <div className="w-32 h-3 bg-white/10 rounded"></div>
-                                <div className="w-20 h-2 bg-white/5 rounded"></div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
-    if (transactions.length === 0) {
-        return (
-            <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-4">
-                <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    Live Activity
-                </h3>
-                <p className="text-xs text-muted-foreground text-center py-4">
-                    No swaps yet. Be the first! 🚀
-                </p>
-            </div>
-        );
-    }
-
     return (
-        <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    Live Activity
-                </h3>
-                <span className="text-[10px] text-muted-foreground">Real swaps</span>
+        <div className="rounded-3xl border border-white/5 bg-[#0A0A0A] overflow-hidden shadow-xl h-[400px] flex flex-col">
+            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between bg-white/5 backdrop-blur-md">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <h3 className="text-sm font-bold text-white">Live Trades</h3>
+                </div>
+                <span className="text-[10px] text-muted-foreground bg-black/50 px-2 py-0.5 rounded">Real-time</span>
             </div>
 
-            <div className="divide-y divide-white/5 max-h-[300px] overflow-y-auto">
-                {transactions.map((tx) => (
-                    <div key={tx.id} className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center text-[10px] font-bold text-white border border-white/10">
-                            {tx.inputToken.slice(0, 2)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 text-xs">
-                                <span className="font-bold text-white">{tx.inputAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
-                                <span className="text-muted-foreground">{tx.inputToken}</span>
-                                <ArrowRight size={10} className="text-primary" />
-                                <span className="font-bold text-primary">{tx.outputAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                                <span className="text-muted-foreground">{tx.outputToken}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                                <span className="font-mono">{shortenWallet(tx.wallet)}</span>
-                                <span>•</span>
-                                <span>{formatTime(tx.timestamp)}</span>
-                            </div>
-                        </div>
+            {/* List Header */}
+            <div className="grid grid-cols-3 px-4 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-black/20">
+                <div>Price (USD)</div>
+                <div className="text-right">Total (USD)</div>
+                <div className="text-right">Time</div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                {loading && trades.length === 0 ? (
+                    [1, 2, 3, 4, 5].map(i => (
+                        <div key={i} className="h-8 w-full bg-white/5 animate-pulse my-1" />
+                    ))
+                ) : (
+                    trades.map((tx) => (
                         <a
-                            href={`https://solscan.io/tx/${tx.txSignature}`}
+                            key={tx.txHash}
+                            href={`https://solscan.io/tx/${tx.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                            className="grid grid-cols-3 px-4 py-2 hover:bg-white/5 transition-colors group cursor-pointer text-xs font-mono"
                         >
-                            <ExternalLink size={12} className="text-muted-foreground" />
+                            <div className={`flex items-center gap-1 font-bold ${tx.type === 'buy' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {tx.type === 'buy' ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                                ${tx.priceUsd.toFixed(8)}
+                            </div>
+                            <div className="text-right text-white opacity-90">
+                                ${tx.volumeUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-right text-muted-foreground group-hover:text-white transition-colors">
+                                {formatTime(tx.timestamp)}
+                            </div>
                         </a>
+                    ))
+                )}
+                {trades.length === 0 && !loading && (
+                    <div className="p-8 text-center text-muted-foreground text-xs">
+                        No recent trades found.
                     </div>
-                ))}
+                )}
             </div>
         </div>
     );

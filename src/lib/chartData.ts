@@ -160,3 +160,41 @@ export async function fetchPoolStats(tokenAddress: string): Promise<PoolStats | 
         return null;
     }
 }
+
+export interface TradeData {
+    txHash: string;
+    type: 'buy' | 'sell';
+    priceUsd: number;
+    volumeUsd: number;
+    tokenAmount: number;
+    timestamp: number;
+}
+
+export async function fetchPoolTrades(tokenAddress: string): Promise<TradeData[]> {
+    try {
+        const poolAddress = await getTopPool(tokenAddress);
+        if (!poolAddress) return [];
+
+        const url = `${BASE_URL}/networks/solana/pools/${poolAddress}/trades?limit=50`; // Get last 50
+        const res = await fetch(url);
+        if (!res.ok) return [];
+
+        const json = await res.json();
+        const trades = json.data;
+
+        return trades.map((t: any) => {
+            const attributes = t.attributes;
+            return {
+                txHash: attributes.tx_hash,
+                type: attributes.kind === 'buy' ? 'buy' : 'sell',
+                priceUsd: parseFloat(attributes.price_to_in_usd) || 0,
+                volumeUsd: parseFloat(attributes.volume_in_usd) || 0,
+                tokenAmount: parseFloat(attributes.from_token_amount) || 0,
+                timestamp: new Date(attributes.block_timestamp).getTime(),
+            };
+        });
+    } catch (e) {
+        console.error("Pool Trades Error", e);
+        return [];
+    }
+}

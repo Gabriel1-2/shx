@@ -85,13 +85,13 @@ function HomeContent() {
               {/* Stats under chart */}
               <div className="grid grid-cols-2 gap-4">
                 <MarketWatch />
-                <LiveFeed />
+                <LiveFeed tokenAddress={chartToken.address} />
               </div>
             </div>
           ) : (
             <div className="hidden xl:block xl:col-span-3 space-y-4 animate-in fade-in slide-in-from-left duration-500">
               <MarketWatch />
-              <LiveFeed />
+              <LiveFeed tokenAddress={chartToken.address} />
               {/* Mobile/Tablet users might miss this content if we hide it too aggressively on lg. 
                     Let's keep it XL only for the full dashboard look. */}
             </div>
@@ -125,7 +125,7 @@ function HomeContent() {
                 {!isChartVisible && (
                   <>
                     <MarketWatch />
-                    <LiveFeed />
+                    <LiveFeed tokenAddress={chartToken.address} />
                     <FeeTransparency />
                     <SystemStatus />
                   </>
