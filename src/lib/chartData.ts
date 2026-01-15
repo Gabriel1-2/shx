@@ -48,10 +48,12 @@ async function getTopPool(tokenAddress: string): Promise<string | null> {
     }
 }
 
-export async function fetchOHLCV(tokenAddress: string, timeframe: "day" | "hour" | "minute" = "hour"): Promise<CandleData[]> {
+export type ChartTimeframe = '15m' | '1h' | '4h' | '1d';
+
+export async function fetchOHLCV(tokenAddress: string, timeframe: ChartTimeframe = "1h"): Promise<CandleData[]> {
     try {
         const CACHE_KEY = `ohlcv_${tokenAddress}_${timeframe}`;
-        const CACHE_TTL = 5 * 60 * 1000; // 5 Minutes
+        const CACHE_TTL = 5 * 60 * 1000; // 5 Minutes (Note: Pulse update ignores cache)
 
         // 1. Check Cache
         if (typeof window !== 'undefined') {
@@ -59,19 +61,39 @@ export async function fetchOHLCV(tokenAddress: string, timeframe: "day" | "hour"
             if (cached) {
                 const { timestamp, data } = JSON.parse(cached);
                 if (Date.now() - timestamp < CACHE_TTL) {
-                    // console.log("Serving cached chart data");
                     return data;
                 }
             }
         }
 
-        // 2. Fetch Fresh Data
-        // ... (API Logic) ...
+        // 2. Fetch Fresh Data (Get Pool)
         const poolAddress = await getTopPool(tokenAddress);
         if (!poolAddress) return [];
 
-        const resolution = timeframe;
-        const url = `${BASE_URL}/networks/solana/pools/${poolAddress}/ohlcv/${resolution}?limit=100`;
+        // 3. Resolve Timeframe -> API Params
+        let resolution = 'hour';
+        let aggregate = 1;
+
+        switch (timeframe) {
+            case '15m':
+                resolution = 'minute';
+                aggregate = 15;
+                break;
+            case '1h':
+                resolution = 'hour';
+                aggregate = 1;
+                break;
+            case '4h':
+                resolution = 'hour';
+                aggregate = 4;
+                break;
+            case '1d':
+                resolution = 'day';
+                aggregate = 1;
+                break;
+        }
+
+        const url = `${BASE_URL}/networks/solana/pools/${poolAddress}/ohlcv/${resolution}?aggregate=${aggregate}&limit=100`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("API Limit or Error");
 

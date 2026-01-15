@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createChart, ColorType, CandlestickSeries, HistogramSeries } from "lightweight-charts";
-import { fetchOHLCV } from "@/lib/chartData";
+import { fetchOHLCV, ChartTimeframe } from "@/lib/chartData";
 import { Loader2 } from "lucide-react";
 
 interface NativeChartProps {
@@ -12,13 +12,13 @@ interface NativeChartProps {
 
 export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const chartInstance = useRef<any>(null); // Use any to avoid build type errors
-    const seriesInstance = useRef<any>(null); // Use any
-    const volumeSeriesInstance = useRef<any>(null); // Volume Ref
+    const chartInstance = useRef<any>(null);
+    const seriesInstance = useRef<any>(null);
+    const volumeSeriesInstance = useRef<any>(null);
 
     const [loading, setLoading] = useState(true);
-    const [timeframe, setTimeframe] = useState<"day" | "hour" | "minute">("hour");
-    const [legend, setLegend] = useState<any>(null); // Legend Data
+    const [timeframe, setTimeframe] = useState<ChartTimeframe>("1h");
+    const [legend, setLegend] = useState<any>(null);
 
     // Initialize Chart
     useEffect(() => {
@@ -69,7 +69,7 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
             console.error("Volume series error", e);
         }
 
-        // 2. Add Candlestick Series (v5 API Style)
+        // 2. Add Candlestick Series
         try {
             const series = chart.addSeries(CandlestickSeries, {
                 upColor: "#22c55e",
@@ -128,29 +128,22 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
     }, []);
 
     // Fetch Data
-    const loadData = useCallback(async () => {
-        if (!seriesInstance.current) {
-            console.warn("[Chart] No series instance found on loadData call");
-            setLoading(false); // Stop spinner!
-            return;
-        }
+    const loadData = useCallback(async (silent = false) => {
+        if (!seriesInstance.current) return;
 
-        setLoading(true);
+        if (!silent) setLoading(true);
         try {
             const data = await fetchOHLCV(tokenAddress, timeframe);
-            if (!seriesInstance.current) return; // double check
+            if (!seriesInstance.current) return;
 
             if (data && data.length > 0) {
-                // Remove duplicates and sort asc
+                // Sort & Dedupe
                 const sorted = data.sort((a, b) => a.time - b.time);
                 const unique = sorted.filter((v, i, a) => a.findIndex(t => t.time === v.time) === i);
-
-                // Verify valid numbers
                 const valid = unique.filter(c => !isNaN(c.open) && !isNaN(c.close));
 
                 seriesInstance.current.setData(valid);
 
-                // Set Volume Data
                 if (volumeSeriesInstance.current) {
                     const volumes = valid.map(c => ({
                         time: c.time,
@@ -160,9 +153,9 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                     volumeSeriesInstance.current.setData(volumes);
                 }
 
-                // Initial Legend Set (Latest Candle)
+                // Update Legend (Silent update shouldn't break interaction, but we update latest val)
                 const last = valid[valid.length - 1];
-                if (last) {
+                if (last && !silent) { // Only force set legend on initial load
                     setLegend({
                         open: last.open.toFixed(8),
                         high: last.high.toFixed(8),
@@ -173,25 +166,29 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                     });
                 }
 
-                // Force fit content with delay to handle flex layout
-                if (chartInstance.current) {
+                if (chartInstance.current && !silent) {
                     chartInstance.current.timeScale().fitContent();
-                    setTimeout(() => {
-                        if (chartInstance.current) chartInstance.current.timeScale().fitContent();
-                    }, 100);
+                    // ... fitContent hack ...
                 }
-            } else {
-                console.warn("[Chart] No data returned");
             }
         } catch (e) {
             console.error("Chart Data Error", e);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [tokenAddress, timeframe]);
 
+    // Initial Load
     useEffect(() => {
-        loadData();
+        loadData(false);
+    }, [loadData]);
+
+    // Live Pulse (30s)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            loadData(true);
+        }, 30000);
+        return () => clearInterval(interval);
     }, [loadData]);
 
     return (
@@ -200,6 +197,7 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
             <div className="absolute top-4 left-4 z-20 flex items-center gap-4">
                 <div className="flex items-center gap-2">
                     <img
+                        // ... (Avatar remains same) ...
                         src={`https://ui-avatars.com/api/?name=${symbol}&background=22c55e&color=000&bold=true`}
                         alt={symbol}
                         className="w-8 h-8 rounded-full"
@@ -209,7 +207,7 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                 </div>
 
                 <div className="flex bg-black/50 border border-white/10 rounded-lg p-1 gap-1 backdrop-blur-md">
-                    {(['minute', 'hour', 'day'] as const).map((tf) => (
+                    {(['15m', '1h', '4h', '1d'] as const).map((tf) => (
                         <button
                             key={tf}
                             onClick={() => setTimeframe(tf)}
@@ -217,7 +215,7 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                                 ? 'bg-primary text-black'
                                 : 'text-muted-foreground hover:text-white hover:bg-white/5'}`}
                         >
-                            {tf === 'minute' ? '15m' : tf === 'hour' ? '1H' : '1D'}
+                            {tf.toUpperCase()}
                         </button>
                     ))}
                 </div>
