@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { createChart, ColorType, CandlestickSeries, HistogramSeries } from "lightweight-charts";
+import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries } from "lightweight-charts";
 import { fetchOHLCV, fetchPoolStats, ChartTimeframe, PoolStats } from "@/lib/chartData";
+import { calculateSMA } from "@/lib/indicators";
 import { Loader2 } from "lucide-react";
 
 interface NativeChartProps {
@@ -12,12 +13,16 @@ interface NativeChartProps {
 
 const NEON_GREEN = "#4ade80"; // Bright Neon
 const NEON_RED = "#f87171";   // Soft Neon Red
+const MA20_COLOR = "#eab308"; // Neon Yellow
+const MA50_COLOR = "#a855f7"; // Neon Purple
 
 export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartInstance = useRef<any>(null);
     const seriesInstance = useRef<any>(null);
     const volumeSeriesInstance = useRef<any>(null);
+    const ma20SeriesInstance = useRef<any>(null);
+    const ma50SeriesInstance = useRef<any>(null);
 
     const [loading, setLoading] = useState(true);
     const [timeframe, setTimeframe] = useState<ChartTimeframe>("1h");
@@ -76,21 +81,20 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
             },
         }) as any;
 
-        // 1. Add Volume Series (Neon)
+        // 1. Add Volume Series (Overlay)
         try {
-            const volumeSeries = chart.addSeries(HistogramSeries, {
+            volumeSeriesInstance.current = chart.addSeries(HistogramSeries, {
                 priceFormat: { type: 'volume' },
                 priceScaleId: '', // Overlay
                 scaleMargins: { top: 0.85, bottom: 0 },
             });
-            volumeSeriesInstance.current = volumeSeries;
         } catch (e) {
             console.error("Volume series error", e);
         }
 
         // 2. Add Candlestick Series (Neon)
         try {
-            const series = chart.addSeries(CandlestickSeries, {
+            seriesInstance.current = chart.addSeries(CandlestickSeries, {
                 upColor: NEON_GREEN,
                 downColor: NEON_RED,
                 borderVisible: false,
@@ -101,17 +105,39 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                     precision: 8,
                     minMove: 0.00000001,
                 },
-            }) as any;
-            seriesInstance.current = series;
+            });
         } catch (e) {
-            console.error("Failed to add series", e);
+            console.error("Candle series error", e);
         }
 
-        // 3. Crosshair Logic (Legend)
+        // 3. Add MA Series
+        try {
+            ma20SeriesInstance.current = chart.addSeries(LineSeries, {
+                color: MA20_COLOR,
+                lineWidth: 2,
+                title: 'MA 20',
+                priceFormat: { type: 'price', precision: 8, minMove: 0.00000001 },
+            });
+
+            ma50SeriesInstance.current = chart.addSeries(LineSeries, {
+                color: MA50_COLOR,
+                lineWidth: 2,
+                title: 'MA 50',
+                priceFormat: { type: 'price', precision: 8, minMove: 0.00000001 },
+            });
+
+        } catch (e) {
+            console.error("MA Series error", e);
+        }
+
+        // 4. Crosshair Logic (Legend)
         chart.subscribeCrosshairMove((param: any) => {
             if (param.time) {
                 const data = param.seriesData.get(seriesInstance.current);
                 const volumeData = param.seriesData.get(volumeSeriesInstance.current);
+                const ma20Data = param.seriesData.get(ma20SeriesInstance.current);
+                const ma50Data = param.seriesData.get(ma50SeriesInstance.current);
+
                 if (data) {
                     setLegend({
                         open: data.open?.toFixed(8) || "0",
@@ -119,7 +145,9 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                         low: data.low?.toFixed(8) || "0",
                         close: data.close?.toFixed(8) || "0",
                         volume: volumeData ? (volumeData.value?.toLocaleString() || "0") : "0",
-                        color: data.close >= data.open ? NEON_GREEN : NEON_RED
+                        color: data.close >= data.open ? NEON_GREEN : NEON_RED,
+                        ma20: ma20Data?.value?.toFixed(8),
+                        ma50: ma50Data?.value?.toFixed(8)
                     });
                 }
             } else {
@@ -169,6 +197,7 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
 
                 seriesInstance.current.setData(valid);
 
+                // Set Volume
                 if (volumeSeriesInstance.current) {
                     const volumes = valid.map(c => ({
                         time: c.time,
@@ -176,6 +205,16 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                         color: c.close >= c.open ? "rgba(74, 222, 128, 0.2)" : "rgba(248, 113, 113, 0.2)"
                     }));
                     volumeSeriesInstance.current.setData(volumes);
+                }
+
+                // Calculate & Set MA Lines
+                if (ma20SeriesInstance.current) {
+                    const sma20 = calculateSMA(valid, 20);
+                    ma20SeriesInstance.current.setData(sma20);
+                }
+                if (ma50SeriesInstance.current) {
+                    const sma50 = calculateSMA(valid, 50);
+                    ma50SeriesInstance.current.setData(sma50);
                 }
 
                 if (!silent && chartInstance.current) {
@@ -188,7 +227,10 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                             low: last.low.toFixed(8),
                             close: last.close.toFixed(8),
                             volume: (last.volume || 0).toLocaleString(),
-                            color: last.close >= last.open ? NEON_GREEN : NEON_RED
+                            color: last.close >= last.open ? NEON_GREEN : NEON_RED,
+                            // Note: MAs might not exist for the very last candle if logic differs, but usually they do
+                            ma20: calculateSMA(valid, 20).pop()?.value.toFixed(8),
+                            ma50: calculateSMA(valid, 50).pop()?.value.toFixed(8),
                         });
                     }
                 }
@@ -271,7 +313,8 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
             </div>
 
             {/* H/L/O/C Legend (Moved below header) */}
-            <div className={`absolute top-20 left-4 z-10 flex items-center gap-4 text-xs font-mono transition-opacity duration-200 ${legend ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`absolute top-20 left-4 z-10 flex flex-col gap-1 text-xs font-mono transition-opacity duration-200 ${legend ? 'opacity-100' : 'opacity-0'}`}>
+                {/* Candle Data */}
                 <div className="flex gap-2 bg-black/40 backdrop-blur px-2 py-1 rounded border border-white/5">
                     <span className="text-slate-400">O:</span><span style={{ color: legend?.color }}>{legend?.open}</span>
                     <span className="text-slate-400">H:</span><span style={{ color: legend?.color }}>{legend?.high}</span>
@@ -279,6 +322,13 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
                     <span className="text-slate-400">C:</span><span style={{ color: legend?.color }}>{legend?.close}</span>
                     <span className="text-slate-400">Vol:</span><span className="text-white">{legend?.volume}</span>
                 </div>
+                {/* Indicator Data */}
+                {(legend?.ma20 || legend?.ma50) && (
+                    <div className="flex gap-4 px-2">
+                        {legend.ma20 && <span style={{ color: MA20_COLOR }}>MA20: {legend.ma20}</span>}
+                        {legend.ma50 && <span style={{ color: MA50_COLOR }}>MA50: {legend.ma50}</span>}
+                    </div>
+                )}
             </div>
 
             {loading && (
