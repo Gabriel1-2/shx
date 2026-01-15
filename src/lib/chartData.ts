@@ -129,3 +129,34 @@ export async function fetchOHLCV(tokenAddress: string, timeframe: ChartTimeframe
         return [];
     }
 }
+
+export interface PoolStats {
+    priceChange24h: number;
+    volume24h: number; // Volume in USD
+    liquidityUsd: number;
+    marketCapUsd: number;
+}
+
+export async function fetchPoolStats(tokenAddress: string): Promise<PoolStats | null> {
+    try {
+        const poolAddress = await getTopPool(tokenAddress);
+        if (!poolAddress) return null;
+
+        const url = `${BASE_URL}/networks/solana/pools/${poolAddress}`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+
+        const json = await res.json();
+        const attr = json.data.attributes;
+
+        return {
+            priceChange24h: parseFloat(attr.price_change_percentage.h24) || 0,
+            volume24h: parseFloat(attr.volume_usd.h24) || 0,
+            liquidityUsd: parseFloat(attr.reserve_in_usd) || 0,
+            marketCapUsd: parseFloat(attr.fdv_usd) || 0,
+        };
+    } catch (e) {
+        console.error("Pool Stats Error", e);
+        return null;
+    }
+}
