@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { createChart, ColorType } from "lightweight-charts";
+import { createChart, ColorType, CandlestickSeries } from "lightweight-charts";
 import { fetchOHLCV } from "@/lib/chartData";
 import { Loader2 } from "lucide-react";
 
@@ -48,9 +48,9 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
             },
         }) as any;
 
-        // Add Series with Critical Precision Settings
+        // Add Series with Critical Precision Settings (v5 API Style)
         try {
-            const series = chart.addCandlestickSeries({
+            const series = chart.addSeries(CandlestickSeries, {
                 upColor: "#22c55e",
                 downColor: "#ef4444",
                 borderVisible: false,
