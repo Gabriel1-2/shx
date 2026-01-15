@@ -9,6 +9,7 @@ export interface CandleData {
     high: number;
     low: number;
     close: number;
+    volume?: number;
 }
 
 const BASE_URL = "https://api.geckoterminal.com/api/v2";
@@ -82,7 +83,8 @@ export async function fetchOHLCV(tokenAddress: string, timeframe: "day" | "hour"
             open: candle[1],
             high: candle[2],
             low: candle[3],
-            close: candle[4]
+            close: candle[4],
+            volume: candle[5]
         })).reverse();
 
         // 3. Save to Cache
