@@ -371,13 +371,42 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             const bytes = Uint8Array.from(atob(rawBase64), c => c.charCodeAt(0));
             const transaction = VersionedTransaction.deserialize(bytes);
 
+            // Simulate Transaction BEFORE User Signs (Prevents "Wallet Warnings")
+            setTxState("signing"); // Use "signing" state to show loading during simulation
+
+            // Add auto priority fees for ATA manually (since we build it manually)
+            // For Swaps, Jupiter handles it via "auto" param in proxy.
+
+            // --- SIMULATION BLOCK ---
+            // Fix: Versioned Transaction Simulation
+            const simulationResult = await connection.simulateTransaction(transaction, {
+                sigVerify: false,
+                replaceRecentBlockhash: true // Use latest logic
+            });
+
+            if (simulationResult.value.err) {
+                console.error("Simulation Failed:", simulationResult.value.err);
+                console.log("Simulation Logs:", simulationResult.value.logs);
+                // Parse logs for common errors
+                const logs = simulationResult.value.logs || [];
+                let specificError = "Transaction simulation failed.";
+                if (logs.some((l: string) => l.includes("0x1"))) specificError = "Insufficient Balance (Simulation).";
+                if (logs.some((l: string) => l.includes("Slippage tolerance exceeded"))) specificError = "Slippage Exceeded. Increase slippage.";
+
+                throw new Error(specificError);
+            }
+            console.log("Simulation Passed. Proceeding to Sign...");
+
             const signedTx = await signTransaction(transaction);
             setTxState("confirming");
 
             const rawTransaction = signedTx.serialize();
+
+            // Send with Skip Preflight = TRUE because we already simulated it manually
+            // This enables "Turbo" submission
             const txid = await connection.sendRawTransaction(rawTransaction, {
-                skipPreflight: false,
-                maxRetries: 2
+                skipPreflight: true, // We simulated it ourselves
+                maxRetries: 3
             });
 
             const latestBlockHash = await connection.getLatestBlockhash();
@@ -423,7 +452,13 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         } catch (error: any) {
             console.error("Swap Failed:", error);
             setTxState("error");
-            showToast({ type: "error", title: "Swap Failed", message: error.message });
+
+            // Clean Error Messages
+            let msg = error.message;
+            if (msg.includes("User rejected")) msg = "Transaction cancelled by user.";
+            if (msg.includes("Transaction simulation failed")) msg = "Simulation Failed: Check balance or slippage.";
+
+            showToast({ type: "error", title: "Swap Failed", message: msg });
             setTimeout(() => setTxState("idle"), 3000);
         }
     };
