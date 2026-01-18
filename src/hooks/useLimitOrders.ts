@@ -41,7 +41,6 @@ export function useLimitOrders() {
         try {
             // 1. Prepare Request Body
             // Jupiter Trigger API requires exact fields.
-            // Base URL: https://api.jup.ag/trigger/v1/createOrder
             const body = {
                 owner: publicKey.toString(),
                 inAmount: params.inAmount,
@@ -49,11 +48,11 @@ export function useLimitOrders() {
                 inputMint: params.inputMint,
                 outputMint: params.outputMint,
                 expiredAt: params.expiredAt || null,
-                base: new PublicKey(params.inputMint).toBase58(), // Usually input mint is base
+                base: new PublicKey(params.inputMint).toBase58(),
+                // Vital for Wallet Health:
+                computeUnitPrice: "auto"
             };
 
-            // 2. Fetch Transaction from Jupiter Limit Order API (Public)
-            // https://jup.ag/api/limit/v1/createOrder
             // 2. Fetch Transaction from Local Proxy
             const response = await fetch("/api/proxy/limit?action=create", {
                 method: "POST",
@@ -68,15 +67,25 @@ export function useLimitOrders() {
 
             const { tx } = await response.json();
 
-            // 3. Deserialize and Sign
+            // 3. Deserialize
             const transactionBuf = Buffer.from(tx, "base64");
             const transaction = VersionedTransaction.deserialize(transactionBuf);
 
-            const signedTx = await signTransaction(transaction);
+            // 4. Pre-Flight Simulation (Guard)
+            const sim = await connection.simulateTransaction(transaction);
+            if (sim.value.err) {
+                console.error("Limit Order Simulation Failed:", sim.value.err, sim.value.logs);
+                // Extract useful error
+                let msg = "Simulation Failed";
+                if (sim.value.logs?.some(l => l.includes("0x1"))) msg = "Insufficient funds for rent/fees.";
+                throw new Error(msg);
+            }
 
-            // 4. Send Transaction
-            // We use raw connection to send signed tx
+            // 5. Sign and Send
+            const signedTx = await signTransaction(transaction);
             const rawTransaction = signedTx.serialize();
+
+            // Skip preflight on send since we manually simulated
             const txid = await connection.sendRawTransaction(rawTransaction, {
                 skipPreflight: true,
                 maxRetries: 2
@@ -90,7 +99,10 @@ export function useLimitOrders() {
 
         } catch (error: any) {
             console.error("Limit Order Error:", error);
-            showToast({ title: "Error", message: error.message || "Failed to place order", type: "error" });
+            // Nice error formatting
+            let msg = error.message;
+            if (msg.includes("User rejected")) msg = "Cancelled by user";
+            showToast({ title: "Error", message: msg, type: "error" });
         } finally {
             setLoading(false);
         }

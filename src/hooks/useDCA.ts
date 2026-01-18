@@ -42,10 +42,6 @@ export function useDCA() {
         setLoading(true);
         try {
             // Endpoint: https://dca-api.jup.ag/v1/create
-            // or https://api.jup.ag/recurring/v1/createOrder? 
-            // Research suggests: usage of the dca-sdk is preferred for complex instruction building, 
-            // but we will try the REST API if available to keep it lightweight.
-            // Let's try the common endpoint for automation/dca.
 
             const body = {
                 payer: publicKey.toString(),
@@ -55,11 +51,10 @@ export function useDCA() {
                 cycleSecondsApart: params.cycleFrequency,
                 inputMint: params.inputMint,
                 outputMint: params.outputMint,
-                minOutAmountPerCycle: 0 // Simplification
+                minOutAmountPerCycle: 0,
+                computeUnitPrice: "auto" // Vital for landing txs
             };
 
-            // Note: If this 404s, we might need to use the SDK.
-            // For now, attempting the direct transaction construction endpoint.
             // Use local proxy to bypass CORS
             const response = await fetch("/api/proxy/dca?action=create", {
                 method: "POST",
@@ -75,16 +70,26 @@ export function useDCA() {
 
             const { tx } = await response.json();
 
-            // Deserialize and Sign
+            // Deserialize 
             const transactionBuf = Buffer.from(tx, "base64");
             const transaction = VersionedTransaction.deserialize(transactionBuf);
 
+            // Pre-Flight Simulation
+            const sim = await connection.simulateTransaction(transaction);
+            if (sim.value.err) {
+                console.error("DCA Simulation Failed:", sim.value.err, sim.value.logs);
+                let msg = "Simulation Failed";
+                if (sim.value.logs?.some(l => l.includes("0x1"))) msg = "Insufficient funds for setup (Rent + Fees).";
+                throw new Error(msg);
+            }
+
+            // Sign
             const signedTx = await signTransaction(transaction);
 
             // Send
             const rawTransaction = signedTx.serialize();
             const txid = await connection.sendRawTransaction(rawTransaction, {
-                skipPreflight: true,
+                skipPreflight: true, // We already simulated
                 maxRetries: 2
             });
 
@@ -96,11 +101,9 @@ export function useDCA() {
 
         } catch (error: any) {
             console.error("DCA Creation Error:", error);
-            // Fallback for MVP if API is private/complex: 
-            // We just show a "Success" toast for demonstration if it's a 404/CORS issue, 
-            // but for a real app we'd need the SDK. 
-            // Use notify_user to ask if they want full SDK integration if this fails.
-            showToast({ title: "Error", message: error.message || "Failed to create DCA", type: "error" });
+            let msg = error.message;
+            if (msg.includes("User rejected")) msg = "Cancelled by user";
+            showToast({ title: "Error", message: msg, type: "error" });
         } finally {
             setLoading(false);
         }
