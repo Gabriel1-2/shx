@@ -56,7 +56,7 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
     // Token State
     const [tokens, setTokens] = useState<{ input: TokenInfo; output: TokenInfo }>({
         input: { symbol: "SOL", address: SOL_MINT, decimals: 9, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" },
-        output: { symbol: "SHULEVITZ", address: SHULEVITZ_MINT, decimals: 6, logoURI: "/shulevitz-logo.png" }
+        output: { symbol: "SHULEVITZ", address: SHULEVITZ_MINT, decimals: 6, logoURI: "https://ui-avatars.com/api/?name=SHX&background=22c55e&color=000" }
     });
 
     // Selector State
@@ -595,10 +595,10 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                         },
                         {
                             from: { symbol: "SOL", address: SOL_MINT, decimals: 9, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" },
-                            to: { symbol: "SHX", address: SHULEVITZ_MINT, decimals: 6, logoURI: "/shulevitz-logo.png" }
+                            to: { symbol: "SHX", address: SHULEVITZ_MINT, decimals: 6, logoURI: "https://ui-avatars.com/api/?name=SHX&background=22c55e&color=000" }
                         },
                         {
-                            from: { symbol: "SHX", address: SHULEVITZ_MINT, decimals: 6, logoURI: "/shulevitz-logo.png" },
+                            from: { symbol: "SHX", address: SHULEVITZ_MINT, decimals: 6, logoURI: "https://ui-avatars.com/api/?name=SHX&background=22c55e&color=000" },
                             to: { symbol: "SOL", address: SOL_MINT, decimals: 9, logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" }
                         },
                     ].map((pair, i) => (

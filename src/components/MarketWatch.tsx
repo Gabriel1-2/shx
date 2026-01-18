@@ -34,7 +34,7 @@ const TOKEN_INFO: Record<string, { symbol: string; name: string; logoURI: string
     "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q": {
         symbol: "SHX",
         name: "Shulevitz",
-        logoURI: "/shulevitz-logo.png"
+        logoURI: "https://ui-avatars.com/api/?name=SHX&background=22c55e&color=000"
     },
     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": {
         symbol: "USDC",

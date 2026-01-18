@@ -53,9 +53,37 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
     useEffect(() => {
         if (!chartContainerRef.current) return;
 
-        // 1. Cleanup Old
-        if (chartInstance.current) chartInstance.current.remove();
-        if (rsiChartInstance.current) rsiChartInstance.current.remove();
+        // 1. Cleanup Function
+        const cleanup = () => {
+            // Nullify refs immediately to prevent async access
+            candleSeries.current = null;
+            volumeSeries.current = null;
+            ma20Series.current = null;
+            ma50Series.current = null;
+            bbUpperSeries.current = null;
+            bbLowerSeries.current = null;
+
+            if (chartInstance.current) {
+                try {
+                    chartInstance.current.unsubscribeCrosshairMove();
+                    chartInstance.current.remove();
+                } catch (e) {
+                    console.warn("Chart cleanup error", e);
+                }
+                chartInstance.current = null;
+            }
+            if (rsiChartInstance.current) {
+                try {
+                    rsiChartInstance.current.remove();
+                } catch (e) {
+                    console.warn("RSI cleanup error", e);
+                }
+                rsiChartInstance.current = null;
+            }
+        };
+
+        // Run cleanup first just in case
+        cleanup();
 
         // 2. Create Main Chart
         const chart = createChart(chartContainerRef.current, {
@@ -126,15 +154,22 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
             rsiChartInstance.current = rsiChart;
 
             // Sync Crosshairs & Time
-            chart.timeScale().subscribeVisibleTimeRangeChange((range: any) => {
-                rsiChart.timeScale().setVisibleRange(range);
-            });
-            rsiChart.timeScale().subscribeVisibleTimeRangeChange((range: any) => {
-                chart.timeScale().setVisibleRange(range);
-            });
+            // Store Unsubscribers? Lightweight charts doesn't return one for timeScale subscription.
+            // We rely on chart.remove() to clean these up.
 
-            // Crosshair Sync (Simplified: just mouse move propagation is hard without shared state, 
-            // but Lightweight charts has examples. For now we sync Time Range which is most important)
+            const mainTimeScale = chart.timeScale();
+            const rsiTimeScale = rsiChart.timeScale();
+
+            mainTimeScale.subscribeVisibleTimeRangeChange((range: any) => {
+                if (rsiChartInstance.current) {
+                    try { rsiTimeScale.setVisibleRange(range); } catch (e) { }
+                }
+            });
+            rsiTimeScale.subscribeVisibleTimeRangeChange((range: any) => {
+                if (chartInstance.current) {
+                    try { mainTimeScale.setVisibleRange(range); } catch (e) { }
+                }
+            });
         }
 
         // 4. Resize Handling
@@ -149,16 +184,12 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
         window.addEventListener("resize", handleResize);
 
         // 5. Crosshair Legend
-        chart.subscribeCrosshairMove((param: any) => {
-            if (param.time) {
+        const updateLegend = (param: any) => {
+            if (param.time && candleSeries.current) {
                 const data = param.seriesData.get(candleSeries.current);
-                const vol = param.seriesData.get(volumeSeries.current);
-                const ma20 = param.seriesData.get(ma20Series.current);
-                const ma50 = param.seriesData.get(ma50Series.current);
-
-                // Get RSI Value if synced? 
-                // Getting RSI value from specific time requires looking up data manually since separate chart. 
-                // We'll skip RSI in main legend for now to keep code simple.
+                const vol = volumeSeries.current ? param.seriesData.get(volumeSeries.current) : null;
+                const ma20 = ma20Series.current ? param.seriesData.get(ma20Series.current) : null;
+                const ma50 = ma50Series.current ? param.seriesData.get(ma50Series.current) : null;
 
                 if (data) {
                     setLegend({
@@ -175,12 +206,15 @@ export const NativeChart = ({ tokenAddress, symbol }: NativeChartProps) => {
             } else {
                 setLegend(null);
             }
-        });
+        };
 
+        chart.subscribeCrosshairMove(updateLegend);
+
+        // Cleanup on Unmount / Re-run
         return () => {
             window.removeEventListener("resize", handleResize);
-            if (chartInstance.current) chartInstance.current.remove();
-            if (rsiChartInstance.current) rsiChartInstance.current.remove();
+            if (chart) try { chart.unsubscribeCrosshairMove(updateLegend); } catch (e) { }
+            cleanup();
         };
 
     }, [showRSI]); // Re-create if layout changes

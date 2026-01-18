@@ -21,7 +21,7 @@ interface TokenSelectorProps {
 const POPULAR_TOKENS: Token[] = [
     { address: "So11111111111111111111111111111111111111112", symbol: "SOL", name: "Solana", logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png", decimals: 9 },
     { address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", symbol: "USDC", name: "USD Coin", logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png", decimals: 6 },
-    { address: "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q", symbol: "SHULEVITZ", name: "Shulevitz", logoURI: "/shulevitz-logo.png", decimals: 6 },
+    { address: "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q", symbol: "SHULEVITZ", name: "Shulevitz", logoURI: "https://ui-avatars.com/api/?name=SHX&background=22c55e&color=000", decimals: 6 },
     { address: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", symbol: "USDT", name: "Tether USD", logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.png", decimals: 6 },
     { address: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", symbol: "BONK", name: "Bonk", logoURI: "https://arweave.net/hQiPZOsRZXGXBJd_82PhVdlM_hACsT_q6wqwf5cSY7I", decimals: 5 },
     { address: "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr", symbol: "POPCAT", name: "Popcat", logoURI: "https://bafkreidvkvuzyslw5jh5z242lgzwzhbi2kxxnpkb2iis7yn4hjlb7kxfou.ipfs.nftstorage.link/", decimals: 9 },
