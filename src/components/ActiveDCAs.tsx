@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useDCA } from "@/hooks/useDCA";
+import { ActiveDCA, useDCA } from "@/hooks/useDCA";
 import { Loader2, Trash2, Repeat, ArrowRight } from "lucide-react";
 
 export function ActiveDCAs() {
@@ -35,7 +35,7 @@ export function ActiveDCAs() {
             </h3>
 
             <div className="grid gap-2">
-                {activeDCAs.map((dca: any, idx) => (
+                {activeDCAs.map((dca: ActiveDCA, idx) => (
                     <div
                         key={idx}
                         className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-lg hover:border-primary/30 transition-colors"

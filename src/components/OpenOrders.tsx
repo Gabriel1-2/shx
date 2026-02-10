@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLimitOrders } from "@/hooks/useLimitOrders";
+import { OpenOrder, useLimitOrders } from "@/hooks/useLimitOrders";
 import { Loader2, Trash2, Clock, ArrowRight } from "lucide-react";
 
 export function OpenOrders() {
@@ -35,7 +35,7 @@ export function OpenOrders() {
             </h3>
 
             <div className="grid gap-2">
-                {openOrders.map((order: any, idx) => (
+                {openOrders.map((order: OpenOrder, idx) => (
                     <div
                         key={idx}
                         className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-lg hover:border-primary/30 transition-colors"

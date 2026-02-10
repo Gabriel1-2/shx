@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { useToast } from "@/components/Toast";
 
 interface LimitOrderParams {
@@ -11,7 +11,7 @@ interface LimitOrderParams {
     expiredAt?: number | null; // UNIX timestamp in seconds
 }
 
-interface OpenOrder {
+export interface OpenOrder {
     publicKey: string;
     account: {
         inputMint: string;
@@ -25,10 +25,28 @@ interface OpenOrder {
 
 export function useLimitOrders() {
     const { connection } = useConnection();
-    const { publicKey, signTransaction, signAllTransactions } = useWallet();
+    const { publicKey, signTransaction } = useWallet();
     const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
+
+    // Fetch Open Orders
+    const fetchOpenOrders = useCallback(async () => {
+        if (!publicKey) return;
+
+        try {
+            // Endpoint: https://jup.ag/api/limit/v1/openOrders?wallet=...
+            // Note: Trigger API might have a different one, but let's try this standard one first.
+            // Endpoint: /api/proxy/limit?wallet=...
+            const response = await fetch(`/api/proxy/limit?wallet=${publicKey.toString()}`);
+            if (!response.ok) return;
+
+            const data = await response.json();
+            setOpenOrders(data);
+        } catch (error) {
+            console.error("Fetch Orders Error:", error);
+        }
+    }, [publicKey]);
 
     // Create Limit Order
     const createLimitOrder = useCallback(async (params: LimitOrderParams) => {
@@ -97,16 +115,16 @@ export function useLimitOrders() {
             fetchOpenOrders(); // Refresh list
             return txid;
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Limit Order Error:", error);
             // Nice error formatting
-            let msg = error.message;
+            let msg = error instanceof Error ? error.message : String(error);
             if (msg.includes("User rejected")) msg = "Cancelled by user";
             showToast({ title: "Error", message: msg, type: "error" });
         } finally {
             setLoading(false);
         }
-    }, [publicKey, signTransaction, connection, showToast]);
+    }, [publicKey, signTransaction, connection, showToast, fetchOpenOrders]);
 
     // Cancel Limit Order
     const cancelLimitOrder = useCallback(async (orderPubkey: string) => {
@@ -144,31 +162,13 @@ export function useLimitOrders() {
             showToast({ title: "Cancelled", message: "Order Cancelled", type: "success" });
             fetchOpenOrders(); // Refresh
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Cancel Error:", error);
             showToast({ title: "Error", message: "Failed to cancel order", type: "error" });
         } finally {
             setLoading(false);
         }
-    }, [publicKey, signTransaction, connection, showToast]);
-
-    // Fetch Open Orders
-    const fetchOpenOrders = useCallback(async () => {
-        if (!publicKey) return;
-
-        try {
-            // Endpoint: https://jup.ag/api/limit/v1/openOrders?wallet=...
-            // Note: Trigger API might have a different one, but let's try this standard one first.
-            // Endpoint: /api/proxy/limit?wallet=...
-            const response = await fetch(`/api/proxy/limit?wallet=${publicKey.toString()}`);
-            if (!response.ok) return;
-
-            const data = await response.json();
-            setOpenOrders(data);
-        } catch (error) {
-            console.error("Fetch Orders Error:", error);
-        }
-    }, [publicKey]);
+    }, [publicKey, signTransaction, connection, showToast, fetchOpenOrders]);
 
     return {
         createLimitOrder,
