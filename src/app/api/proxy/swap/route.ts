@@ -4,38 +4,46 @@ import { NextRequest, NextResponse } from "next/server";
 export const preferredRegion = "fra1"; // Force Frankfurt to bypass geo-blocking
 export const runtime = "nodejs"; // MUST be nodejs to respect preferredRegion
 
+const SWAP_ENDPOINTS = [
+    "https://lite-api.jup.ag/swap/v1/swap",
+    "https://public.jupiterapi.com/swap"
+];
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
+        let lastError = "Unknown Jupiter swap error";
 
         // Log the received body for debugging (optional, remove in prod if noisy)
         // console.log(`[PROXY] Forwarding swap request with platformFee:`, body.platformFee);
 
-        // Forward to Jupiter Swap API (QuickNode Public)
-        const response = await fetch("https://public.jupiterapi.com/swap", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Origin": "https://jup.ag",
-                "Referer": "https://jup.ag/"
-            },
-            body: JSON.stringify(body) // Pass original body (now includes platformFee correctly)
-        });
+        for (const endpoint of SWAP_ENDPOINTS) {
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(body)
+            });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[PROXY] Jupiter Swap API Error: ${response.status} - ${errorText} `);
-            return NextResponse.json({ error: "Failed to construct swap transaction", details: errorText }, { status: response.status });
+            if (!response.ok) {
+                const errorText = await response.text();
+                lastError = `${endpoint} -> ${response.status}: ${errorText}`;
+                console.error(`[PROXY] Swap API Error: ${lastError}`);
+                continue;
+            }
+
+            const data = await response.json();
+            return NextResponse.json(data);
         }
 
-        const data = await response.json();
+        return NextResponse.json(
+            { error: "Failed to construct swap transaction", details: lastError },
+            { status: 502 }
+        );
 
-        // Return Jupiter response directly (Frontend handles signing)
-        return NextResponse.json(data);
-
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[PROXY] Internal Error:", error);
-        return NextResponse.json({ error: "Internal Proxy Error", details: error.message }, { status: 500 });
+        return NextResponse.json({ error: "Internal Proxy Error", details: error instanceof Error ? error.message : String(error) }, { status: 500 });
     }
 }

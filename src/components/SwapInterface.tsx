@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
-import { calculateFeeBps, getCurrentTier } from "@/lib/feeTiers";
+import { calculateFeeBps } from "@/lib/feeTiers";
 import { getShulevitzHoldingsUSD, clearBalanceCache } from "@/lib/tokenBalance";
 import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -14,7 +14,7 @@ const SHULEVITZ_MINT = "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q";
 
 declare global {
     interface Window {
-        Jupiter: any;
+        Jupiter: { init: (config: unknown) => void; close?: () => void } | undefined;
     }
 }
 
@@ -25,25 +25,25 @@ export function SwapInterface() {
     const [buyShulevitzMode, setBuyShulevitzMode] = useState(false);
 
     // Fee tier state
-    const [holdingsUSD, setHoldingsUSD] = useState(0);
     const [currentFeeBps, setCurrentFeeBps] = useState(50); // Default 0.5%
-    const [tierInfo, setTierInfo] = useState<ReturnType<typeof getCurrentTier> | null>(null);
 
     // Fetch SHULEVITZ holdings when wallet connects
     useEffect(() => {
-        if (publicKey) {
-            getShulevitzHoldingsUSD(publicKey.toString()).then(holdings => {
-                setHoldingsUSD(holdings);
-                const fee = calculateFeeBps(holdings, apeMode, buyShulevitzMode);
+        let cancelled = false;
+
+        const updateFee = async () => {
+            const holdings = publicKey ? await getShulevitzHoldingsUSD(publicKey.toString()) : 0;
+            const fee = calculateFeeBps(holdings, apeMode, buyShulevitzMode);
+            if (!cancelled) {
                 setCurrentFeeBps(fee);
-                setTierInfo(getCurrentTier(holdings));
-                console.log(`[FEE TIER] Holdings: $${holdings}, Fee: ${fee} bps`);
-            });
-        } else {
-            setHoldingsUSD(0);
-            setCurrentFeeBps(calculateFeeBps(0, apeMode, buyShulevitzMode));
-            setTierInfo(null);
-        }
+            }
+            console.log(`[FEE TIER] Holdings: $${holdings}, Fee: ${fee} bps`);
+        };
+
+        updateFee();
+        return () => {
+            cancelled = true;
+        };
     }, [publicKey, apeMode, buyShulevitzMode]);
 
     // Load Jupiter script
@@ -83,7 +83,7 @@ export function SwapInterface() {
                     priorityLevel: apeMode ? "veryHigh" : "medium",
                     strictTokenList: false,
                     passThroughWallet: wallet ? wallet.adapter : null,
-                    onSuccess: async ({ txid, swapResult }: any) => {
+                    onSuccess: async ({ txid }: { txid: string }) => {
                         console.log("Swap Successful!", txid);
                         if (publicKey) {
                             const walletAddr = publicKey.toString();
@@ -104,7 +104,7 @@ export function SwapInterface() {
                             alert(`Swap Successful! +100 XP Earned! 🚀\nTx: ${txid}`);
                         }
                     },
-                    onSwapError: ({ error }: any) => {
+                    onSwapError: ({ error }: { error: unknown }) => {
                         console.error("Swap Error:", error);
                     }
                 });

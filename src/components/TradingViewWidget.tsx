@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface TradingViewWidgetProps {
     pairAddress?: string;
@@ -8,10 +8,6 @@ interface TradingViewWidgetProps {
 
 export function TradingViewWidget({ pairAddress }: TradingViewWidgetProps) {
     const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        setIsLoading(true);
-    }, [pairAddress]);
 
     if (!pairAddress) {
         return (
@@ -32,6 +28,7 @@ export function TradingViewWidget({ pairAddress }: TradingViewWidgetProps) {
                 </div>
             )}
             <iframe
+                key={pairAddress}
                 src={`https://dexscreener.com/solana/${pairAddress}?embed=1&theme=dark&trades=0&info=0`}
                 className="w-full h-full border-0"
                 onLoad={() => setIsLoading(false)}
