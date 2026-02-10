@@ -22,13 +22,16 @@ import { ActiveDCAs } from "./ActiveDCAs";
 import { ADMIN_WALLET_SOL, SOL_MINT, SHULEVITZ_MINT } from "@/lib/constants";
 
 // Constants
-const TOKEN_PROGRAM_ID_STR = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-
 interface TokenInfo {
     symbol: string;
     address: string;
     decimals: number;
     logoURI?: string;
+}
+
+interface QuoteData {
+    outAmount: string;
+    [key: string]: unknown;
 }
 
 type Tab = "swap" | "limit" | "dca";
@@ -65,7 +68,7 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
 
     // Swap State
     const [amount, setAmount] = useState("");
-    const [quote, setQuote] = useState<any>(null);
+    const [quote, setQuote] = useState<QuoteData | null>(null);
     const [loading, setLoading] = useState(false);
     const [txState, setTxState] = useState<"idle" | "signing" | "confirming" | "success" | "error">("idle");
 
@@ -97,7 +100,7 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         setSelectorOpen(true);
     };
 
-    const handleTokenSelect = (token: any) => {
+    const handleTokenSelect = (token: TokenInfo) => {
         setQuote(null);
         setTokens(prev => {
             const newTokens = {
@@ -186,9 +189,10 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
 
             showToast({ type: "success", title: "Account Initialized", message: "You can now receive " + tokens.output.symbol });
             setIsOutputATAMissing(false);
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("ATA Init Failed:", e);
-            showToast({ type: "error", title: "Failed", message: e.message });
+            const message = e instanceof Error ? e.message : String(e);
+            showToast({ type: "error", title: "Failed", message });
         } finally {
             setLoading(false);
         }
@@ -216,7 +220,7 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         setQuote(null);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
 
         try {
             const amountAtoms = Math.floor(Number(amount) * Math.pow(10, tokens.input.decimals));
@@ -242,8 +246,12 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             const data = await res.json();
             if (data.error) throw new Error(data.error);
             setQuote(data);
-        } catch (error: any) {
-            if (error.name !== 'AbortError') {
+        } catch (error: unknown) {
+            const isAbortError = error instanceof DOMException
+                ? error.name === 'AbortError'
+                : error instanceof Error && error.name === 'AbortError';
+
+            if (!isAbortError) {
                 console.error("Quote Error:", error);
                 setQuote(null);
             }
@@ -298,42 +306,12 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
         }
     };
 
-    // Helper: check if user has ATA for output token
-    const ensureOutputATAExists = async (): Promise<boolean> => {
-        try {
-            if (!publicKey) return false;
-            // SOL is native, no ATA required
-            if (tokens.output.address === SOL_MINT) return true;
-
-            const ownerPub = publicKey;
-            const tokenProgramId = new PublicKey(TOKEN_PROGRAM_ID_STR);
-            const accounts = await connection.getParsedTokenAccountsByOwner(ownerPub, { programId: tokenProgramId });
-            const has = accounts.value.some(acc => acc.account.data?.parsed?.info?.mint === tokens.output.address);
-            if (has) return true;
-
-            showToast({
-                type: 'error',
-                title: 'Missing Token Account',
-                message: `You do not have an associated token account for ${tokens.output.symbol}. Please create it in your wallet to receive tokens.`
-            });
-            return false;
-        } catch (e) {
-            console.error('ATA check failed', e);
-            return false;
-        }
-    };
-
     // Execute Swap via PROXY (collect platform fee properly)
     const executeSwap = async () => {
         if (!quote || !publicKey || !signTransaction) return;
         setTxState("signing");
 
         try {
-            const hasAta = await ensureOutputATAExists();
-            if (!hasAta) {
-                console.warn(`[SWAP] No ATA detected for ${tokens.output.symbol}. Continuing because Jupiter can create it in-route.`);
-            }
-
             // Calculate correct Fee Account
             // Use current calculated fee tier for fee-enabled routes.
             let finalFeeBps = feeBps;
@@ -354,7 +332,7 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                 }
             }
 
-            const body: any = {
+            const body: Record<string, unknown> = {
                 quoteResponse: quote,
                 userPublicKey: publicKey.toString(),
                 wrapAndUnwrapSol: true,
@@ -377,11 +355,18 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                 body: JSON.stringify(body)
             });
 
-            if (!swapRes.ok) throw new Error("Swap proxy failed");
-            const swapData = await swapRes.json();
-            if (swapData.error) throw new Error(swapData.error);
+            if (!swapRes.ok) {
+                const swapText = await swapRes.text();
+                throw new Error(`Swap proxy failed (${swapRes.status}): ${swapText}`);
+            }
 
-            const rawBase64 = swapData.swapTransaction as string;
+            const swapData = await swapRes.json();
+            if (swapData.error) throw new Error(String(swapData.error));
+
+            const rawBase64 = swapData.swapTransaction as string | undefined;
+            if (!rawBase64) {
+                throw new Error("Swap transaction was not returned by Jupiter.");
+            }
             const bytes = Uint8Array.from(atob(rawBase64), c => c.charCodeAt(0));
             const transaction = VersionedTransaction.deserialize(bytes);
 
@@ -419,16 +404,20 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
             // Send with Skip Preflight = TRUE because we already simulated it manually
             // This enables "Turbo" submission
             const txid = await connection.sendRawTransaction(rawTransaction, {
-                skipPreflight: true, // We simulated it ourselves
+                skipPreflight: true,
                 maxRetries: 3
             });
 
-            const latestBlockHash = await connection.getLatestBlockhash();
+            const txBlockhash = transaction.message.recentBlockhash;
+            const lastValidBlockHeight = typeof swapData.lastValidBlockHeight === "number"
+                ? swapData.lastValidBlockHeight
+                : (await connection.getLatestBlockhash()).lastValidBlockHeight;
+
             await connection.confirmTransaction({
-                blockhash: latestBlockHash.blockhash,
-                lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+                blockhash: txBlockhash,
+                lastValidBlockHeight,
                 signature: txid
-            });
+            }, "confirmed");
 
             setTxState("success");
             onSwapSuccess();
@@ -463,12 +452,12 @@ export default function CustomSwap({ onToggleChart, onPairChange, isChartOpen = 
                 setQuote(null);
             }, 3000);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Swap Failed:", error);
             setTxState("error");
 
             // Clean Error Messages
-            let msg = error.message;
+            let msg = error instanceof Error ? error.message : String(error);
             if (msg.includes("User rejected")) msg = "Transaction cancelled by user.";
             if (msg.includes("Transaction simulation failed")) msg = "Simulation Failed: Check balance or slippage.";
 
