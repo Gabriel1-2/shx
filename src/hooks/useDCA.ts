@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, VersionedTransaction } from "@solana/web3.js";
+import { VersionedTransaction } from "@solana/web3.js";
 import { useToast } from "@/components/Toast";
 
 interface DCAParams {
@@ -11,7 +11,7 @@ interface DCAParams {
     numberOfCycles: number;
 }
 
-interface ActiveDCA {
+export interface ActiveDCA {
     publicKey: string;
     account: {
         inputMint: string;
@@ -30,6 +30,23 @@ export function useDCA() {
     const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [activeDCAs, setActiveDCAs] = useState<ActiveDCA[]>([]);
+
+    // Fetch Active DCAs
+    const fetchActiveDCAs = useCallback(async () => {
+        if (!publicKey) return;
+
+        try {
+            // Endpoint: https://dca-api.jup.ag/v1/user?wallet=...
+            // Use local proxy
+            const response = await fetch(`/api/proxy/dca?wallet=${publicKey.toString()}`);
+            if (!response.ok) return;
+
+            const data = await response.json();
+            setActiveDCAs(data);
+        } catch (error) {
+            console.error("Fetch DCA Error:", error);
+        }
+    }, [publicKey]);
 
     // Create DCA Order
     // Uses Jupiter Recurring API (assumed endpoint based on research, fallback to DCA API)
@@ -99,32 +116,15 @@ export function useDCA() {
             fetchActiveDCAs(); // Refresh list
             return txid;
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("DCA Creation Error:", error);
-            let msg = error.message;
+            let msg = error instanceof Error ? error.message : String(error);
             if (msg.includes("User rejected")) msg = "Cancelled by user";
             showToast({ title: "Error", message: msg, type: "error" });
         } finally {
             setLoading(false);
         }
-    }, [publicKey, signTransaction, connection, showToast]);
-
-    // Fetch Active DCAs
-    const fetchActiveDCAs = useCallback(async () => {
-        if (!publicKey) return;
-
-        try {
-            // Endpoint: https://dca-api.jup.ag/v1/user?wallet=...
-            // Use local proxy
-            const response = await fetch(`/api/proxy/dca?wallet=${publicKey.toString()}`);
-            if (!response.ok) return;
-
-            const data = await response.json();
-            setActiveDCAs(data);
-        } catch (error) {
-            console.error("Fetch DCA Error:", error);
-        }
-    }, [publicKey]);
+    }, [publicKey, signTransaction, connection, showToast, fetchActiveDCAs]);
 
     // Close DCA
     const closeDCA = useCallback(async (dcaPubkey: string) => {
@@ -160,7 +160,7 @@ export function useDCA() {
         } finally {
             setLoading(false);
         }
-    }, [publicKey, signTransaction, connection, showToast]);
+    }, [publicKey, signTransaction, connection, showToast, fetchActiveDCAs]);
 
     return {
         createDCA,

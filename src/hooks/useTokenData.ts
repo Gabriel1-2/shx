@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { ParsedAccountData, PublicKey } from '@solana/web3.js';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 
@@ -36,8 +36,9 @@ export function useTokenBalance(tokenMint: string, decimals: number = 9) {
                 const response = await connection.getParsedAccountInfo(ata);
 
                 if (response.value) {
-                    const data = response.value.data as any;
-                    setBalance(data.parsed.info.tokenAmount.uiAmount || 0);
+                    const parsed = response.value.data as ParsedAccountData;
+                    const tokenAmount = parsed.parsed?.info?.tokenAmount?.uiAmount;
+                    setBalance(typeof tokenAmount === "number" ? tokenAmount : 0);
                 } else {
                     setBalance(0);
                 }

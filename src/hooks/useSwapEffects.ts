@@ -3,12 +3,22 @@
 import { useCallback } from "react";
 import confetti from "canvas-confetti";
 
+type AudioWindow = Window & {
+    webkitAudioContext?: typeof AudioContext;
+};
+
 export function useSwapEffects() {
     // Success sound effect
     const playSuccessSound = useCallback(() => {
         try {
             // Create a simple success tone using Web Audio API
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const AudioContextCtor = window.AudioContext || (window as AudioWindow).webkitAudioContext;
+            if (!AudioContextCtor) {
+                console.log("Audio not supported");
+                return;
+            }
+
+            const audioContext = new AudioContextCtor();
 
             // First tone (higher)
             const oscillator1 = audioContext.createOscillator();
@@ -35,7 +45,7 @@ export function useSwapEffects() {
                 oscillator2.start(audioContext.currentTime);
                 oscillator2.stop(audioContext.currentTime + 0.4);
             }, 100);
-        } catch (e) {
+        } catch {
             console.log("Audio not supported");
         }
     }, []);
