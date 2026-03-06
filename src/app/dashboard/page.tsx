@@ -3,8 +3,6 @@
 import { useEffect, useState, Suspense } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { getUserStats, getLeaderboard } from "@/lib/points";
-import { getCurrentTier, checkMilestoneEligibility, HOLDER_FEE_TIERS } from "@/lib/feeTiers";
-import { getShulevitzHoldingsUSD } from "@/lib/tokenBalance";
 import { getPlatformStats } from "@/lib/platformStats";
 import { Leaderboard } from "@/components/Leaderboard";
 import { SystemStatus } from "@/components/SystemStatus";
@@ -14,8 +12,8 @@ import { TransactionHistory } from "@/components/TransactionHistory";
 import { AnimatedCurrency, AnimatedCounter } from "@/components/AnimatedCounter";
 import { useReferralCapture } from "@/hooks/useReferralCapture";
 import {
-    TrendingUp, Shield, AlertTriangle, Zap, Wallet, Trophy, Activity,
-    ChevronRight, Sparkles, Target, Award
+    TrendingUp, Shield, Zap, Wallet, Trophy, Activity,
+    ChevronRight, Target, Award
 } from "lucide-react";
 
 function DashboardContent() {
@@ -35,10 +33,7 @@ function DashboardContent() {
         totalUsers: 0,
         totalFees: 0
     });
-    const [holdingsUSD, setHoldingsUSD] = useState(0);
-    const [tierInfo, setTierInfo] = useState<ReturnType<typeof getCurrentTier> | null>(null);
     const [userRank, setUserRank] = useState<number | null>(null);
-    const [milestoneStatus, setMilestoneStatus] = useState<ReturnType<typeof checkMilestoneEligibility> | null>(null);
 
     useEffect(() => {
         getPlatformStats().then(setPlatformStats);
@@ -61,19 +56,8 @@ function DashboardContent() {
                     const entry = leaderboard.find(e => e.wallet === walletAddr);
                     if (entry) {
                         setUserRank(entry.rank);
-                        setMilestoneStatus(checkMilestoneEligibility(
-                            entry.rank,
-                            data.volume || 0,
-                            data.tradeCount || 0,
-                            data.totalFeesPaid || 0
-                        ));
                     }
                 });
-            });
-
-            getShulevitzHoldingsUSD(walletAddr).then(holdings => {
-                setHoldingsUSD(holdings);
-                setTierInfo(getCurrentTier(holdings));
             });
         }
     }, [publicKey]);
@@ -158,57 +142,6 @@ function DashboardContent() {
                 <div className="grid gap-6 lg:grid-cols-3">
                     {/* Left Column - Personal Stats */}
                     <div className="lg:col-span-2 space-y-6">
-                        {/* Fee Tier Card */}
-                        {publicKey && tierInfo && (
-                            <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-black/40 to-emerald-500/5 p-6 backdrop-blur-xl">
-                                <div className="flex items-center justify-between mb-6">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 rounded-xl bg-primary/20">
-                                            <Sparkles className="text-primary" size={20} />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-lg font-bold text-white">Your Fee Tier</h2>
-                                            <p className="text-xs text-muted-foreground">Hold $SHULEVITZ for lower fees</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-2xl font-bold text-primary">{(tierInfo.current.feeBps / 100).toFixed(2)}%</div>
-                                        <div className="text-xs text-green-400 font-bold">{tierInfo.current.discount}</div>
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-4 grid-cols-3">
-                                    <div className="p-3 rounded-xl bg-black/30 border border-white/5 text-center">
-                                        <div className="text-[10px] text-muted-foreground mb-1">Holdings</div>
-                                        <div className="text-lg font-bold text-white">${holdingsUSD.toLocaleString()}</div>
-                                    </div>
-                                    <div className="p-3 rounded-xl bg-black/30 border border-white/5 text-center">
-                                        <div className="text-[10px] text-muted-foreground mb-1">Current Fee</div>
-                                        <div className="text-lg font-bold text-primary">{(tierInfo.current.feeBps / 100).toFixed(2)}%</div>
-                                    </div>
-                                    <div className="p-3 rounded-xl bg-black/30 border border-white/5 text-center">
-                                        <div className="text-[10px] text-muted-foreground mb-1">Discount</div>
-                                        <div className="text-lg font-bold text-green-400">{tierInfo.current.discount}</div>
-                                    </div>
-                                </div>
-
-                                {tierInfo.next && (
-                                    <div className="mt-4">
-                                        <div className="flex justify-between text-xs text-muted-foreground mb-2">
-                                            <span>Next: ${tierInfo.next.minHoldingsUSD.toLocaleString()} ({(tierInfo.next.feeBps / 100).toFixed(2)}%)</span>
-                                            <span className="text-primary font-bold">{tierInfo.progressToNext}%</span>
-                                        </div>
-                                        <div className="h-2 bg-black/50 rounded-full overflow-hidden border border-white/5">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-primary to-lime-400 transition-all duration-500"
-                                                style={{ width: `${tierInfo.progressToNext}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
                         {/* Your Stats */}
                         <div>
                             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -229,36 +162,6 @@ function DashboardContent() {
                                 ))}
                             </div>
                         </div>
-
-                        {/* Milestone Status */}
-                        {userRank && userRank <= 10 && milestoneStatus && (
-                            <div className={`rounded-2xl border p-5 backdrop-blur-xl ${milestoneStatus.eligible
-                                ? 'border-green-500/30 bg-green-500/5'
-                                : 'border-yellow-500/30 bg-yellow-500/5'
-                                }`}>
-                                <div className="flex items-center gap-3">
-                                    {milestoneStatus.eligible ? (
-                                        <div className="p-2 rounded-xl bg-green-500/20">
-                                            <Shield className="text-green-400" size={20} />
-                                        </div>
-                                    ) : (
-                                        <div className="p-2 rounded-xl bg-yellow-500/20">
-                                            <AlertTriangle className="text-yellow-400" size={20} />
-                                        </div>
-                                    )}
-                                    <div className="flex-1">
-                                        <span className="font-bold text-white">Rank #{userRank} Status</span>
-                                        {milestoneStatus.eligible ? (
-                                            <p className="text-sm text-green-400 mt-1">
-                                                ✅ Eligible for ${milestoneStatus.reward} + {(milestoneStatus.nextDayFee! / 100).toFixed(2)}% fee tomorrow
-                                            </p>
-                                        ) : (
-                                            <p className="text-sm text-yellow-400 mt-1">{milestoneStatus.reason}</p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Transaction History */}
                         <TransactionHistory />
