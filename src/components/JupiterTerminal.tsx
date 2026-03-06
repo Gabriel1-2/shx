@@ -18,17 +18,18 @@ const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 // ──────────────────────────────────────────────────────────────
 // REFERRAL CONFIG — This is how you earn money from every swap!
 // ──────────────────────────────────────────────────────────────
-// 1. Go to https://referral.jup.ag/ and create a referral account
-//    with your Solana wallet. Copy the referral account public key.
-// 2. Create referralTokenAccounts for each mint you want to collect
-//    fees in (SOL, USDC, etc).
+// Jupiter Plugin v4 (Ultra mode) referral setup:
+// 1. Go to https://referral.jup.ag/ and create an Ultra referral
+//    account with your Solana wallet.
+// 2. Create referralTokenAccounts for each mint you want fees in
+//    (SOL, USDC, etc) — your friend already has these.
 // 3. Paste your referral account public key below.
-// 4. Set feeBps (50 = 0.50%, 100 = 1.00%, etc).
+// 4. Set REFERRAL_FEE_BPS (50 = 0.50%, 100 = 1.00%, max 255).
 //
 // Jupiter takes ~20% of the fee, you keep ~80%.
 // ──────────────────────────────────────────────────────────────
 const REFERRAL_ACCOUNT = "315sEtamwE8CvKJrARkBRW6kwMDxP8WRPnFnBY4CBA7r";
-const PLATFORM_FEE_BPS = 50; // 0.50% — adjust as you wish
+const REFERRAL_FEE_BPS = 50; // 0.50% — adjust (50-255 bps for Ultra)
 
 declare global {
     interface Window {
@@ -79,17 +80,11 @@ export default function JupiterTerminal() {
                     defaultExplorer: "Solscan",
                     strictTokenList: false,
 
-                    // ─── REFERRAL FEES ─────────────────────────────
-                    // Uncomment below AFTER you create a valid referral
-                    // account at https://referral.jup.ag/ and initialize
-                    // token accounts for SOL, USDC, etc.
-                    //
-                    // Without proper setup, this causes "Error fetching route"
-                    //
-                    // platformFeeAndAccounts: {
-                    //     referralAccount: REFERRAL_ACCOUNT,
-                    //     feeBps: PLATFORM_FEE_BPS,
-                    // },
+                    // ─── REFERRAL FEES (v4 Ultra format) ──────────
+                    // Top-level params for Plugin v4 Ultra mode.
+                    // NOT platformFeeAndAccounts (that's old v2).
+                    referralAccount: REFERRAL_ACCOUNT,
+                    referralFee: REFERRAL_FEE_BPS,
 
                     formProps: {
                         fixedInputMint: false,
@@ -153,7 +148,7 @@ export default function JupiterTerminal() {
                                 volumeUSD = 100; // Conservative fallback
                             }
 
-                            const feeUSD = volumeUSD * (PLATFORM_FEE_BPS / 10000);
+                            const feeUSD = volumeUSD * (REFERRAL_FEE_BPS / 10000);
                             const xpEarned = Math.max(100, Math.floor(volumeUSD * 10));
 
                             // Fire all analytics in parallel
@@ -218,7 +213,7 @@ export default function JupiterTerminal() {
                         </a>
                     )}
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-                        Powered by Jupiter
+                        0.5% Fee
                     </span>
                     <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                 </div>
