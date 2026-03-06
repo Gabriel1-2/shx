@@ -80,13 +80,16 @@ export default function JupiterTerminal() {
                     strictTokenList: false,
 
                     // ─── REFERRAL FEES ─────────────────────────────
-                    // This is how your friend earns money. Every swap
-                    // through your site charges feeBps and sends it
-                    // to your referral account on Jupiter.
-                    platformFeeAndAccounts: {
-                        referralAccount: REFERRAL_ACCOUNT,
-                        feeBps: PLATFORM_FEE_BPS,
-                    },
+                    // Uncomment below AFTER you create a valid referral
+                    // account at https://referral.jup.ag/ and initialize
+                    // token accounts for SOL, USDC, etc.
+                    //
+                    // Without proper setup, this causes "Error fetching route"
+                    //
+                    // platformFeeAndAccounts: {
+                    //     referralAccount: REFERRAL_ACCOUNT,
+                    //     feeBps: PLATFORM_FEE_BPS,
+                    // },
 
                     formProps: {
                         fixedInputMint: false,
@@ -215,7 +218,7 @@ export default function JupiterTerminal() {
                         </a>
                     )}
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-                        0.5% Fee
+                        Powered by Jupiter
                     </span>
                     <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                 </div>
