@@ -16,22 +16,18 @@ const SOL_MINT = "So11111111111111111111111111111111111111112";
 const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 // ──────────────────────────────────────────────────────────────
-// REFERRAL FEES — Currently DISABLED
+// REFERRAL CONFIG — Earns fees on every swap!
 // ──────────────────────────────────────────────────────────────
-// The old referral account was created under the Metis/v6 project,
-// not the Ultra project, which causes "Error fetching route".
+// Per Jupiter Plugin playground (plugin.jup.ag), referral params
+// go INSIDE formProps — NOT at the top level.
 //
-// TO RE-ENABLE REFERRAL FEES:
+// To change referral account:
 // 1. Go to https://referral.jup.ag/
-// 2. Create a referral account under the ULTRA project
-//    (project key: DkiqsTrw1u1bYFumumC7sCG2S8K25qc2vemJFHyW2wJc)
-// 3. Create referralTokenAccounts for SOL and USDC
-// 4. Uncomment the two lines in Jupiter.init() below and paste
-//    your new Ultra referral account public key:
-//
-// const REFERRAL_ACCOUNT = "YOUR_ULTRA_REFERRAL_ACCOUNT_HERE";
-// const REFERRAL_FEE_BPS = 50; // 0.50%
+// 2. Create/use referral account + token accounts for SOL & USDC
+// 3. Paste your referral public key below
 // ──────────────────────────────────────────────────────────────
+const REFERRAL_ACCOUNT = "315sEtamwE8CvKJrARkBRW6kwMDxP8WRPnFnBY4CBA7r";
+const REFERRAL_FEE_BPS = 50; // 0.50% (50-255 bps)
 
 declare global {
     interface Window {
@@ -82,18 +78,17 @@ export default function JupiterTerminal() {
                     defaultExplorer: "Solscan",
                     strictTokenList: false,
 
-                    // ─── REFERRAL FEES (DISABLED) ─────────────────
-                    // Uncomment these once you have a valid Ultra
-                    // referral account (see instructions above):
-                    // referralAccount: REFERRAL_ACCOUNT,
-                    // referralFee: REFERRAL_FEE_BPS,
-
+                    // ─── FORM + REFERRAL FEES ─────────────────────
+                    // Referral params MUST be inside formProps
+                    // (confirmed by plugin.jup.ag playground)
                     formProps: {
                         fixedInputMint: false,
                         fixedOutputMint: false,
                         initialInputMint: SOL_MINT,
                         initialOutputMint: USDC_MINT,
                         initialSlippageBps: 50,
+                        referralAccount: REFERRAL_ACCOUNT,
+                        referralFee: REFERRAL_FEE_BPS,
                     },
 
                     // ─── ANALYTICS CALLBACKS ──────────────────────
