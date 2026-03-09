@@ -9,13 +9,8 @@ import { LiveFeed } from "@/components/LiveFeed";
 import dynamic from "next/dynamic";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 import { useReferralCapture } from "@/hooks/useReferralCapture";
+import { TradingViewWidget } from "@/components/TradingViewWidget";
 import { Zap, Shield, Globe, TrendingUp, BarChart2, Minimize2 } from "lucide-react";
-
-// Dynamically import Chart to avoid SSR issues
-const NativeChart = dynamic(() => import("@/components/NativeChart").then(mod => mod.NativeChart), {
-  ssr: false,
-  loading: () => <div className="w-full h-[600px] bg-white/5 animate-pulse rounded-3xl" />
-});
 
 // Dynamically import Jupiter Terminal (needs window/document)
 const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
@@ -81,7 +76,7 @@ function HomeContent() {
           {/* LEFT COLUMN */}
           {isChartVisible ? (
             <div className="hidden lg:block lg:col-span-8 space-y-4 animate-in fade-in slide-in-from-right duration-500">
-              <NativeChart tokenAddress={chartToken.address} symbol={chartToken.symbol} />
+              <TradingViewWidget tokenAddress={chartToken.address} symbol={chartToken.symbol} />
               <div className="grid grid-cols-2 gap-4">
                 <MarketWatch />
                 <LiveFeed tokenAddress={chartToken.address} />

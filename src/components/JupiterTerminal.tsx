@@ -16,20 +16,22 @@ const SOL_MINT = "So11111111111111111111111111111111111111112";
 const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 // ──────────────────────────────────────────────────────────────
-// REFERRAL CONFIG — This is how you earn money from every swap!
+// REFERRAL FEES — Currently DISABLED
 // ──────────────────────────────────────────────────────────────
-// Jupiter Plugin v4 (Ultra mode) referral setup:
-// 1. Go to https://referral.jup.ag/ and create an Ultra referral
-//    account with your Solana wallet.
-// 2. Create referralTokenAccounts for each mint you want fees in
-//    (SOL, USDC, etc) — your friend already has these.
-// 3. Paste your referral account public key below.
-// 4. Set REFERRAL_FEE_BPS (50 = 0.50%, 100 = 1.00%, max 255).
+// The old referral account was created under the Metis/v6 project,
+// not the Ultra project, which causes "Error fetching route".
 //
-// Jupiter takes ~20% of the fee, you keep ~80%.
+// TO RE-ENABLE REFERRAL FEES:
+// 1. Go to https://referral.jup.ag/
+// 2. Create a referral account under the ULTRA project
+//    (project key: DkiqsTrw1u1bYFumumC7sCG2S8K25qc2vemJFHyW2wJc)
+// 3. Create referralTokenAccounts for SOL and USDC
+// 4. Uncomment the two lines in Jupiter.init() below and paste
+//    your new Ultra referral account public key:
+//
+// const REFERRAL_ACCOUNT = "YOUR_ULTRA_REFERRAL_ACCOUNT_HERE";
+// const REFERRAL_FEE_BPS = 50; // 0.50%
 // ──────────────────────────────────────────────────────────────
-const REFERRAL_ACCOUNT = "315sEtamwE8CvKJrARkBRW6kwMDxP8WRPnFnBY4CBA7r";
-const REFERRAL_FEE_BPS = 50; // 0.50% — adjust (50-255 bps for Ultra)
 
 declare global {
     interface Window {
@@ -80,11 +82,11 @@ export default function JupiterTerminal() {
                     defaultExplorer: "Solscan",
                     strictTokenList: false,
 
-                    // ─── REFERRAL FEES (v4 Ultra format) ──────────
-                    // Top-level params for Plugin v4 Ultra mode.
-                    // NOT platformFeeAndAccounts (that's old v2).
-                    referralAccount: REFERRAL_ACCOUNT,
-                    referralFee: REFERRAL_FEE_BPS,
+                    // ─── REFERRAL FEES (DISABLED) ─────────────────
+                    // Uncomment these once you have a valid Ultra
+                    // referral account (see instructions above):
+                    // referralAccount: REFERRAL_ACCOUNT,
+                    // referralFee: REFERRAL_FEE_BPS,
 
                     formProps: {
                         fixedInputMint: false,
@@ -95,17 +97,12 @@ export default function JupiterTerminal() {
                     },
 
                     // ─── ANALYTICS CALLBACKS ──────────────────────
-                    // These fire on every successful/failed swap so
-                    // the dashboard, leaderboard, XP, referrals, and
-                    // transaction history all stay up-to-date.
                     onSuccess: async ({ txid, swapResult, quoteResponseMeta }: any) => {
                         console.log("✅ Swap Successful!", txid);
                         setLastTx(txid);
 
                         if (publicKey) {
                             const walletAddr = publicKey.toString();
-
-                            // Try to extract volume from the swap result
                             let volumeUSD = 0;
                             let inputSymbol = "Unknown";
                             let outputSymbol = "Unknown";
@@ -120,23 +117,20 @@ export default function JupiterTerminal() {
                                     inputMint = quote.inputMint || "";
                                     outputMint = quote.outputMint || "";
 
-                                    // Rough USD estimate from quote amounts
                                     const inDecimals = inputMint === SOL_MINT ? 9 : 6;
                                     const outDecimals = outputMint === SOL_MINT ? 9 : 6;
                                     inputAmount = Number(quote.inAmount) / Math.pow(10, inDecimals);
                                     outputAmount = Number(quote.outAmount) / Math.pow(10, outDecimals);
 
-                                    // If one side is USDC/USDT, use that as the USD value
                                     const STABLECOINS = [
-                                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
-                                        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // USDT
+                                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
                                     ];
                                     if (STABLECOINS.includes(inputMint)) {
                                         volumeUSD = inputAmount;
                                     } else if (STABLECOINS.includes(outputMint)) {
                                         volumeUSD = outputAmount;
                                     } else {
-                                        // Rough fallback: assume input is SOL at ~$150
                                         volumeUSD = inputAmount * 150;
                                     }
 
@@ -145,13 +139,12 @@ export default function JupiterTerminal() {
                                 }
                             } catch (e) {
                                 console.warn("[Analytics] Could not parse swap result", e);
-                                volumeUSD = 100; // Conservative fallback
+                                volumeUSD = 100;
                             }
 
-                            const feeUSD = volumeUSD * (REFERRAL_FEE_BPS / 10000);
+                            const feeUSD = volumeUSD * 0.005; // Estimate 0.5%
                             const xpEarned = Math.max(100, Math.floor(volumeUSD * 10));
 
-                            // Fire all analytics in parallel
                             await Promise.all([
                                 addPoints(walletAddr, xpEarned),
                                 addVolume(walletAddr, volumeUSD),
@@ -171,7 +164,7 @@ export default function JupiterTerminal() {
                                 }),
                             ]);
 
-                            console.log(`[Analytics] +${xpEarned} XP, $${volumeUSD.toFixed(2)} vol, $${feeUSD.toFixed(2)} fee`);
+                            console.log(`[Analytics] +${xpEarned} XP, $${volumeUSD.toFixed(2)} vol`);
                         }
                     },
 
@@ -213,7 +206,7 @@ export default function JupiterTerminal() {
                         </a>
                     )}
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-                        0.5% Fee
+                        Powered by Jupiter
                     </span>
                     <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                 </div>
@@ -243,7 +236,7 @@ export default function JupiterTerminal() {
                 </div>
             </div>
 
-            {/* Connect Wallet CTA (only when not connected) */}
+            {/* Connect Wallet CTA */}
             {!connected && (
                 <button
                     onClick={() => setVisible(true)}
