@@ -26,7 +26,7 @@ const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 // 2. Create/use referral account + token accounts for SOL & USDC
 // 3. Paste your referral public key below
 // ──────────────────────────────────────────────────────────────
-const REFERRAL_ACCOUNT = "315sEtamwE8CvKJrARkBRW6kwMDxP8WRPnFnBY4CBA7r";
+const REFERRAL_ACCOUNT = "9rvZ5CC86oFWgwej21DMPR83LSMBoDehrNe6v6V7AAeg";
 const REFERRAL_FEE_BPS = 50; // 0.50% (50-255 bps)
 
 declare global {
