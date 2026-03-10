@@ -87,8 +87,8 @@ export default function JupiterTerminal() {
                         initialInputMint: SOL_MINT,
                         initialOutputMint: USDC_MINT,
                         initialSlippageBps: 50,
-                        // referralAccount: REFERRAL_ACCOUNT,
-                        // referralFee: REFERRAL_FEE_BPS,
+                        referralAccount: REFERRAL_ACCOUNT,
+                        referralFee: REFERRAL_FEE_BPS,
                     },
 
                     // ─── ANALYTICS CALLBACKS ──────────────────────
