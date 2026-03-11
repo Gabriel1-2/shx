@@ -8,8 +8,8 @@ import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
 import { addReferralEarnings } from "@/lib/referrals";
 import { saveSwapTransaction } from "@/lib/transactions";
 
-// Jupiter Plugin script URL (latest v4)
-const JUPITER_SCRIPT_SRC = "https://terminal.jup.ag/main-v4.js";
+// Jupiter Plugin script URL (v1 — confirmed by Jupiter dev team)
+const JUPITER_SCRIPT_SRC = "https://plugin.jup.ag/plugin-v1.js";
 
 // Default mints
 const SOL_MINT = "So11111111111111111111111111111111111111112";
