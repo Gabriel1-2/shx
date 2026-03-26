@@ -123,21 +123,18 @@ export function MarketWatch() {
     const fetchPricesForTokens = useCallback(async (addresses: string[]) => {
         const results: TokenData[] = [];
 
-        // 1. Batch fetch prices from Jupiter (accurate for SOL, USDC, majors)
-        let jupPrices: Record<string, number> = {};
+        // 1. Fetch SOL + USDC prices from CoinGecko (always accurate, free)
+        let cgPrices: Record<string, number> = {};
         try {
-            const jupRes = await fetch(`https://api.jup.ag/price/v2?ids=${addresses.join(',')}`);
-            const jupData = await jupRes.json();
-            if (jupData.data) {
-                for (const [mint, info] of Object.entries(jupData.data as Record<string, any>)) {
-                    if (info?.price) jupPrices[mint] = parseFloat(info.price);
-                }
-            }
+            const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana,usd-coin&vs_currencies=usd');
+            const cgData = await cgRes.json();
+            if (cgData.solana?.usd) cgPrices["So11111111111111111111111111111111111111112"] = cgData.solana.usd;
+            if (cgData["usd-coin"]?.usd) cgPrices["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"] = cgData["usd-coin"].usd;
         } catch (e) {
-            console.warn('Jupiter price fetch failed, falling back to DexScreener', e);
+            console.warn('CoinGecko price fetch failed', e);
         }
 
-        // 2. Fetch detailed data per token from DexScreener (for volume, change, logo)
+        // 2. Fetch detailed data per token from DexScreener
         for (const address of addresses) {
             try {
                 const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${address}`);
@@ -146,13 +143,19 @@ export function MarketWatch() {
                 const knownInfo = TOKEN_INFO[address];
 
                 if (data.pairs && data.pairs.length > 0) {
-                    const pair = data.pairs[0];
-                    const symbol = knownInfo?.symbol || pair.baseToken?.symbol || address.slice(0, 4);
-                    const name = knownInfo?.name || pair.baseToken?.name || "Unknown";
-                    const logoURI = knownInfo?.logoURI || pair.info?.imageUrl;
+                    // CRITICAL: Find pair where baseToken matches our searched address
+                    // DexScreener returns all pairs involving this token, but the first
+                    // result might be a random token paired WITH our token
+                    const correctPair = data.pairs.find(
+                        (p: any) => p.baseToken?.address?.toLowerCase() === address.toLowerCase()
+                    ) || data.pairs[0];
 
-                    // Prefer Jupiter price (accurate), fallback to DexScreener
-                    const currentPrice = jupPrices[address] || parseFloat(pair.priceUsd) || 0;
+                    const symbol = knownInfo?.symbol || correctPair.baseToken?.symbol || address.slice(0, 4);
+                    const name = knownInfo?.name || correctPair.baseToken?.name || "Unknown";
+                    const logoURI = knownInfo?.logoURI || correctPair.info?.imageUrl;
+
+                    // Use CoinGecko price for SOL/USDC, DexScreener for others
+                    const currentPrice = cgPrices[address] || parseFloat(correctPair.priceUsd) || 0;
                     const prevPrice = previousPrices.current[address] || currentPrice;
 
                     let priceDirection: "up" | "down" | "neutral" = "neutral";
@@ -167,26 +170,26 @@ export function MarketWatch() {
                         name,
                         price: currentPrice,
                         prevPrice,
-                        change24h: pair.priceChange?.h24 || 0,
-                        volume24h: pair.volume?.h24 || 0,
+                        change24h: correctPair.priceChange?.h24 || 0,
+                        volume24h: correctPair.volume?.h24 || 0,
                         logoURI,
                         isFavorite: !DEFAULT_TOKENS.includes(address) && address !== SHULEVITZ_MINT,
                         priceDirection
                     });
                 } else if (knownInfo) {
                     // Token not on DexScreener but we have metadata
-                    const jupPrice = jupPrices[address] || 0;
-                    const prevPrice = previousPrices.current[address] || jupPrice;
+                    const cgPrice = cgPrices[address] || 0;
+                    const prevPrice = previousPrices.current[address] || cgPrice;
                     let priceDirection: "up" | "down" | "neutral" = "neutral";
-                    if (jupPrice > prevPrice) priceDirection = "up";
-                    else if (jupPrice < prevPrice) priceDirection = "down";
-                    previousPrices.current[address] = jupPrice;
+                    if (cgPrice > prevPrice) priceDirection = "up";
+                    else if (cgPrice < prevPrice) priceDirection = "down";
+                    previousPrices.current[address] = cgPrice;
 
                     results.push({
                         address,
                         symbol: knownInfo.symbol,
                         name: knownInfo.name,
-                        price: jupPrice,
+                        price: cgPrice,
                         prevPrice,
                         change24h: 0,
                         volume24h: 0,
