@@ -3,16 +3,17 @@
 import { useState, useEffect } from "react";
 import { fetchPoolTrades, TradeData } from "@/lib/chartData";
 import { ExternalLink, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { SHULEVITZ_MINT } from "@/lib/constants";
 
 interface LiveFeedProps {
-    tokenAddress?: string; // Optional, defaults to SHULEVITZ if not provided? Or handled by parent.
+    tokenAddress?: string;
 }
 
 export function LiveFeed({ tokenAddress }: LiveFeedProps) {
     const [trades, setTrades] = useState<TradeData[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const activeToken = tokenAddress || "4FSiK5G5jH936d5e1H8y9564f332152a2334"; // Default fallback
+    const activeToken = tokenAddress || SHULEVITZ_MINT;
 
     useEffect(() => {
         const loadTrades = async () => {

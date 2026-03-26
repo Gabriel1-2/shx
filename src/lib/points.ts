@@ -8,7 +8,8 @@ import {
     increment,
     query,
     orderBy,
-    limit
+    limit,
+    where
 } from "firebase/firestore";
 
 export interface LeaderboardEntry {
@@ -16,42 +17,89 @@ export interface LeaderboardEntry {
     points: number;
     rank: number;
     volume: number;
+    weeklyVolume: number;
     tradeCount?: number;
     totalFeesPaid?: number;
 }
 
+/**
+ * Get the ISO Monday date string for the current week.
+ * Used to track weekly volume resets.
+ */
+function getCurrentWeekStart(): string {
+    const now = new Date();
+    const day = now.getUTCDay();
+    const diff = now.getUTCDate() - day + (day === 0 ? -6 : 1); // Monday
+    const monday = new Date(now);
+    monday.setUTCDate(diff);
+    monday.setUTCHours(0, 0, 0, 0);
+    return monday.toISOString().split("T")[0]; // "2026-03-24"
+}
+
+/**
+ * Get the weekly leaderboard — ranked by weekly USD volume.
+ * Only includes wallets with >= $1,000 weekly volume.
+ */
+export async function getWeeklyLeaderboard(): Promise<LeaderboardEntry[]> {
+    try {
+        const currentWeek = getCurrentWeekStart();
+
+        // Query users with current week data, ordered by weeklyVolume
+        const q = query(
+            collection(db, "users"),
+            where("weekStart", "==", currentWeek),
+            orderBy("weeklyVolume", "desc"),
+            limit(10)
+        );
+        const snapshot = await getDocs(q);
+
+        const entries: LeaderboardEntry[] = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            if ((data.weeklyVolume || 0) >= 1000) {
+                entries.push({
+                    wallet: doc.id,
+                    points: data.points || 0,
+                    volume: data.volume || 0,
+                    weeklyVolume: data.weeklyVolume || 0,
+                    tradeCount: data.tradeCount || 0,
+                    totalFeesPaid: data.totalFeesPaid || 0,
+                    rank: 0,
+                });
+            }
+        });
+
+        return entries.map((e, i) => ({ ...e, rank: i + 1 }));
+    } catch (error) {
+        console.error("Error fetching weekly leaderboard:", error);
+        return [];
+    }
+}
+
+/**
+ * Get the all-time leaderboard (fallback / dashboard use).
+ */
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
-        // Fetch Top 20 Real Users by volume
         const q = query(collection(db, "users"), orderBy("volume", "desc"), limit(20));
         const querySnapshot = await getDocs(q);
 
         const realUsers: LeaderboardEntry[] = [];
-
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             realUsers.push({
                 wallet: doc.id,
                 points: data.points || 0,
                 volume: data.volume || 0,
+                weeklyVolume: data.weeklyVolume || 0,
                 tradeCount: data.tradeCount || 0,
                 totalFeesPaid: data.totalFeesPaid || 0,
-                rank: 0 // Will assign later
+                rank: 0,
             });
         });
 
-        // SORT: By Volume Descending
         realUsers.sort((a, b) => b.volume - a.volume);
-
-        // RANK & LIMIT
-        const leaderboard: LeaderboardEntry[] = realUsers
-            .map((entry, index) => ({
-                ...entry,
-                rank: index + 1
-            }))
-            .slice(0, 50);
-
-        return leaderboard;
+        return realUsers.map((entry, index) => ({ ...entry, rank: index + 1 })).slice(0, 50);
     } catch (error) {
         console.error("Error fetching leaderboard:", error);
         return [];
@@ -79,20 +127,41 @@ export async function addPoints(wallet: string, amount: number) {
 }
 
 /**
- * Add trading volume to a wallet (called on every successful swap)
+ * Add trading volume to a wallet (called on every successful swap).
+ * Also maintains weekly volume with automatic reset.
  */
 export async function addVolume(wallet: string, volumeUSD: number) {
     console.log(`[ FIRESTORE ] Adding $${volumeUSD} volume to ${wallet}`);
 
     try {
         const userRef = doc(db, "users", wallet);
+        const currentWeek = getCurrentWeekStart();
 
-        await setDoc(userRef, {
-            volume: increment(volumeUSD),
-            tradeCount: increment(1),
-            wallet: wallet,
-            lastActive: new Date().toISOString()
-        }, { merge: true });
+        // Check if we need to reset weekly volume
+        const snap = await getDoc(userRef);
+        const existingWeekStart = snap.exists() ? snap.data().weekStart : null;
+
+        if (existingWeekStart !== currentWeek) {
+            // New week — reset weekly volume
+            await setDoc(userRef, {
+                volume: increment(volumeUSD),
+                weeklyVolume: volumeUSD, // Reset to this trade's volume
+                weekStart: currentWeek,
+                tradeCount: increment(1),
+                wallet: wallet,
+                lastActive: new Date().toISOString()
+            }, { merge: true });
+        } else {
+            // Same week — increment
+            await setDoc(userRef, {
+                volume: increment(volumeUSD),
+                weeklyVolume: increment(volumeUSD),
+                weekStart: currentWeek,
+                tradeCount: increment(1),
+                wallet: wallet,
+                lastActive: new Date().toISOString()
+            }, { merge: true });
+        }
 
         return { success: true };
     } catch (error) {
@@ -102,7 +171,7 @@ export async function addVolume(wallet: string, volumeUSD: number) {
 }
 
 /**
- * Add fees paid by a wallet (for milestone eligibility)
+ * Add fees paid by a wallet
  */
 export async function addFeesPaid(wallet: string, feesUSD: number) {
     console.log(`[ FIRESTORE ] Adding $${feesUSD} fees paid by ${wallet}`);
@@ -130,19 +199,21 @@ export async function getUserStats(wallet: string) {
 
         if (docSnap.exists()) {
             const data = docSnap.data();
+            const currentWeek = getCurrentWeekStart();
+
             return {
                 points: data.points || 0,
-                rank: 0, // Calculated client-side from leaderboard
+                rank: 0,
                 volume: data.volume || 0,
+                weeklyVolume: data.weekStart === currentWeek ? (data.weeklyVolume || 0) : 0,
                 tradeCount: data.tradeCount || 0,
-                totalFeesPaid: data.totalFeesPaid || 0
+                totalFeesPaid: data.totalFeesPaid || 0,
             };
         } else {
-            return { points: 0, rank: 0, volume: 0, tradeCount: 0, totalFeesPaid: 0 };
+            return { points: 0, rank: 0, volume: 0, weeklyVolume: 0, tradeCount: 0, totalFeesPaid: 0 };
         }
     } catch (error) {
         console.error("Error fetching user stats:", error);
-        return { points: 0, rank: 0, volume: 0, tradeCount: 0, totalFeesPaid: 0 };
+        return { points: 0, rank: 0, volume: 0, weeklyVolume: 0, tradeCount: 0, totalFeesPaid: 0 };
     }
 }
-

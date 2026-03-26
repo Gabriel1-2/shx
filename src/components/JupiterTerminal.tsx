@@ -3,10 +3,14 @@
 import { useEffect, useState, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, Zap, Sparkles, TrendingDown } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
 import { addReferralEarnings } from "@/lib/referrals";
 import { saveSwapTransaction } from "@/lib/transactions";
+import { useSHXTier } from "@/hooks/useSHXTier";
+import { isSHXBuy, FEE_TIERS } from "@/lib/feeTiers";
+import { TierBadge } from "@/components/TierBadge";
+import { SHULEVITZ_MINT } from "@/lib/constants";
 
 // Jupiter Plugin script URL (v1 — confirmed by Jupiter dev team)
 const JUPITER_SCRIPT_SRC = "https://plugin.jup.ag/plugin-v1.js";
@@ -15,19 +19,8 @@ const JUPITER_SCRIPT_SRC = "https://plugin.jup.ag/plugin-v1.js";
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-// ──────────────────────────────────────────────────────────────
-// REFERRAL CONFIG — Earns fees on every swap!
-// ──────────────────────────────────────────────────────────────
-// Per Jupiter Plugin playground (plugin.jup.ag), referral params
-// go INSIDE formProps — NOT at the top level.
-//
-// To change referral account:
-// 1. Go to https://referral.jup.ag/
-// 2. Create/use referral account + token accounts for SOL & USDC
-// 3. Paste your referral public key below
-// ──────────────────────────────────────────────────────────────
+// Referral account for fee collection
 const REFERRAL_ACCOUNT = "9rvZ5CC86oFWgwej21DMPR83LSMBoDehrNe6v6V7AAeg";
-const REFERRAL_FEE_BPS = 50; // 0.50% (50-255 bps)
 
 declare global {
     interface Window {
@@ -42,6 +35,10 @@ export default function JupiterTerminal() {
     const [isInitialized, setIsInitialized] = useState(false);
     const [lastTx, setLastTx] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const lastInitFeeBps = useRef<number | null>(null);
+
+    // SHX Tier — determines the dynamic fee
+    const tierData = useSHXTier();
 
     // Load Jupiter Plugin script
     useEffect(() => {
@@ -64,12 +61,31 @@ export default function JupiterTerminal() {
         document.head.appendChild(script);
     }, []);
 
-    // Initialize Jupiter when script loads or wallet changes
+    // Initialize Jupiter when script loads, wallet changes, or fee tier changes
     useEffect(() => {
         if (!isLoaded || !window.Jupiter) return;
 
+        // Only re-init if the fee actually changed
+        const effectiveFeeBps = tierData.feeBps;
+        if (lastInitFeeBps.current === effectiveFeeBps && isInitialized) return;
+
         const timer = setTimeout(() => {
             try {
+                // Build formProps with dynamic fee
+                const formProps: any = {
+                    fixedInputMint: false,
+                    fixedOutputMint: false,
+                    initialInputMint: SOL_MINT,
+                    initialOutputMint: USDC_MINT,
+                    initialSlippageBps: 50,
+                };
+
+                // Add referral fee (tier-based)
+                if (effectiveFeeBps > 0) {
+                    formProps.referralAccount = REFERRAL_ACCOUNT;
+                    formProps.referralFee = effectiveFeeBps;
+                }
+
                 window.Jupiter.init({
                     displayMode: "integrated",
                     integratedTargetId: "jupiter-terminal",
@@ -77,19 +93,7 @@ export default function JupiterTerminal() {
                     passThroughWallet: wallet ? wallet.adapter : undefined,
                     defaultExplorer: "Solscan",
                     strictTokenList: false,
-
-                    // ─── FORM + REFERRAL FEES ─────────────────────
-                    // Referral params MUST be inside formProps
-                    // (confirmed by plugin.jup.ag playground)
-                    formProps: {
-                        fixedInputMint: false,
-                        fixedOutputMint: false,
-                        initialInputMint: SOL_MINT,
-                        initialOutputMint: USDC_MINT,
-                        initialSlippageBps: 50,
-                        referralAccount: REFERRAL_ACCOUNT,
-                        referralFee: REFERRAL_FEE_BPS,
-                    },
+                    formProps,
 
                     // ─── ANALYTICS CALLBACKS ──────────────────────
                     onSuccess: async ({ txid, swapResult, quoteResponseMeta }: any) => {
@@ -137,7 +141,9 @@ export default function JupiterTerminal() {
                                 volumeUSD = 100;
                             }
 
-                            const feeUSD = volumeUSD * 0.005; // Estimate 0.5%
+                            // Use effective fee for this trade
+                            const actualFeePct = isSHXBuy(outputMint) ? 0 : effectiveFeeBps / 10000;
+                            const feeUSD = volumeUSD * actualFeePct;
                             const xpEarned = Math.max(100, Math.floor(volumeUSD * 10));
 
                             await Promise.all([
@@ -159,7 +165,7 @@ export default function JupiterTerminal() {
                                 }),
                             ]);
 
-                            console.log(`[Analytics] +${xpEarned} XP, $${volumeUSD.toFixed(2)} vol`);
+                            console.log(`[Analytics] +${xpEarned} XP, $${volumeUSD.toFixed(2)} vol, fee: ${actualFeePct * 100}%`);
                         }
                     },
 
@@ -167,6 +173,7 @@ export default function JupiterTerminal() {
                         console.error("❌ Swap Error:", error);
                     },
                 });
+                lastInitFeeBps.current = effectiveFeeBps;
                 setIsInitialized(true);
             } catch (e) {
                 console.error("[Jupiter] Init failed:", e);
@@ -174,10 +181,45 @@ export default function JupiterTerminal() {
         }, 200);
 
         return () => clearTimeout(timer);
-    }, [isLoaded, wallet, publicKey]);
+    }, [isLoaded, wallet, publicKey, tierData.feeBps]);
+
+    // Compute savings message
+    const baseFee = FEE_TIERS[0].feePercent;
+    const userFee = tierData.feePercent;
+    const saving = baseFee - userFee;
+    const hasSavings = connected && saving > 0;
 
     return (
         <div className="w-full">
+            {/* Fee Savings Banner */}
+            {connected && (
+                <div className="mb-3 space-y-2">
+                    {/* Tier + Fee Info */}
+                    <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-black/60 border border-white/10 backdrop-blur-xl">
+                        <div className="flex items-center gap-2">
+                            <TierBadge tier={tierData.tier} size="sm" />
+                            <span className="text-xs text-muted-foreground">
+                                Your fee: <span className="text-white font-bold">{userFee}%</span>
+                            </span>
+                        </div>
+                        {hasSavings && (
+                            <div className="flex items-center gap-1 text-green-400">
+                                <TrendingDown size={12} />
+                                <span className="text-[11px] font-bold">Saving {saving.toFixed(2)}%</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 0% SHX Buy Callout */}
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                        <Sparkles size={14} className="text-green-400" />
+                        <span className="text-[11px] text-green-400 font-medium">
+                            0% platform fee when buying SHX!
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {/* Terminal Header */}
             <div className="flex items-center justify-between rounded-t-2xl bg-black/60 px-5 py-3.5 border border-b-0 border-white/10 backdrop-blur-xl">
                 <div className="flex items-center gap-2.5">

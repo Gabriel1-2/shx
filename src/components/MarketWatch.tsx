@@ -123,6 +123,21 @@ export function MarketWatch() {
     const fetchPricesForTokens = useCallback(async (addresses: string[]) => {
         const results: TokenData[] = [];
 
+        // 1. Batch fetch prices from Jupiter (accurate for SOL, USDC, majors)
+        let jupPrices: Record<string, number> = {};
+        try {
+            const jupRes = await fetch(`https://api.jup.ag/price/v2?ids=${addresses.join(',')}`);
+            const jupData = await jupRes.json();
+            if (jupData.data) {
+                for (const [mint, info] of Object.entries(jupData.data as Record<string, any>)) {
+                    if (info?.price) jupPrices[mint] = parseFloat(info.price);
+                }
+            }
+        } catch (e) {
+            console.warn('Jupiter price fetch failed, falling back to DexScreener', e);
+        }
+
+        // 2. Fetch detailed data per token from DexScreener (for volume, change, logo)
         for (const address of addresses) {
             try {
                 const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${address}`);
@@ -136,7 +151,8 @@ export function MarketWatch() {
                     const name = knownInfo?.name || pair.baseToken?.name || "Unknown";
                     const logoURI = knownInfo?.logoURI || pair.info?.imageUrl;
 
-                    const currentPrice = parseFloat(pair.priceUsd) || 0;
+                    // Prefer Jupiter price (accurate), fallback to DexScreener
+                    const currentPrice = jupPrices[address] || parseFloat(pair.priceUsd) || 0;
                     const prevPrice = previousPrices.current[address] || currentPrice;
 
                     let priceDirection: "up" | "down" | "neutral" = "neutral";
@@ -158,17 +174,25 @@ export function MarketWatch() {
                         priceDirection
                     });
                 } else if (knownInfo) {
+                    // Token not on DexScreener but we have metadata
+                    const jupPrice = jupPrices[address] || 0;
+                    const prevPrice = previousPrices.current[address] || jupPrice;
+                    let priceDirection: "up" | "down" | "neutral" = "neutral";
+                    if (jupPrice > prevPrice) priceDirection = "up";
+                    else if (jupPrice < prevPrice) priceDirection = "down";
+                    previousPrices.current[address] = jupPrice;
+
                     results.push({
                         address,
                         symbol: knownInfo.symbol,
                         name: knownInfo.name,
-                        price: 0,
-                        prevPrice: 0,
+                        price: jupPrice,
+                        prevPrice,
                         change24h: 0,
                         volume24h: 0,
                         logoURI: knownInfo.logoURI,
                         isFavorite: !DEFAULT_TOKENS.includes(address) && address !== SHULEVITZ_MINT,
-                        priceDirection: "neutral"
+                        priceDirection
                     });
                 }
             } catch (error) {
