@@ -3,6 +3,16 @@ import { SHULEVITZ_MINT } from "./constants";
 // ──────────────────────────────────────────────────────────────
 // FEE TIER SYSTEM — Rewards SHX holders with lower fees
 // ──────────────────────────────────────────────────────────────
+// Jupiter referral fees range: 50-255 bps (0.50% to 2.55%)
+// Our tiers: Non-holders pay 2%, Diamond holders pay just 0.50%
+// This makes SHX Exchange the cheapest swap platform for holders
+//
+// For comparison:
+//   Coinbase: 0.40-0.60%   | Uniswap frontend: 0.25%
+//   1inch: 0% (no frontend fee) | Raydium: LP fees only
+//   SHX Diamond tier: 0.50% (competitive with all major platforms)
+//   SHX Base: 2.00% (strong incentive to buy & hold SHX)
+// ──────────────────────────────────────────────────────────────
 
 export interface FeeTier {
     tier: number;
@@ -14,11 +24,11 @@ export interface FeeTier {
 }
 
 export const FEE_TIERS: FeeTier[] = [
-    { tier: 0, minSHX: 0, feeBps: 50, feePercent: 0.50, label: "Base", color: "#6b7280" }, // gray
-    { tier: 1, minSHX: 10_000, feeBps: 45, feePercent: 0.45, label: "Silver", color: "#94a3b8" }, // slate
-    { tier: 2, minSHX: 50_000, feeBps: 40, feePercent: 0.40, label: "Gold", color: "#eab308" }, // yellow
-    { tier: 3, minSHX: 150_000, feeBps: 35, feePercent: 0.35, label: "Platinum", color: "#06b6d4" }, // cyan
-    { tier: 4, minSHX: 500_000, feeBps: 30, feePercent: 0.30, label: "Diamond", color: "#a855f7" }, // purple
+    { tier: 0, minSHX: 0,         feeBps: 200, feePercent: 2.00, label: "Base",     color: "#6b7280" }, // gray
+    { tier: 1, minSHX: 5_000,     feeBps: 150, feePercent: 1.50, label: "Silver",   color: "#94a3b8" }, // slate
+    { tier: 2, minSHX: 25_000,    feeBps: 100, feePercent: 1.00, label: "Gold",     color: "#eab308" }, // yellow
+    { tier: 3, minSHX: 100_000,   feeBps: 75,  feePercent: 0.75, label: "Platinum", color: "#06b6d4" }, // cyan
+    { tier: 4, minSHX: 500_000,   feeBps: 50,  feePercent: 0.50, label: "Diamond",  color: "#a855f7" }, // purple
 ];
 
 /**

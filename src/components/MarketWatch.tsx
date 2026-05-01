@@ -120,21 +120,41 @@ export function MarketWatch() {
         return () => clearTimeout(timer);
     }, [searchQuery, searchTokens]);
 
+    // CoinGecko ID mapping for known tokens (accurate prices, free)
+    const COINGECKO_IDS: Record<string, string> = {
+        "So11111111111111111111111111111111111111112": "solana",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": "usd-coin",
+        "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": "bonk",
+        "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": "dogwifcoin",
+        "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN": "jupiter-exchange-solana",
+    };
+
     const fetchPricesForTokens = useCallback(async (addresses: string[]) => {
         const results: TokenData[] = [];
 
-        // 1. Fetch SOL + USDC prices from CoinGecko (always accurate, free)
+        // 1. Batch fetch prices from CoinGecko for all known tokens
+        const cgIds = addresses
+            .map(a => COINGECKO_IDS[a])
+            .filter(Boolean);
+
         let cgPrices: Record<string, number> = {};
-        try {
-            const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana,usd-coin&vs_currencies=usd');
-            const cgData = await cgRes.json();
-            if (cgData.solana?.usd) cgPrices["So11111111111111111111111111111111111111112"] = cgData.solana.usd;
-            if (cgData["usd-coin"]?.usd) cgPrices["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"] = cgData["usd-coin"].usd;
-        } catch (e) {
-            console.warn('CoinGecko price fetch failed', e);
+        if (cgIds.length > 0) {
+            try {
+                const cgRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd&include_24hr_change=true`);
+                const cgData = await cgRes.json();
+
+                // Map CoinGecko IDs back to mint addresses
+                for (const [mint, cgId] of Object.entries(COINGECKO_IDS)) {
+                    if (cgData[cgId]?.usd) {
+                        cgPrices[mint] = cgData[cgId].usd;
+                    }
+                }
+            } catch (e) {
+                console.warn('CoinGecko batch fetch failed', e);
+            }
         }
 
-        // 2. Fetch detailed data per token from DexScreener
+        // 2. Fetch detailed data per token from DexScreener (for volume, change, logo, and prices for non-CoinGecko tokens)
         for (const address of addresses) {
             try {
                 const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${address}`);
@@ -145,7 +165,7 @@ export function MarketWatch() {
                 if (data.pairs && data.pairs.length > 0) {
                     // CRITICAL: Find pair where baseToken matches our searched address
                     // DexScreener returns all pairs involving this token, but the first
-                    // result might be a random token paired WITH our token
+                    // result might be a random token paired WITH our token (e.g., SOL → returns FOGO/SOL first)
                     const correctPair = data.pairs.find(
                         (p: any) => p.baseToken?.address?.toLowerCase() === address.toLowerCase()
                     ) || data.pairs[0];
@@ -154,8 +174,9 @@ export function MarketWatch() {
                     const name = knownInfo?.name || correctPair.baseToken?.name || "Unknown";
                     const logoURI = knownInfo?.logoURI || correctPair.info?.imageUrl;
 
-                    // Use CoinGecko price for SOL/USDC, DexScreener for others
-                    const currentPrice = cgPrices[address] || parseFloat(correctPair.priceUsd) || 0;
+                    // Use CoinGecko price (authoritative) → DexScreener correct pair → DexScreener first pair
+                    const dexPrice = parseFloat(correctPair.priceUsd) || 0;
+                    const currentPrice = cgPrices[address] || dexPrice;
                     const prevPrice = previousPrices.current[address] || currentPrice;
 
                     let priceDirection: "up" | "down" | "neutral" = "neutral";
@@ -164,32 +185,36 @@ export function MarketWatch() {
 
                     previousPrices.current[address] = currentPrice;
 
+                    // Get change from the correct pair
+                    const change24h = correctPair.priceChange?.h24 || 0;
+                    const volume24h = correctPair.volume?.h24 || 0;
+
                     results.push({
                         address,
                         symbol,
                         name,
                         price: currentPrice,
                         prevPrice,
-                        change24h: correctPair.priceChange?.h24 || 0,
-                        volume24h: correctPair.volume?.h24 || 0,
+                        change24h,
+                        volume24h,
                         logoURI,
                         isFavorite: !DEFAULT_TOKENS.includes(address) && address !== SHULEVITZ_MINT,
                         priceDirection
                     });
                 } else if (knownInfo) {
                     // Token not on DexScreener but we have metadata
-                    const cgPrice = cgPrices[address] || 0;
-                    const prevPrice = previousPrices.current[address] || cgPrice;
+                    const fallbackPrice = cgPrices[address] || 0;
+                    const prevPrice = previousPrices.current[address] || fallbackPrice;
                     let priceDirection: "up" | "down" | "neutral" = "neutral";
-                    if (cgPrice > prevPrice) priceDirection = "up";
-                    else if (cgPrice < prevPrice) priceDirection = "down";
-                    previousPrices.current[address] = cgPrice;
+                    if (fallbackPrice > prevPrice) priceDirection = "up";
+                    else if (fallbackPrice < prevPrice) priceDirection = "down";
+                    previousPrices.current[address] = fallbackPrice;
 
                     results.push({
                         address,
                         symbol: knownInfo.symbol,
                         name: knownInfo.name,
-                        price: cgPrice,
+                        price: fallbackPrice,
                         prevPrice,
                         change24h: 0,
                         volume24h: 0,

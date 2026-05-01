@@ -6,14 +6,14 @@ import { getUserStats, getWeeklyLeaderboard } from "@/lib/points";
 import { getPlatformStats } from "@/lib/platformStats";
 import { Leaderboard } from "@/components/Leaderboard";
 import { SystemStatus } from "@/components/SystemStatus";
-import { ReferralCard } from "@/components/ReferralCard";
+
 import { MarketWatch } from "@/components/MarketWatch";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { AnimatedCurrency, AnimatedCounter } from "@/components/AnimatedCounter";
 import { TierBadge } from "@/components/TierBadge";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { FEE_TIERS } from "@/lib/feeTiers";
-import { useReferralCapture } from "@/hooks/useReferralCapture";
+
 import {
     TrendingUp, Shield, Zap, Wallet, Trophy, Activity,
     ChevronRight, Target, Award, Coins, ArrowUp,
@@ -22,7 +22,7 @@ import {
 
 function DashboardContent() {
     const { publicKey } = useWallet();
-    useReferralCapture();
+
 
     const tierData = useSHXTier();
 
@@ -87,17 +87,17 @@ function DashboardContent() {
 
             <div className="relative z-10 container mx-auto p-4 md:p-6 lg:p-8">
                 {/* Hero Header */}
-                <div className="mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                     <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="p-2 rounded-xl bg-primary/20 border border-primary/30">
-                                <Trophy className="text-primary" size={24} />
+                        <div className="flex items-center gap-2 md:gap-3 mb-1">
+                            <div className="p-1.5 md:p-2 rounded-xl bg-primary/20 border border-primary/30">
+                                <Trophy className="text-primary" size={20} />
                             </div>
-                            <h1 className="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-lime-400 to-green-500">
+                            <h1 className="text-xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-lime-400 to-green-500">
                                 TRADER DASHBOARD
                             </h1>
                         </div>
-                        <p className="text-sm text-muted-foreground">Track your performance, tier status, and climb the leaderboard</p>
+                        <p className="text-xs md:text-sm text-muted-foreground">Track your performance, tier status, and climb the leaderboard</p>
                     </div>
                     {publicKey && (
                         <div className="flex items-center gap-3">
@@ -287,7 +287,7 @@ function DashboardContent() {
                     {/* Right Column - Sidebar */}
                     <div className="space-y-4">
                         <MarketWatch />
-                        <ReferralCard />
+
                         <SystemStatus />
 
                         {/* Fee Tier Table */}

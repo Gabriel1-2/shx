@@ -5,7 +5,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { Loader2, Zap, Sparkles, TrendingDown } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
-import { addReferralEarnings } from "@/lib/referrals";
+
 import { saveSwapTransaction } from "@/lib/transactions";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { isSHXBuy, FEE_TIERS } from "@/lib/feeTiers";
@@ -150,7 +150,7 @@ export default function JupiterTerminal() {
                                 addPoints(walletAddr, xpEarned),
                                 addVolume(walletAddr, volumeUSD),
                                 addFeesPaid(walletAddr, feeUSD),
-                                addReferralEarnings(walletAddr, feeUSD, volumeUSD),
+
                                 saveSwapTransaction({
                                     wallet: walletAddr,
                                     inputToken: inputSymbol,

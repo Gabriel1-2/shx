@@ -68,35 +68,36 @@ export function useTokenPrice(tokenMint: string) {
         const fetchPrice = async () => {
             // USDC hardcode
             if (tokenMint === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v") {
-                setData({ price: 1, pairAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" }); // This might need a real USDC pair for chart
+                setData({ price: 1, pairAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" });
                 return;
             }
 
             try {
-                // Primary: DexScreener (Rich data)
                 const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
                 if (res.ok) {
                     const apiData = await res.json();
                     if (apiData.pairs && apiData.pairs.length > 0) {
-                        // Find best pair (usually first one is highest liquidity)
-                        const bestPair = apiData.pairs[0];
+                        // Find the pair where baseToken matches the searched token
+                        // DexScreener can return pairs where this token is the QUOTE, not base
+                        const correctPair = apiData.pairs.find(
+                            (p: any) => p.baseToken?.address?.toLowerCase() === tokenMint.toLowerCase()
+                        ) || apiData.pairs[0];
+
                         setData({
-                            price: parseFloat(bestPair.priceUsd),
-                            pairAddress: bestPair.pairAddress
+                            price: parseFloat(correctPair.priceUsd) || 0,
+                            pairAddress: correctPair.pairAddress
                         });
                         return;
                     }
                 }
 
-                // Fallback: Jupiter Price API (Reliable for majors/long-tail)
-                console.log("DexScreener failed, trying Jup...");
-                const jupRes = await fetch(`https://api.jup.ag/price/v2?ids=${tokenMint}`);
-                const jupData = await jupRes.json();
-                if (jupData.data && jupData.data[tokenMint]) {
-                    setData({
-                        price: parseFloat(jupData.data[tokenMint].price),
-                        pairAddress: "" // No chart data from Jup Price API
-                    });
+                // Fallback: CoinGecko for SOL
+                if (tokenMint === "So11111111111111111111111111111111111111112") {
+                    const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+                    const cgData = await cgRes.json();
+                    if (cgData.solana?.usd) {
+                        setData({ price: cgData.solana.usd, pairAddress: "" });
+                    }
                 }
             } catch (e) {
                 console.error("Price fetch failed", e);
