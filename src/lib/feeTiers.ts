@@ -4,31 +4,24 @@ import { SHULEVITZ_MINT } from "./constants";
 // FEE TIER SYSTEM — Rewards SHX holders with lower fees
 // ──────────────────────────────────────────────────────────────
 // Jupiter referral fees range: 50-255 bps (0.50% to 2.55%)
-// Our tiers: Non-holders pay 2%, Diamond holders pay just 0.50%
-// This makes SHX Exchange the cheapest swap platform for holders
-//
-// For comparison:
-//   Coinbase: 0.40-0.60%   | Uniswap frontend: 0.25%
-//   1inch: 0% (no frontend fee) | Raydium: LP fees only
-//   SHX Diamond tier: 0.50% (competitive with all major platforms)
-//   SHX Base: 2.00% (strong incentive to buy & hold SHX)
+// Buying SHX = 0% platform fee (only Jupiter + LP fees apply)
 // ──────────────────────────────────────────────────────────────
 
 export interface FeeTier {
     tier: number;
     minSHX: number;
-    feeBps: number;     // basis points (50 = 0.50%)
-    feePercent: number; // human-readable (0.50)
+    feeBps: number;     // basis points (65 = 0.65%)
+    feePercent: number; // human-readable (0.65)
     label: string;
     color: string;      // for UI badges
 }
 
 export const FEE_TIERS: FeeTier[] = [
-    { tier: 0, minSHX: 0,         feeBps: 200, feePercent: 2.00, label: "Base",     color: "#6b7280" }, // gray
-    { tier: 1, minSHX: 5_000,     feeBps: 150, feePercent: 1.50, label: "Silver",   color: "#94a3b8" }, // slate
-    { tier: 2, minSHX: 25_000,    feeBps: 100, feePercent: 1.00, label: "Gold",     color: "#eab308" }, // yellow
-    { tier: 3, minSHX: 100_000,   feeBps: 75,  feePercent: 0.75, label: "Platinum", color: "#06b6d4" }, // cyan
-    { tier: 4, minSHX: 500_000,   feeBps: 50,  feePercent: 0.50, label: "Diamond",  color: "#a855f7" }, // purple
+    { tier: 0, minSHX: 0,         feeBps: 65, feePercent: 0.65, label: "Base",     color: "#6b7280" },
+    { tier: 1, minSHX: 10_000,    feeBps: 60, feePercent: 0.60, label: "Silver",   color: "#94a3b8" },
+    { tier: 2, minSHX: 50_000,    feeBps: 55, feePercent: 0.55, label: "Gold",     color: "#eab308" },
+    { tier: 3, minSHX: 100_000,   feeBps: 52, feePercent: 0.52, label: "Platinum", color: "#06b6d4" },
+    { tier: 4, minSHX: 500_000,   feeBps: 50, feePercent: 0.50, label: "Diamond",  color: "#a855f7" },
 ];
 
 /**

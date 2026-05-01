@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { Loader2, Zap, Sparkles, TrendingDown } from "lucide-react";
 import { addPoints, addVolume, addFeesPaid } from "@/lib/points";
-
 import { saveSwapTransaction } from "@/lib/transactions";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { isSHXBuy, FEE_TIERS } from "@/lib/feeTiers";
@@ -34,8 +33,10 @@ export default function JupiterTerminal() {
     const [isLoaded, setIsLoaded] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
     const [lastTx, setLastTx] = useState<string | null>(null);
+    const [isBuyingSHX, setIsBuyingSHX] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const lastInitFeeBps = useRef<number | null>(null);
+    const currentOutputMint = useRef<string>(USDC_MINT);
 
     // SHX Tier — determines the dynamic fee
     const tierData = useSHXTier();
@@ -61,131 +62,160 @@ export default function JupiterTerminal() {
         document.head.appendChild(script);
     }, []);
 
+    // Init Jupiter with a specific fee
+    const initJupiter = useCallback((feeBps: number) => {
+        if (!isLoaded || !window.Jupiter) return;
+
+        try {
+            const formProps: any = {
+                fixedInputMint: false,
+                fixedOutputMint: false,
+                initialInputMint: SOL_MINT,
+                initialOutputMint: USDC_MINT,
+                initialSlippageBps: 50,
+            };
+
+            // Only add referral fee if > 0 (SHX buys = 0% = no referral)
+            if (feeBps > 0) {
+                formProps.referralAccount = REFERRAL_ACCOUNT;
+                formProps.referralFee = feeBps;
+            }
+
+            window.Jupiter.init({
+                displayMode: "integrated",
+                integratedTargetId: "jupiter-terminal",
+                endpoint: "https://mainnet.helius-rpc.com/?api-key=e36d269b-1bf1-4c2a-9efd-47d319ca4882",
+                passThroughWallet: wallet ? wallet.adapter : undefined,
+                defaultExplorer: "Solscan",
+                strictTokenList: false,
+                formProps,
+
+                // ─── DETECT OUTPUT TOKEN CHANGES ──────────────
+                onFormUpdate: (form: any) => {
+                    if (form?.outputMint) {
+                        const newOutputMint = form.outputMint;
+                        const wasBuyingSHX = isSHXBuy(currentOutputMint.current);
+                        const nowBuyingSHX = isSHXBuy(newOutputMint);
+
+                        currentOutputMint.current = newOutputMint;
+
+                        // If SHX buy state changed, re-init with correct fee
+                        if (wasBuyingSHX !== nowBuyingSHX) {
+                            setIsBuyingSHX(nowBuyingSHX);
+                            const newFee = nowBuyingSHX ? 0 : tierData.feeBps;
+                            console.log(`[Jupiter] Output changed → ${nowBuyingSHX ? 'SHX (0% fee)' : `other (${newFee} bps)`}`);
+
+                            // Debounce re-init to avoid rapid re-renders
+                            setTimeout(() => {
+                                lastInitFeeBps.current = null; // Force re-init
+                                initJupiter(newFee);
+                            }, 300);
+                        }
+                    }
+                },
+
+                // ─── ANALYTICS CALLBACKS ──────────────────────
+                onSuccess: async ({ txid, swapResult, quoteResponseMeta }: any) => {
+                    console.log("✅ Swap Successful!", txid);
+                    setLastTx(txid);
+
+                    if (publicKey) {
+                        const walletAddr = publicKey.toString();
+                        let volumeUSD = 0;
+                        let inputSymbol = "Unknown";
+                        let outputSymbol = "Unknown";
+                        let inputAmount = 0;
+                        let outputAmount = 0;
+                        let inputMint = "";
+                        let outputMint = "";
+
+                        try {
+                            if (quoteResponseMeta?.quoteResponse) {
+                                const quote = quoteResponseMeta.quoteResponse;
+                                inputMint = quote.inputMint || "";
+                                outputMint = quote.outputMint || "";
+
+                                const inDecimals = inputMint === SOL_MINT ? 9 : 6;
+                                const outDecimals = outputMint === SOL_MINT ? 9 : 6;
+                                inputAmount = Number(quote.inAmount) / Math.pow(10, inDecimals);
+                                outputAmount = Number(quote.outAmount) / Math.pow(10, outDecimals);
+
+                                const STABLECOINS = [
+                                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+                                ];
+                                if (STABLECOINS.includes(inputMint)) {
+                                    volumeUSD = inputAmount;
+                                } else if (STABLECOINS.includes(outputMint)) {
+                                    volumeUSD = outputAmount;
+                                } else {
+                                    volumeUSD = inputAmount * 150;
+                                }
+
+                                inputSymbol = inputMint === SOL_MINT ? "SOL" : inputMint.slice(0, 6);
+                                outputSymbol = outputMint === SOL_MINT ? "SOL" : outputMint.slice(0, 6);
+                            }
+                        } catch (e) {
+                            console.warn("[Analytics] Could not parse swap result", e);
+                            volumeUSD = 100;
+                        }
+
+                        // Use effective fee for this trade (0% if buying SHX)
+                        const actualFeePct = isSHXBuy(outputMint) ? 0 : feeBps / 10000;
+                        const feeUSD = volumeUSD * actualFeePct;
+                        const xpEarned = Math.max(100, Math.floor(volumeUSD * 10));
+
+                        await Promise.all([
+                            addPoints(walletAddr, xpEarned),
+                            addVolume(walletAddr, volumeUSD),
+                            addFeesPaid(walletAddr, feeUSD),
+                            saveSwapTransaction({
+                                wallet: walletAddr,
+                                inputToken: inputSymbol,
+                                inputAmount,
+                                inputMint,
+                                outputToken: outputSymbol,
+                                outputAmount,
+                                outputMint,
+                                volumeUSD,
+                                feePaid: feeUSD,
+                                txSignature: txid,
+                            }),
+                        ]);
+
+                        console.log(`[Analytics] +${xpEarned} XP, $${volumeUSD.toFixed(2)} vol, fee: ${actualFeePct * 100}%`);
+                    }
+                },
+
+                onSwapError: ({ error }: any) => {
+                    console.error("❌ Swap Error:", error);
+                },
+            });
+            lastInitFeeBps.current = feeBps;
+            setIsInitialized(true);
+        } catch (e) {
+            console.error("[Jupiter] Init failed:", e);
+        }
+    }, [isLoaded, wallet, publicKey, tierData.feeBps]);
+
     // Initialize Jupiter when script loads, wallet changes, or fee tier changes
     useEffect(() => {
         if (!isLoaded || !window.Jupiter) return;
 
         // Only re-init if the fee actually changed
-        const effectiveFeeBps = tierData.feeBps;
+        const effectiveFeeBps = isBuyingSHX ? 0 : tierData.feeBps;
         if (lastInitFeeBps.current === effectiveFeeBps && isInitialized) return;
 
         const timer = setTimeout(() => {
-            try {
-                // Build formProps with dynamic fee
-                const formProps: any = {
-                    fixedInputMint: false,
-                    fixedOutputMint: false,
-                    initialInputMint: SOL_MINT,
-                    initialOutputMint: USDC_MINT,
-                    initialSlippageBps: 50,
-                };
-
-                // Add referral fee (tier-based)
-                if (effectiveFeeBps > 0) {
-                    formProps.referralAccount = REFERRAL_ACCOUNT;
-                    formProps.referralFee = effectiveFeeBps;
-                }
-
-                window.Jupiter.init({
-                    displayMode: "integrated",
-                    integratedTargetId: "jupiter-terminal",
-                    endpoint: "https://mainnet.helius-rpc.com/?api-key=e36d269b-1bf1-4c2a-9efd-47d319ca4882",
-                    passThroughWallet: wallet ? wallet.adapter : undefined,
-                    defaultExplorer: "Solscan",
-                    strictTokenList: false,
-                    formProps,
-
-                    // ─── ANALYTICS CALLBACKS ──────────────────────
-                    onSuccess: async ({ txid, swapResult, quoteResponseMeta }: any) => {
-                        console.log("✅ Swap Successful!", txid);
-                        setLastTx(txid);
-
-                        if (publicKey) {
-                            const walletAddr = publicKey.toString();
-                            let volumeUSD = 0;
-                            let inputSymbol = "Unknown";
-                            let outputSymbol = "Unknown";
-                            let inputAmount = 0;
-                            let outputAmount = 0;
-                            let inputMint = "";
-                            let outputMint = "";
-
-                            try {
-                                if (quoteResponseMeta?.quoteResponse) {
-                                    const quote = quoteResponseMeta.quoteResponse;
-                                    inputMint = quote.inputMint || "";
-                                    outputMint = quote.outputMint || "";
-
-                                    const inDecimals = inputMint === SOL_MINT ? 9 : 6;
-                                    const outDecimals = outputMint === SOL_MINT ? 9 : 6;
-                                    inputAmount = Number(quote.inAmount) / Math.pow(10, inDecimals);
-                                    outputAmount = Number(quote.outAmount) / Math.pow(10, outDecimals);
-
-                                    const STABLECOINS = [
-                                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                                        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-                                    ];
-                                    if (STABLECOINS.includes(inputMint)) {
-                                        volumeUSD = inputAmount;
-                                    } else if (STABLECOINS.includes(outputMint)) {
-                                        volumeUSD = outputAmount;
-                                    } else {
-                                        volumeUSD = inputAmount * 150;
-                                    }
-
-                                    inputSymbol = inputMint === SOL_MINT ? "SOL" : inputMint.slice(0, 6);
-                                    outputSymbol = outputMint === SOL_MINT ? "SOL" : outputMint.slice(0, 6);
-                                }
-                            } catch (e) {
-                                console.warn("[Analytics] Could not parse swap result", e);
-                                volumeUSD = 100;
-                            }
-
-                            // Use effective fee for this trade
-                            const actualFeePct = isSHXBuy(outputMint) ? 0 : effectiveFeeBps / 10000;
-                            const feeUSD = volumeUSD * actualFeePct;
-                            const xpEarned = Math.max(100, Math.floor(volumeUSD * 10));
-
-                            await Promise.all([
-                                addPoints(walletAddr, xpEarned),
-                                addVolume(walletAddr, volumeUSD),
-                                addFeesPaid(walletAddr, feeUSD),
-
-                                saveSwapTransaction({
-                                    wallet: walletAddr,
-                                    inputToken: inputSymbol,
-                                    inputAmount,
-                                    inputMint,
-                                    outputToken: outputSymbol,
-                                    outputAmount,
-                                    outputMint,
-                                    volumeUSD,
-                                    feePaid: feeUSD,
-                                    txSignature: txid,
-                                }),
-                            ]);
-
-                            console.log(`[Analytics] +${xpEarned} XP, $${volumeUSD.toFixed(2)} vol, fee: ${actualFeePct * 100}%`);
-                        }
-                    },
-
-                    onSwapError: ({ error }: any) => {
-                        console.error("❌ Swap Error:", error);
-                    },
-                });
-                lastInitFeeBps.current = effectiveFeeBps;
-                setIsInitialized(true);
-            } catch (e) {
-                console.error("[Jupiter] Init failed:", e);
-            }
+            initJupiter(effectiveFeeBps);
         }, 200);
 
         return () => clearTimeout(timer);
-    }, [isLoaded, wallet, publicKey, tierData.feeBps]);
+    }, [isLoaded, wallet, publicKey, tierData.feeBps, isBuyingSHX, initJupiter]);
 
     // Compute savings message
     const baseFee = FEE_TIERS[0].feePercent;
-    const userFee = tierData.feePercent;
+    const userFee = isBuyingSHX ? 0 : tierData.feePercent;
     const saving = baseFee - userFee;
     const hasSavings = connected && saving > 0;
 
@@ -195,33 +225,42 @@ export default function JupiterTerminal() {
             {connected && (
                 <div className="mb-3 space-y-2">
                     {/* Tier + Fee Info */}
-                    <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-black/60 border border-white/10 backdrop-blur-xl">
+                    <div className="flex items-center justify-between px-3 md:px-4 py-2.5 rounded-xl bg-black/60 border border-white/10 backdrop-blur-xl">
                         <div className="flex items-center gap-2">
                             <TierBadge tier={tierData.tier} size="sm" />
-                            <span className="text-xs text-muted-foreground">
-                                Your fee: <span className="text-white font-bold">{userFee}%</span>
+                            <span className="text-[11px] md:text-xs text-muted-foreground">
+                                Fee: <span className={`font-bold ${isBuyingSHX ? 'text-green-400' : 'text-white'}`}>
+                                    {isBuyingSHX ? '0%' : `${tierData.feePercent}%`}
+                                </span>
                             </span>
                         </div>
-                        {hasSavings && (
+                        {isBuyingSHX ? (
+                            <div className="flex items-center gap-1 text-green-400">
+                                <Sparkles size={12} />
+                                <span className="text-[10px] md:text-[11px] font-bold">0% — Buying SHX!</span>
+                            </div>
+                        ) : hasSavings ? (
                             <div className="flex items-center gap-1 text-green-400">
                                 <TrendingDown size={12} />
-                                <span className="text-[11px] font-bold">Saving {saving.toFixed(2)}%</span>
+                                <span className="text-[10px] md:text-[11px] font-bold">Saving {saving.toFixed(2)}%</span>
                             </div>
-                        )}
+                        ) : null}
                     </div>
 
-                    {/* 0% SHX Buy Callout */}
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
-                        <Sparkles size={14} className="text-green-400" />
-                        <span className="text-[11px] text-green-400 font-medium">
-                            0% platform fee when buying SHX!
-                        </span>
-                    </div>
+                    {/* 0% SHX Buy Callout (only show when NOT already buying SHX) */}
+                    {!isBuyingSHX && (
+                        <div className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                            <Sparkles size={14} className="text-green-400 shrink-0" />
+                            <span className="text-[10px] md:text-[11px] text-green-400 font-medium">
+                                Switch output to SHX for 0% platform fee!
+                            </span>
+                        </div>
+                    )}
                 </div>
             )}
 
             {/* Terminal Header */}
-            <div className="flex items-center justify-between rounded-t-2xl bg-black/60 px-5 py-3.5 border border-b-0 border-white/10 backdrop-blur-xl">
+            <div className="flex items-center justify-between rounded-t-2xl bg-black/60 px-4 md:px-5 py-3 md:py-3.5 border border-b-0 border-white/10 backdrop-blur-xl">
                 <div className="flex items-center gap-2.5">
                     <div className="relative flex items-center justify-center">
                         <div className="absolute w-5 h-5 bg-green-500 blur-sm opacity-50 animate-pulse rounded-full"></div>
@@ -242,7 +281,7 @@ export default function JupiterTerminal() {
                             ✅ {lastTx.slice(0, 8)}...
                         </a>
                     )}
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium hidden sm:inline">
                         Powered by Jupiter
                     </span>
                     <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
@@ -284,15 +323,15 @@ export default function JupiterTerminal() {
             )}
 
             {/* Trust Badges */}
-            <div className="flex items-center justify-center gap-6 mt-4 text-muted-foreground">
+            <div className="flex items-center justify-center gap-4 md:gap-6 mt-4 text-muted-foreground">
                 <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                    <span className="text-[10px] uppercase tracking-wider">Operational</span>
+                    <span className="text-[9px] md:text-[10px] uppercase tracking-wider">Operational</span>
                 </div>
                 <div className="h-3 w-px bg-white/10"></div>
-                <span className="text-[10px] uppercase tracking-wider">Best Routes</span>
+                <span className="text-[9px] md:text-[10px] uppercase tracking-wider">Best Routes</span>
                 <div className="h-3 w-px bg-white/10"></div>
-                <span className="text-[10px] uppercase tracking-wider">Non-Custodial</span>
+                <span className="text-[9px] md:text-[10px] uppercase tracking-wider">Non-Custodial</span>
             </div>
 
             {/* Jupiter widget style overrides */}
