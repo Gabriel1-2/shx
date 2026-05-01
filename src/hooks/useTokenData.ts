@@ -77,15 +77,16 @@ export function useTokenPrice(tokenMint: string) {
                 if (res.ok) {
                     const apiData = await res.json();
                     if (apiData.pairs && apiData.pairs.length > 0) {
-                        // Find the pair where baseToken matches the searched token
-                        // DexScreener can return pairs where this token is the QUOTE, not base
-                        const correctPair = apiData.pairs.find(
-                            (p: any) => p.baseToken?.address?.toLowerCase() === tokenMint.toLowerCase()
-                        ) || apiData.pairs[0];
+                        // Sort by liquidity desc — highest liquidity pair is most reliable
+                        // This avoids the FOGO bug where a random token shares SOL's baseToken.address
+                        const sortedPairs = [...apiData.pairs].sort(
+                            (a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
+                        );
+                        const bestPair = sortedPairs[0];
 
                         setData({
-                            price: parseFloat(correctPair.priceUsd) || 0,
-                            pairAddress: correctPair.pairAddress
+                            price: parseFloat(bestPair.priceUsd) || 0,
+                            pairAddress: bestPair.pairAddress
                         });
                         return;
                     }

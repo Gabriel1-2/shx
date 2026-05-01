@@ -163,18 +163,31 @@ export function MarketWatch() {
                 const knownInfo = TOKEN_INFO[address];
 
                 if (data.pairs && data.pairs.length > 0) {
-                    // CRITICAL: Find pair where baseToken matches our searched address
-                    // DexScreener returns all pairs involving this token, but the first
-                    // result might be a random token paired WITH our token (e.g., SOL → returns FOGO/SOL first)
-                    const correctPair = data.pairs.find(
-                        (p: any) => p.baseToken?.address?.toLowerCase() === address.toLowerCase()
-                    ) || data.pairs[0];
+                    // Find the correct pair for this token.
+                    // DexScreener quirk: multiple tokens can share the same baseToken.address
+                    // (e.g., FOGO reports baseToken.address = SOL mint address).
+                    // Strategy: match by known symbol first, then by highest liquidity.
+                    const expectedSymbol = knownInfo?.symbol;
+
+                    let correctPair;
+                    if (expectedSymbol) {
+                        // Match by symbol (most reliable for known tokens)
+                        correctPair = data.pairs.find(
+                            (p: any) => p.baseToken?.symbol?.toUpperCase() === expectedSymbol.toUpperCase()
+                        );
+                    }
+                    if (!correctPair) {
+                        // Fallback: pick the pair with highest USD liquidity
+                        correctPair = [...data.pairs].sort(
+                            (a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
+                        )[0];
+                    }
 
                     const symbol = knownInfo?.symbol || correctPair.baseToken?.symbol || address.slice(0, 4);
                     const name = knownInfo?.name || correctPair.baseToken?.name || "Unknown";
                     const logoURI = knownInfo?.logoURI || correctPair.info?.imageUrl;
 
-                    // Use CoinGecko price (authoritative) → DexScreener correct pair → DexScreener first pair
+                    // Use CoinGecko price (authoritative) → DexScreener correct pair
                     const dexPrice = parseFloat(correctPair.priceUsd) || 0;
                     const currentPrice = cgPrices[address] || dexPrice;
                     const prevPrice = previousPrices.current[address] || currentPrice;
