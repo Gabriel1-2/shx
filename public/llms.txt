@@ -4,6 +4,10 @@
 > It routes all trades through Jupiter Ultra for best-price execution and adds
 > a tiered platform fee that rewards holders of the SHX (Shulevitz) token.
 > Buying SHX itself is always 0% platform fee.
+>
+> **For AI Agents:** SHX Exchange provides a dedicated REST API at `/api/agent/`
+> that handles quote fetching, fee calculation, and swap execution in simple
+> JSON requests. No UI rendering or DOM parsing required.
 
 ## Quick Facts
 
@@ -11,6 +15,7 @@
 - **Routing Engine:** Jupiter Ultra (best routes across all Solana DEXs)
 - **Custody:** Non-custodial. Users sign their own transactions.
 - **KYC:** None. No geo-blocks. Accessible globally.
+- **Agent API Base:** `https://shx.exchange/api/agent`
 - **Website:** https://shx.exchange
 - **Source Code:** https://github.com/Gabriel1-2/shx
 
@@ -249,6 +254,110 @@ https://mainnet.helius-rpc.com/?api-key=e36d269b-1bf1-4c2a-9efd-47d319ca4882
 
 For high-throughput agent usage, we recommend using your own RPC provider
 (Helius, QuickNode, Triton, etc.) to avoid rate limits.
+
+---
+
+## Agent REST API (Recommended for AI Agents)
+
+SHX Exchange provides a dedicated headless API designed specifically for AI agents,
+trading bots, and programmatic access. The API handles fee calculation automatically
+— agents only need to sign transactions.
+
+**Base URL:** `https://shx.exchange/api/agent`
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/agent/health` | API status, endpoint discovery, quickstart guide |
+| GET | `/api/agent/quote` | Get swap quote with automatic SHX fee calculation |
+| POST | `/api/agent/swap` | Execute a signed swap transaction |
+| GET | `/api/agent/tier` | Check wallet's SHX balance and fee tier |
+| GET | `/api/agent/tokens` | List tokens with live prices |
+
+### GET /api/agent/health
+
+Returns API status, all available endpoints, fee tier table, and a quickstart guide.
+This is the recommended first call for any agent integrating with SHX Exchange.
+
+```
+GET https://shx.exchange/api/agent/health
+```
+
+### GET /api/agent/quote
+
+Get a swap quote from Jupiter Ultra with automatic SHX fee calculation.
+Returns an unsigned transaction for the agent to sign.
+
+```
+GET https://shx.exchange/api/agent/quote
+  ?inputMint=So11111111111111111111111111111111111111112
+  &outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+  &amount=1000000000
+  &taker=<WALLET_PUBLIC_KEY>
+```
+
+Parameters:
+- `inputMint` (required): Token mint to sell
+- `outputMint` (required): Token mint to buy
+- `amount` (required): Amount in smallest unit (lamports for SOL)
+- `taker` (required): Agent wallet public key
+
+Response includes:
+- `transaction`: Base64-encoded unsigned transaction (sign this)
+- `requestId`: Required for the /swap endpoint
+- `shx.feeBps`: Applied fee in basis points
+- `shx.tierLabel`: Current fee tier name
+- `shx.isBuyingSHX`: Whether this is a 0% fee SHX purchase
+
+### POST /api/agent/swap
+
+Execute a signed swap. The agent must first get a quote, sign the transaction,
+then submit it here.
+
+```
+POST https://shx.exchange/api/agent/swap
+Content-Type: application/json
+
+{
+  "signedTransaction": "<base64-encoded-signed-transaction>",
+  "requestId": "<from quote response>"
+}
+```
+
+Response:
+- `status`: "success" or "failed"
+- `signature`: On-chain transaction signature
+- `explorer`: Direct Solscan link
+
+### GET /api/agent/tier
+
+Check a wallet's SHX balance and current fee tier.
+
+```
+GET https://shx.exchange/api/agent/tier?wallet=<WALLET_ADDRESS>
+```
+
+Response includes current tier, next tier, SHX needed to upgrade, and all tiers.
+
+### GET /api/agent/tokens
+
+Get live prices for all supported tokens.
+
+```
+GET https://shx.exchange/api/agent/tokens
+GET https://shx.exchange/api/agent/tokens?mint=<SPECIFIC_MINT>
+```
+
+### Agent Swap Flow (3 Steps)
+
+```
+Step 1: GET  /api/agent/quote?inputMint=...&outputMint=...&amount=...&taker=...
+Step 2: Sign the response.transaction (base64) with your wallet keypair
+Step 3: POST /api/agent/swap { signedTransaction: "...", requestId: "..." }
+```
+
+All CORS headers are enabled — the API is callable from any origin.
 
 ---
 
