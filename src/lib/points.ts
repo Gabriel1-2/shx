@@ -38,30 +38,37 @@ function getCurrentWeekStart(): string {
 
 /**
  * Get the weekly leaderboard — ranked by weekly USD volume.
- * Only includes wallets with >= $1,000 weekly volume.
+ * 
+ * ROBUST VERSION: Fetches all users ordered by volume, then filters 
+ * client-side for the current week. This avoids the need for a composite
+ * Firestore index on (weekStart, weeklyVolume).
+ * 
+ * No minimum volume requirement for display — we show everyone who traded.
  */
 export async function getWeeklyLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
         const currentWeek = getCurrentWeekStart();
 
-        // Query users with current week data, ordered by weeklyVolume
+        // Fetch all users ordered by volume desc (simple index)
         const q = query(
             collection(db, "users"),
-            where("weekStart", "==", currentWeek),
             orderBy("weeklyVolume", "desc"),
-            limit(10)
+            limit(50)
         );
         const snapshot = await getDocs(q);
 
         const entries: LeaderboardEntry[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            if ((data.weeklyVolume || 0) >= 1000) {
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const weeklyVol = data.weeklyVolume || 0;
+            
+            // Only include users from the current week who actually traded
+            if (data.weekStart === currentWeek && weeklyVol > 0) {
                 entries.push({
-                    wallet: doc.id,
+                    wallet: docSnap.id,
                     points: data.points || 0,
                     volume: data.volume || 0,
-                    weeklyVolume: data.weeklyVolume || 0,
+                    weeklyVolume: weeklyVol,
                     tradeCount: data.tradeCount || 0,
                     totalFeesPaid: data.totalFeesPaid || 0,
                     rank: 0,
@@ -69,10 +76,42 @@ export async function getWeeklyLeaderboard(): Promise<LeaderboardEntry[]> {
             }
         });
 
-        return entries.map((e, i) => ({ ...e, rank: i + 1 }));
+        // Sort by weekly volume (should already be sorted, but ensure it)
+        entries.sort((a, b) => b.weeklyVolume - a.weeklyVolume);
+
+        // Assign ranks and limit to top 10
+        return entries.slice(0, 10).map((e, i) => ({ ...e, rank: i + 1 }));
     } catch (error) {
         console.error("Error fetching weekly leaderboard:", error);
-        return [];
+        
+        // Fallback: try fetching all users without ordering
+        try {
+            const currentWeek = getCurrentWeekStart();
+            const allUsersSnapshot = await getDocs(collection(db, "users"));
+            const entries: LeaderboardEntry[] = [];
+
+            allUsersSnapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const weeklyVol = data.weeklyVolume || 0;
+                if (data.weekStart === currentWeek && weeklyVol > 0) {
+                    entries.push({
+                        wallet: docSnap.id,
+                        points: data.points || 0,
+                        volume: data.volume || 0,
+                        weeklyVolume: weeklyVol,
+                        tradeCount: data.tradeCount || 0,
+                        totalFeesPaid: data.totalFeesPaid || 0,
+                        rank: 0,
+                    });
+                }
+            });
+
+            entries.sort((a, b) => b.weeklyVolume - a.weeklyVolume);
+            return entries.slice(0, 10).map((e, i) => ({ ...e, rank: i + 1 }));
+        } catch (fallbackError) {
+            console.error("Fallback leaderboard also failed:", fallbackError);
+            return [];
+        }
     }
 }
 
@@ -87,15 +126,17 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
         const realUsers: LeaderboardEntry[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            realUsers.push({
-                wallet: doc.id,
-                points: data.points || 0,
-                volume: data.volume || 0,
-                weeklyVolume: data.weeklyVolume || 0,
-                tradeCount: data.tradeCount || 0,
-                totalFeesPaid: data.totalFeesPaid || 0,
-                rank: 0,
-            });
+            if ((data.volume || 0) > 0) {
+                realUsers.push({
+                    wallet: doc.id,
+                    points: data.points || 0,
+                    volume: data.volume || 0,
+                    weeklyVolume: data.weeklyVolume || 0,
+                    tradeCount: data.tradeCount || 0,
+                    totalFeesPaid: data.totalFeesPaid || 0,
+                    rank: 0,
+                });
+            }
         });
 
         realUsers.sort((a, b) => b.volume - a.volume);

@@ -1,28 +1,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getWeeklyLeaderboard, type LeaderboardEntry } from "@/lib/points";
-import { getEstimatedReward, MIN_WEEKLY_VOLUME_USD, WEEKLY_REWARD_POOL_USD } from "@/lib/feeTiers";
+import { getWeeklyLeaderboard, getLeaderboard, type LeaderboardEntry } from "@/lib/points";
+import { getEstimatedReward, WEEKLY_REWARD_POOL_USD } from "@/lib/feeTiers";
 import { Trophy, TrendingUp, Medal, Crown, Users, Clock, DollarSign } from "lucide-react";
 
 export function Leaderboard() {
     const [data, setData] = useState<LeaderboardEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [timeLeft, setTimeLeft] = useState("");
+    const [mode, setMode] = useState<"weekly" | "alltime">("weekly");
 
-    // Fetch weekly leaderboard
+    // Fetch leaderboard
     useEffect(() => {
-        getWeeklyLeaderboard().then((res) => {
-            setData(res);
+        const fetchData = async () => {
+            setLoading(true);
+            if (mode === "weekly") {
+                const weekly = await getWeeklyLeaderboard();
+                if (weekly.length > 0) {
+                    setData(weekly);
+                } else {
+                    // Fall back to all-time if weekly is empty
+                    const allTime = await getLeaderboard();
+                    if (allTime.length > 0) {
+                        setData(allTime);
+                        setMode("alltime");
+                    } else {
+                        setData([]);
+                    }
+                }
+            } else {
+                const allTime = await getLeaderboard();
+                setData(allTime);
+            }
             setLoading(false);
-        });
+        };
+        fetchData();
 
         // Poll every 30s
-        const interval = setInterval(() => {
-            getWeeklyLeaderboard().then(setData);
-        }, 30000);
+        const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
-    }, []);
+    }, [mode]);
 
     // Countdown to next Monday
     useEffect(() => {
@@ -90,9 +108,28 @@ export function Leaderboard() {
                             Weekly Prize Pool: ${WEEKLY_REWARD_POOL_USD} in SHX
                         </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
-                        Min ${MIN_WEEKLY_VOLUME_USD.toLocaleString()} vol
-                    </span>
+                    <div className="flex gap-1">
+                        <button
+                            onClick={() => setMode("weekly")}
+                            className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${
+                                mode === "weekly" 
+                                    ? "bg-yellow-500/20 text-yellow-400 font-bold" 
+                                    : "text-muted-foreground hover:text-white"
+                            }`}
+                        >
+                            Weekly
+                        </button>
+                        <button
+                            onClick={() => setMode("alltime")}
+                            className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${
+                                mode === "alltime" 
+                                    ? "bg-purple-500/20 text-purple-400 font-bold" 
+                                    : "text-muted-foreground hover:text-white"
+                            }`}
+                        >
+                            All-Time
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -100,8 +137,9 @@ export function Leaderboard() {
             <div className="grid grid-cols-12 px-4 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-white/5">
                 <div className="col-span-1">#</div>
                 <div className="col-span-4">Wallet</div>
-                <div className="col-span-4 text-right">Weekly Volume</div>
-                <div className="col-span-3 text-right">Est. Reward</div>
+                <div className="col-span-2 text-right">Trades</div>
+                <div className="col-span-3 text-right">{mode === "weekly" ? "Weekly Vol" : "Total Vol"}</div>
+                <div className="col-span-2 text-right">{mode === "weekly" ? "Reward" : "Fees"}</div>
             </div>
 
             {/* Entries */}
@@ -119,14 +157,15 @@ export function Leaderboard() {
                 ) : data.length === 0 ? (
                     <div className="py-8 text-center">
                         <Users size={32} className="text-muted-foreground mx-auto mb-3 opacity-50" />
-                        <p className="text-sm text-muted-foreground">No qualifying traders this week</p>
+                        <p className="text-sm text-muted-foreground">No traders yet this week</p>
                         <p className="text-xs text-muted-foreground mt-1">
-                            Trade ${MIN_WEEKLY_VOLUME_USD.toLocaleString()}+ to appear here!
+                            Make a swap to be the first on the leaderboard! 🚀
                         </p>
                     </div>
                 ) : (
                     data.map((entry, index) => {
                         const reward = getEstimatedReward(entry.rank);
+                        const displayVolume = mode === "weekly" ? entry.weeklyVolume : entry.volume;
                         return (
                             <div
                                 key={entry.wallet}
@@ -150,18 +189,31 @@ export function Leaderboard() {
                                     </span>
                                 </div>
 
-                                {/* Weekly Volume */}
-                                <div className="col-span-4 text-right">
-                                    <span className={`text-sm font-bold ${entry.rank <= 3 ? "text-white" : "text-gray-300"}`}>
-                                        {formatVolume(entry.weeklyVolume)}
+                                {/* Trades */}
+                                <div className="col-span-2 text-right">
+                                    <span className="text-xs text-muted-foreground">
+                                        {entry.tradeCount || 0}
                                     </span>
                                 </div>
 
-                                {/* Estimated Reward */}
+                                {/* Volume */}
                                 <div className="col-span-3 text-right">
-                                    <span className="text-sm font-bold text-green-400">
-                                        ${reward.toFixed(0)}
+                                    <span className={`text-sm font-bold ${entry.rank <= 3 ? "text-white" : "text-gray-300"}`}>
+                                        {formatVolume(displayVolume)}
                                     </span>
+                                </div>
+
+                                {/* Reward / Fees */}
+                                <div className="col-span-2 text-right">
+                                    {mode === "weekly" ? (
+                                        <span className="text-sm font-bold text-green-400">
+                                            ${reward.toFixed(0)}
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground">
+                                            ${(entry.totalFeesPaid || 0).toFixed(2)}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         );

@@ -38,7 +38,10 @@ function DashboardContent() {
         totalVolume: 0,
         totalTrades: 0,
         totalUsers: 0,
-        totalFees: 0
+        totalFees: 0,
+        dailyVolume: 0,
+        dailyTrades: 0,
+        dailyFees: 0,
     });
     const [userRank, setUserRank] = useState<number | null>(null);
 
@@ -220,10 +223,10 @@ function DashboardContent() {
                 {/* Platform Stats */}
                 <div className="mb-8 grid gap-3 grid-cols-2 lg:grid-cols-4">
                     {[
-                        { label: "Platform Volume", value: platformStats.totalVolume, isCurrency: true, icon: Activity, gradient: "from-blue-500 to-cyan-500" },
+                        { label: "24h Volume", value: platformStats.dailyVolume, isCurrency: true, icon: Activity, gradient: "from-blue-500 to-cyan-500" },
+                        { label: "24h Trades", value: platformStats.dailyTrades, isCurrency: false, icon: Zap, gradient: "from-yellow-500 to-orange-500" },
                         { label: "Active Traders", value: platformStats.totalUsers, isCurrency: false, icon: Wallet, gradient: "from-purple-500 to-pink-500" },
-                        { label: "Total Swaps", value: platformStats.totalTrades, isCurrency: false, icon: Zap, gradient: "from-yellow-500 to-orange-500" },
-                        { label: "Fees Collected", value: platformStats.totalFees, isCurrency: true, icon: TrendingUp, gradient: "from-green-500 to-emerald-500" },
+                        { label: "All-Time Volume", value: platformStats.totalVolume, isCurrency: true, icon: TrendingUp, gradient: "from-green-500 to-emerald-500" },
                     ].map((stat, i) => (
                         <div key={i} className="group relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl p-4 hover:border-white/10 transition-all duration-300 hover:scale-[1.02]">
                             <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity`}></div>
