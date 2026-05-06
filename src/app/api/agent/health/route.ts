@@ -43,7 +43,9 @@ export async function GET() {
         jupiter: jupiterStatus,
 
         endpoints: {
-            "GET /api/agent/health": "This endpoint — status and discovery",
+            "GET /api/agent/health": "This endpoint — status, discovery, and quickstart guide",
+            "GET /api/agent/connect": "One-call onboarding — returns balances, tier, gas check, symbol map, and config (params: wallet)",
+            "GET /api/agent/resolve": "Resolve token symbols to mint addresses (params: symbol=SOL,USDC,SHX)",
             "GET /api/agent/quote": "Get a swap quote with auto fee calculation (params: inputMint, outputMint, amount, taker)",
             "POST /api/agent/swap": "Execute a signed swap (body: signedTransaction, requestId)",
             "GET /api/agent/tier": "Check wallet fee tier and SHX balance (params: wallet)",
@@ -62,10 +64,12 @@ export async function GET() {
         buyingSHXFee: "0% (always free)",
 
         quickstart: {
-            step1: "GET /api/agent/quote?inputMint=So111...&outputMint=EPjF...&amount=1000000000&taker=YOUR_WALLET",
-            step2: "Deserialize response.transaction (base64), sign with your keypair",
-            step3: "POST /api/agent/swap with { signedTransaction: '<base64>', requestId: '<from step 1>' }",
-            step4: "Check response.signature for the on-chain transaction",
+            recommended: "Start with /api/agent/connect to get your wallet's full state in one call",
+            step1: "GET /api/agent/connect?wallet=YOUR_WALLET — returns balances, tier, config, symbol map",
+            step2: "GET /api/agent/quote?inputMint=...&outputMint=...&amount=...&taker=YOUR_WALLET",
+            step3: "Sign the response.transaction (base64) with your keypair",
+            step4: "POST /api/agent/swap with { signedTransaction, requestId }",
+            tip: "Use /api/agent/resolve?symbol=SOL to convert symbols to mint addresses",
         },
 
         documentation: "/llms.txt",
