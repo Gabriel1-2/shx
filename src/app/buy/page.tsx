@@ -1,68 +1,223 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import Script from "next/script";
 import {
     CreditCard, ShieldCheck, Zap, Globe,
-    Smartphone, Wallet, Info, Loader2, X
+    Smartphone, Wallet, Info, Loader2, X, AlertTriangle
 } from "lucide-react";
 
-// For the investor pitch, we use MoonPay's Sandbox mode so it renders a fully functional UI
-// without needing a real company email or production API keys yet.
-const MOONPAY_API_KEY = process.env.NEXT_PUBLIC_MOONPAY_API_KEY || "pk_test_12345";
+/*
+ * ─── CONFIGURATION ───
+ * Add these to your .env.local (and Vercel environment variables):
+ *
+ *   NEXT_PUBLIC_MOONPAY_API_KEY=pk_live_xxxxxxxx      (from dashboard.moonpay.com)
+ *   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_xxxxxxx (from dashboard.stripe.com)
+ *   STRIPE_SECRET_KEY=sk_live_xxxxxxx                  (server-side only, for API route)
+ */
 
-const PROVIDERS = [
-    {
-        id: "moonpay",
-        name: "MoonPay",
-        tagline: "Apple Pay & Google Pay ready",
-        fees: "1.5% – 4.5%",
-        methods: ["Apple Pay", "Google Pay", "Visa", "Mastercard"],
-        speed: "2–5 min",
-        color: "from-purple-500 to-violet-600",
-        borderColor: "border-purple-500/30",
-        bgGlow: "bg-purple-500/10",
-        buildEmbedUrl: (wallet: string, amount: number) =>
-            `https://sandbox.moonpay.com/buy?apiKey=${MOONPAY_API_KEY}&currencyCode=sol&walletAddress=${wallet}&baseCurrencyAmount=${amount}&colorCode=%2322c55e&theme=dark`,
-    },
-    {
-        id: "stripe",
-        name: "Stripe",
-        tagline: "Lowest fees, highest limits",
-        fees: "0.5% – 2.0%",
-        methods: ["Link", "Visa", "Mastercard", "Bank Transfer"],
-        speed: "Instant",
-        color: "from-indigo-500 to-blue-600",
-        borderColor: "border-indigo-500/30",
-        bgGlow: "bg-indigo-500/10",
-        buildEmbedUrl: (wallet: string, amount: number) =>
-            // Stripe requires a backend integration for real usage, so we simulate the MoonPay flow 
-            // for the pitch prototype as they function identically in the UI
-            `https://sandbox.moonpay.com/buy?apiKey=${MOONPAY_API_KEY}&currencyCode=sol&walletAddress=${wallet}&baseCurrencyAmount=${amount}&colorCode=%236366f1&theme=dark`,
-    }
-];
+const MOONPAY_API_KEY = process.env.NEXT_PUBLIC_MOONPAY_API_KEY || "";
+const STRIPE_PK = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
 const AMOUNTS = [50, 100, 250, 500, 1000];
 
+// ─── MoonPay Widget ─────────────────────────────────────────────
+function MoonPayWidget({ wallet, amount, onClose }: { wallet: string; amount: number; onClose: () => void }) {
+    const [loading, setLoading] = useState(true);
+
+    const embedUrl = `https://buy.moonpay.com/?apiKey=${MOONPAY_API_KEY}&currencyCode=sol&walletAddress=${wallet}&baseCurrencyAmount=${amount}&colorCode=%2322c55e&theme=dark&showOnlyCurrencies=sol`;
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="relative w-full max-w-lg h-[700px] bg-black/90 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
+                            <CreditCard size={12} className="text-white" />
+                        </div>
+                        <span className="text-sm font-bold text-white">Buy SOL</span>
+                        <span className="text-[10px] text-muted-foreground">• MoonPay</span>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                        <X size={16} className="text-muted-foreground" />
+                    </button>
+                </div>
+                {loading && (
+                    <div className="absolute inset-0 mt-12 flex items-center justify-center bg-black/90 z-10">
+                        <div className="flex flex-col items-center gap-3">
+                            <Loader2 className="animate-spin text-primary" size={32} />
+                            <span className="text-sm text-muted-foreground">Loading MoonPay...</span>
+                        </div>
+                    </div>
+                )}
+                <iframe
+                    src={embedUrl}
+                    className="w-full h-[calc(100%-48px)] border-0"
+                    onLoad={() => setLoading(false)}
+                    title="MoonPay Buy SOL"
+                    allow="accelerometer; autoplay; camera; gyroscope; payment; microphone"
+                />
+            </div>
+        </div>
+    );
+}
+
+// ─── Stripe Crypto Onramp Widget ────────────────────────────────
+function StripeWidget({ wallet, amount, onClose }: { wallet: string; amount: number; onClose: () => void }) {
+    const mountRef = useRef<HTMLDivElement>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const initialized = useRef(false);
+
+    useEffect(() => {
+        if (initialized.current) return;
+        initialized.current = true;
+
+        async function initStripe() {
+            try {
+                // 1. Create session via our backend
+                const res = await fetch("/api/onramp/session", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ wallet_address: wallet, amount }),
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    setError(data.error || "Failed to create session");
+                    setLoading(false);
+                    return;
+                }
+
+                const { client_secret } = await res.json();
+
+                // 2. Wait for Stripe SDK to be available
+                const waitForStripe = () => new Promise<void>((resolve) => {
+                    const check = () => {
+                        if ((window as any).StripeOnramp) { resolve(); return; }
+                        setTimeout(check, 100);
+                    };
+                    check();
+                });
+                await waitForStripe();
+
+                // 3. Initialize and mount the widget
+                const stripeOnramp = (window as any).StripeOnramp(STRIPE_PK);
+                const session = stripeOnramp.createSession({ clientSecret: client_secret });
+
+                session.addEventListener("onramp_session_updated", (e: any) => {
+                    console.log("[Stripe Onramp] Session updated:", e.payload.session.status);
+                });
+
+                if (mountRef.current) {
+                    session.mount(mountRef.current);
+                    setLoading(false);
+                }
+            } catch (err) {
+                console.error("[Stripe Onramp] Error:", err);
+                setError("Failed to initialize Stripe checkout");
+                setLoading(false);
+            }
+        }
+
+        initStripe();
+    }, [wallet, amount]);
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            {/* Load Stripe Crypto SDK */}
+            <Script src="https://js.stripe.com/v3/" strategy="afterInteractive" />
+            <Script src="https://crypto-js.stripe.com/crypto-onramp-outer.js" strategy="afterInteractive" />
+
+            <div className="relative w-full max-w-lg h-[700px] bg-black/90 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
+                            <CreditCard size={12} className="text-white" />
+                        </div>
+                        <span className="text-sm font-bold text-white">Buy SOL</span>
+                        <span className="text-[10px] text-muted-foreground">• Stripe</span>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                        <X size={16} className="text-muted-foreground" />
+                    </button>
+                </div>
+
+                {loading && !error && (
+                    <div className="absolute inset-0 mt-12 flex items-center justify-center bg-black/90 z-10">
+                        <div className="flex flex-col items-center gap-3">
+                            <Loader2 className="animate-spin text-primary" size={32} />
+                            <span className="text-sm text-muted-foreground">Loading Stripe...</span>
+                        </div>
+                    </div>
+                )}
+
+                {error && (
+                    <div className="absolute inset-0 mt-12 flex items-center justify-center bg-black/90 z-10">
+                        <div className="flex flex-col items-center gap-3 max-w-xs text-center">
+                            <AlertTriangle size={32} className="text-yellow-400" />
+                            <p className="text-sm text-white font-bold">Stripe Not Available</p>
+                            <p className="text-xs text-muted-foreground">{error}</p>
+                            <button
+                                onClick={onClose}
+                                className="mt-2 px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm text-white transition-colors"
+                            >
+                                Use MoonPay Instead
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Stripe mounts its widget here */}
+                <div ref={mountRef} className="w-full h-[calc(100%-48px)]" />
+            </div>
+        </div>
+    );
+}
+
+// ─── Main Page ──────────────────────────────────────────────────
 export default function BuyPage() {
     const { publicKey, connected } = useWallet();
     const [selectedProvider, setSelectedProvider] = useState("moonpay");
     const [amount, setAmount] = useState(100);
     const [customAmount, setCustomAmount] = useState("");
     const [showWidget, setShowWidget] = useState(false);
-    const [widgetLoading, setWidgetLoading] = useState(true);
 
-    const provider = PROVIDERS.find((p) => p.id === selectedProvider)!;
     const effectiveAmount = customAmount ? parseFloat(customAmount) || 100 : amount;
     const walletAddr = publicKey?.toBase58() || "";
 
-    const handleLaunchWidget = () => {
-        if (!connected) return;
-        setWidgetLoading(true);
-        setShowWidget(true);
-    };
+    const moonpayReady = MOONPAY_API_KEY.length > 5;
+    const stripeReady = STRIPE_PK.length > 5;
 
-    const embedUrl = connected ? provider.buildEmbedUrl(walletAddr, effectiveAmount) : "";
+    const providers = [
+        {
+            id: "moonpay",
+            name: "MoonPay",
+            tagline: "Apple Pay, Google Pay, and cards",
+            fees: "1.5% – 4.5%",
+            methods: ["Apple Pay", "Google Pay", "Visa", "Mastercard"],
+            speed: "2–5 min",
+            color: "from-purple-500 to-violet-600",
+            borderColor: "border-purple-500/30",
+            bgGlow: "bg-purple-500/10",
+            ready: moonpayReady,
+        },
+        {
+            id: "stripe",
+            name: "Stripe",
+            tagline: "Link, cards, and bank transfers",
+            fees: "0.5% – 2.0%",
+            methods: ["Link", "Visa", "Mastercard", "Bank"],
+            speed: "Instant",
+            color: "from-indigo-500 to-blue-600",
+            borderColor: "border-indigo-500/30",
+            bgGlow: "bg-indigo-500/10",
+            ready: stripeReady,
+        },
+    ];
+
+    const provider = providers.find((p) => p.id === selectedProvider)!;
 
     return (
         <main className="min-h-screen bg-background relative overflow-hidden pb-20">
@@ -70,43 +225,12 @@ export default function BuyPage() {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-purple-500/15 blur-[150px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[500px] h-[400px] bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
 
-            {/* ─── Embedded Widget Overlay ─── */}
-            {showWidget && (
-                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="relative w-full max-w-lg h-[700px] bg-black/90 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80">
-                            <div className="flex items-center gap-2">
-                                <div className={`w-6 h-6 rounded-lg bg-gradient-to-br ${provider.color} flex items-center justify-center`}>
-                                    <CreditCard size={12} className="text-white" />
-                                </div>
-                                <span className="text-sm font-bold text-white">Buy SOL</span>
-                                <span className="text-[10px] text-muted-foreground">• ${effectiveAmount} via {provider.name}</span>
-                            </div>
-                            <button
-                                onClick={() => setShowWidget(false)}
-                                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                            >
-                                <X size={16} className="text-muted-foreground" />
-                            </button>
-                        </div>
-                        {widgetLoading && (
-                            <div className="absolute inset-0 mt-12 flex items-center justify-center bg-black/90 z-10">
-                                <div className="flex flex-col items-center gap-3">
-                                    <Loader2 className="animate-spin text-primary" size={32} />
-                                    <span className="text-sm text-muted-foreground">Loading checkout...</span>
-                                </div>
-                            </div>
-                        )}
-                        <iframe
-                            src={embedUrl}
-                            className="w-full h-[calc(100%-48px)] border-0"
-                            onLoad={() => setWidgetLoading(false)}
-                            title={`${provider.name} Checkout`}
-                            allow="camera;microphone;payment;accelerometer;gyroscope"
-                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-top-navigation"
-                        />
-                    </div>
-                </div>
+            {/* ─── Widget Overlay ─── */}
+            {showWidget && selectedProvider === "moonpay" && moonpayReady && (
+                <MoonPayWidget wallet={walletAddr} amount={effectiveAmount} onClose={() => setShowWidget(false)} />
+            )}
+            {showWidget && selectedProvider === "stripe" && stripeReady && (
+                <StripeWidget wallet={walletAddr} amount={effectiveAmount} onClose={() => setShowWidget(false)} />
             )}
 
             <div className="max-w-3xl mx-auto relative z-10 px-4 md:px-8 pt-8 md:pt-12">
@@ -185,7 +309,7 @@ export default function BuyPage() {
                             Choose Provider
                         </label>
                         <div className="space-y-3">
-                            {PROVIDERS.map((p) => (
+                            {providers.map((p) => (
                                 <button
                                     key={p.id}
                                     onClick={() => setSelectedProvider(p.id)}
@@ -202,8 +326,10 @@ export default function BuyPage() {
                                         <div className="text-left">
                                             <div className="font-bold text-white text-sm flex items-center gap-2">
                                                 {p.name}
-                                                {selectedProvider === p.id && (
-                                                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                                {p.ready ? (
+                                                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                                                ) : (
+                                                    <span className="text-[9px] text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">Setup needed</span>
                                                 )}
                                             </div>
                                             <div className="text-[10px] text-muted-foreground">{p.tagline}</div>
@@ -218,17 +344,8 @@ export default function BuyPage() {
                         </div>
                     </div>
 
-                    {/* Provider Info */}
+                    {/* Payment Methods */}
                     <div className="p-6 border-b border-white/5 bg-white/[0.01]">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${provider.color} flex items-center justify-center`}>
-                                <CreditCard size={18} className="text-white" />
-                            </div>
-                            <div>
-                                <div className="font-bold text-white text-sm">Powered by {provider.name}</div>
-                                <div className="text-[10px] text-muted-foreground">Regulated crypto on-ramp</div>
-                            </div>
-                        </div>
                         <div className="flex flex-wrap gap-1.5">
                             {provider.methods.map((m) => (
                                 <span key={m} className="px-2.5 py-1 rounded-lg bg-white/5 text-[10px] text-white border border-white/5 font-medium">
@@ -240,10 +357,25 @@ export default function BuyPage() {
 
                     {/* CTA */}
                     <div className="p-6">
-                        {connected ? (
+                        {!connected ? (
+                            <div className="text-center py-4">
+                                <Wallet size={24} className="text-muted-foreground mx-auto mb-2" />
+                                <p className="text-sm text-muted-foreground">Connect your wallet to continue</p>
+                            </div>
+                        ) : !provider.ready ? (
+                            <div className="text-center py-4">
+                                <AlertTriangle size={24} className="text-yellow-400 mx-auto mb-2" />
+                                <p className="text-sm text-white font-bold mb-1">{provider.name} API key not configured</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Add <code className="text-primary bg-primary/10 px-1 py-0.5 rounded text-[10px]">
+                                        {selectedProvider === "moonpay" ? "NEXT_PUBLIC_MOONPAY_API_KEY" : "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"}
+                                    </code> to your environment variables
+                                </p>
+                            </div>
+                        ) : (
                             <>
                                 <button
-                                    onClick={handleLaunchWidget}
+                                    onClick={() => setShowWidget(true)}
                                     className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r ${provider.color} text-white py-4 rounded-xl font-black text-base transition-all hover:scale-[1.02] shadow-lg hover:shadow-xl`}
                                 >
                                     <CreditCard size={18} />
@@ -253,11 +385,6 @@ export default function BuyPage() {
                                     SOL delivered to <span className="font-mono text-white">{walletAddr.slice(0, 6)}...{walletAddr.slice(-4)}</span>
                                 </p>
                             </>
-                        ) : (
-                            <div className="text-center py-4">
-                                <Wallet size={24} className="text-muted-foreground mx-auto mb-2" />
-                                <p className="text-sm text-muted-foreground">Connect your wallet to continue</p>
-                            </div>
                         )}
                     </div>
                 </div>
@@ -266,7 +393,7 @@ export default function BuyPage() {
                 <div className="mt-6 bg-blue-500/5 border border-blue-500/15 rounded-2xl p-5 flex items-start gap-3">
                     <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />
                     <div className="text-xs text-muted-foreground leading-relaxed">
-                        <strong className="text-white">100% in-app.</strong> The checkout opens directly inside SHX Exchange. Payments are processed securely. SOL lands in your connected wallet within minutes.
+                        <strong className="text-white">100% in-app.</strong> The checkout opens directly inside SHX. Your payment provider handles KYC, compliance, and card processing. SOL lands in your connected wallet within minutes.
                     </div>
                 </div>
             </div>
