@@ -35,17 +35,25 @@ export function Header() {
     return (
         <header className="flex h-14 md:h-16 w-full items-center justify-between border-b border-white/10 bg-black/80 px-3 md:px-6 backdrop-blur-xl sticky top-0 z-50">
             {/* Left: Logo + Nav */}
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1 md:gap-2 min-w-0 overflow-x-auto scrollbar-hide">
                 <Link href="/" className="text-xl md:text-2xl font-black tracking-tight shrink-0">
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-lime-400">SHX</span>
                 </Link>
-                <Link href="/dashboard" className="ml-2 md:ml-4 text-xs md:text-sm font-medium text-muted-foreground hover:text-white transition-colors shrink-0">
-                    Dashboard
-                </Link>
-                <Link href="/earn" className="ml-2 md:ml-4 text-xs md:text-sm font-bold text-green-400 hover:text-green-300 transition-colors shrink-0 flex items-center gap-1">
-                    💰 Earn
-                </Link>
-                <div className="ml-2 md:ml-4 hidden sm:flex items-center gap-1 rounded-full border border-white/5 bg-white/5 px-2 py-0.5 text-[9px] md:text-[10px] font-medium text-muted-foreground">
+                <nav className="flex items-center gap-0.5 md:gap-1 ml-2 md:ml-4">
+                    <Link href="/pro" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors shrink-0 border border-white/10">
+                        Pro
+                    </Link>
+                    <Link href="/earn" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold text-green-400 hover:text-green-300 transition-colors shrink-0">
+                        Earn
+                    </Link>
+                    <Link href="/buy" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold text-purple-400 hover:text-purple-300 transition-colors shrink-0">
+                        Buy
+                    </Link>
+                    <Link href="/dashboard" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-medium text-muted-foreground hover:text-white transition-colors shrink-0">
+                        Stats
+                    </Link>
+                </nav>
+                <div className="ml-1 md:ml-2 hidden sm:flex items-center gap-1 rounded-full border border-white/5 bg-white/5 px-2 py-0.5 text-[9px] md:text-[10px] font-medium text-muted-foreground shrink-0">
                     <span className="relative flex h-1.5 w-1.5">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
                         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-500"></span>
