@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
-    CreditCard, ArrowRight, ShieldCheck, Zap, Globe,
-    ChevronDown, ExternalLink, Smartphone, Wallet, Info
+    CreditCard, ShieldCheck, Zap, Globe,
+    Smartphone, Wallet, Info, Loader2, X
 } from "lucide-react";
 
 const PROVIDERS = [
@@ -13,48 +13,39 @@ const PROVIDERS = [
         name: "MoonPay",
         tagline: "Trusted by 20M+ users",
         fees: "1.5% – 4.5%",
-        methods: ["Visa", "Mastercard", "Apple Pay", "Google Pay", "Bank Transfer"],
-        currencies: ["USD", "EUR", "GBP", "CAD", "AUD"],
-        minBuy: "$30",
+        methods: ["Visa", "Mastercard", "Apple Pay", "Google Pay"],
         speed: "2–5 min",
         color: "from-purple-500 to-violet-600",
         borderColor: "border-purple-500/30",
         bgGlow: "bg-purple-500/10",
-        url: "https://www.moonpay.com/buy/sol",
-        buildUrl: (wallet: string, amount: number) =>
-            `https://www.moonpay.com/buy/sol?walletAddress=${wallet}&defaultCurrencyCode=sol&baseCurrencyAmount=${amount}&colorCode=%2322c55e`,
+        buildEmbedUrl: (wallet: string, amount: number) =>
+            `https://buy.moonpay.com/?apiKey=pk_live_yourkey&currencyCode=sol&walletAddress=${wallet}&baseCurrencyAmount=${amount}&colorCode=%2322c55e&theme=dark`,
     },
     {
         id: "transak",
         name: "Transak",
         tagline: "100+ countries supported",
         fees: "1% – 5%",
-        methods: ["Visa", "Mastercard", "Apple Pay", "Bank Transfer", "Sepa"],
-        currencies: ["USD", "EUR", "GBP", "INR", "BRL"],
-        minBuy: "$15",
+        methods: ["Visa", "Mastercard", "Apple Pay", "Sepa"],
         speed: "1–10 min",
         color: "from-blue-500 to-cyan-500",
         borderColor: "border-blue-500/30",
         bgGlow: "bg-blue-500/10",
-        url: "https://global.transak.com/",
-        buildUrl: (wallet: string, amount: number) =>
-            `https://global.transak.com/?apiKey=TRANSAK_API_KEY&cryptoCurrencyCode=SOL&defaultCryptoAmount=${amount}&walletAddress=${wallet}&themeColor=22c55e&network=solana`,
+        buildEmbedUrl: (wallet: string, amount: number) =>
+            `https://global.transak.com/?apiKey=your_transak_key&cryptoCurrencyCode=SOL&defaultFiatAmount=${amount}&walletAddress=${wallet}&themeColor=22c55e&network=solana&disableWalletAddressForm=true&hideMenu=true`,
     },
     {
         id: "ramp",
         name: "Ramp Network",
-        tagline: "Fastest checkout flow",
+        tagline: "Lowest fees available",
         fees: "0.49% – 2.49%",
         methods: ["Visa", "Mastercard", "Apple Pay", "Bank Transfer"],
-        currencies: ["USD", "EUR", "GBP"],
-        minBuy: "$5",
         speed: "Instant – 5 min",
         color: "from-green-500 to-emerald-500",
         borderColor: "border-green-500/30",
         bgGlow: "bg-green-500/10",
-        url: "https://ramp.network/buy",
-        buildUrl: (wallet: string, amount: number) =>
-            `https://app.ramp.network/?hostApiKey=RAMP_API_KEY&swapAsset=SOLANA_SOL&fiatValue=${amount}&userAddress=${wallet}`,
+        buildEmbedUrl: (wallet: string, amount: number) =>
+            `https://app.ramp.network/?hostApiKey=your_ramp_key&swapAsset=SOLANA_SOL&fiatValue=${amount}&userAddress=${wallet}&hostAppName=SHX%20Exchange&variant=embedded-desktop`,
     },
 ];
 
@@ -65,16 +56,20 @@ export default function BuyPage() {
     const [selectedProvider, setSelectedProvider] = useState("moonpay");
     const [amount, setAmount] = useState(100);
     const [customAmount, setCustomAmount] = useState("");
+    const [showWidget, setShowWidget] = useState(false);
+    const [widgetLoading, setWidgetLoading] = useState(true);
 
     const provider = PROVIDERS.find((p) => p.id === selectedProvider)!;
-    const effectiveAmount = customAmount ? parseFloat(customAmount) : amount;
+    const effectiveAmount = customAmount ? parseFloat(customAmount) || 100 : amount;
     const walletAddr = publicKey?.toBase58() || "";
 
-    const handleBuy = () => {
+    const handleLaunchWidget = () => {
         if (!connected) return;
-        const url = provider.buildUrl(walletAddr, effectiveAmount);
-        window.open(url, "_blank", "noopener,noreferrer");
+        setWidgetLoading(true);
+        setShowWidget(true);
     };
+
+    const embedUrl = connected ? provider.buildEmbedUrl(walletAddr, effectiveAmount) : "";
 
     return (
         <main className="min-h-screen bg-background relative overflow-hidden pb-20">
@@ -82,12 +77,56 @@ export default function BuyPage() {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-purple-500/15 blur-[150px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[500px] h-[400px] bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
 
+            {/* ─── Embedded Widget Overlay ─── */}
+            {showWidget && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="relative w-full max-w-lg h-[680px] bg-black/90 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                        {/* Widget Header */}
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-6 h-6 rounded-lg bg-gradient-to-br ${provider.color} flex items-center justify-center`}>
+                                    <CreditCard size={12} className="text-white" />
+                                </div>
+                                <span className="text-sm font-bold text-white">{provider.name}</span>
+                                <span className="text-[10px] text-muted-foreground">• ${effectiveAmount} → SOL</span>
+                            </div>
+                            <button
+                                onClick={() => setShowWidget(false)}
+                                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                                <X size={16} className="text-muted-foreground" />
+                            </button>
+                        </div>
+
+                        {/* Loading State */}
+                        {widgetLoading && (
+                            <div className="absolute inset-0 mt-12 flex items-center justify-center bg-black/90 z-10">
+                                <div className="flex flex-col items-center gap-3">
+                                    <Loader2 className="animate-spin text-primary" size={32} />
+                                    <span className="text-sm text-muted-foreground">Loading {provider.name}...</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Provider Widget iframe */}
+                        <iframe
+                            src={embedUrl}
+                            className="w-full h-[calc(100%-48px)] border-0"
+                            onLoad={() => setWidgetLoading(false)}
+                            title={`${provider.name} Widget`}
+                            allow="camera;microphone;payment;accelerometer"
+                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-top-navigation"
+                        />
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-3xl mx-auto relative z-10 px-4 md:px-8 pt-8 md:pt-12">
                 {/* Hero */}
                 <div className="text-center mb-10">
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-bold mb-6">
                         <CreditCard size={14} />
-                        FIAT ON-RAMP
+                        BUILT-IN FIAT ON-RAMP
                     </div>
                     <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-4">
                         Buy SOL with{" "}
@@ -96,7 +135,7 @@ export default function BuyPage() {
                         </span>
                     </h1>
                     <p className="text-muted-foreground text-base max-w-xl mx-auto">
-                        Purchase SOL directly to your wallet using a credit card, Apple Pay, or bank transfer. Then swap for any token on SHX.
+                        Purchase SOL directly to your wallet — right here on SHX. No redirects, no tab switching.
                     </p>
                 </div>
 
@@ -106,7 +145,7 @@ export default function BuyPage() {
                         { icon: ShieldCheck, label: "Non-Custodial", color: "text-green-400" },
                         { icon: Globe, label: "100+ Countries", color: "text-blue-400" },
                         { icon: Zap, label: "Instant Delivery", color: "text-yellow-400" },
-                        { icon: Smartphone, label: "Mobile Friendly", color: "text-purple-400" },
+                        { icon: Smartphone, label: "In-App Checkout", color: "text-purple-400" },
                     ].map((b, i) => (
                         <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
                             <b.icon size={12} className={b.color} />
@@ -191,53 +230,27 @@ export default function BuyPage() {
                         </div>
                     </div>
 
-                    {/* Provider Details */}
-                    <div className="p-6 border-b border-white/5 bg-white/[0.01]">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <p className="text-[10px] text-muted-foreground uppercase mb-1">Payment Methods</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {provider.methods.map((m) => (
-                                        <span key={m} className="px-2 py-0.5 rounded bg-white/5 text-[10px] text-white border border-white/5">
-                                            {m}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-muted-foreground uppercase mb-1">Currencies</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {provider.currencies.map((c) => (
-                                        <span key={c} className="px-2 py-0.5 rounded bg-white/5 text-[10px] text-white border border-white/5">
-                                            {c}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* CTA */}
                     <div className="p-6">
                         {connected ? (
-                            <button
-                                onClick={handleBuy}
-                                className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r ${provider.color} text-white py-4 rounded-xl font-black text-base transition-all hover:scale-[1.02] shadow-lg hover:shadow-xl`}
-                            >
-                                Buy ${effectiveAmount} of SOL via {provider.name}
-                                <ExternalLink size={16} />
-                            </button>
+                            <>
+                                <button
+                                    onClick={handleLaunchWidget}
+                                    className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r ${provider.color} text-white py-4 rounded-xl font-black text-base transition-all hover:scale-[1.02] shadow-lg hover:shadow-xl`}
+                                >
+                                    <CreditCard size={18} />
+                                    Buy ${effectiveAmount} of SOL
+                                </button>
+                                <p className="text-center text-[10px] text-muted-foreground mt-3">
+                                    SOL will be delivered to <span className="font-mono text-white">{walletAddr.slice(0, 6)}...{walletAddr.slice(-4)}</span>
+                                </p>
+                            </>
                         ) : (
                             <div className="text-center py-4">
                                 <Wallet size={24} className="text-muted-foreground mx-auto mb-2" />
                                 <p className="text-sm text-muted-foreground">Connect your wallet to continue</p>
                                 <p className="text-xs text-muted-foreground mt-1">SOL will be delivered directly to your connected wallet</p>
                             </div>
-                        )}
-                        {connected && (
-                            <p className="text-center text-[10px] text-muted-foreground mt-3">
-                                SOL will be delivered to <span className="font-mono text-white">{walletAddr.slice(0, 6)}...{walletAddr.slice(-4)}</span>
-                            </p>
                         )}
                     </div>
                 </div>
@@ -246,7 +259,7 @@ export default function BuyPage() {
                 <div className="mt-6 bg-blue-500/5 border border-blue-500/15 rounded-2xl p-5 flex items-start gap-3">
                     <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />
                     <div className="text-xs text-muted-foreground leading-relaxed">
-                        <strong className="text-white">How it works:</strong> You&apos;ll be redirected to a regulated third-party provider to complete your purchase. SHX Exchange never touches your payment info — SOL is sent directly from the provider to your Solana wallet. Once received, come back and swap for any token.
+                        <strong className="text-white">100% in-app.</strong> The checkout widget opens directly inside SHX Exchange. Your payment is processed by the provider, and SOL lands in your connected wallet within minutes. No tab switching, no copy-pasting addresses.
                     </div>
                 </div>
             </div>

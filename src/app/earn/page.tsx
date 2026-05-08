@@ -5,8 +5,10 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import {
     Coins, Droplets, ExternalLink, TrendingUp, ShieldCheck,
     Zap, Lock, Clock, ChevronDown, ChevronUp, Wallet,
-    BarChart2, Gift, ArrowUpRight, Flame, Info
+    BarChart2, Gift, ArrowUpRight, Flame, Info, Loader2, X
 } from "lucide-react";
+
+const RAYDIUM_POOL_ID = "65aXZcQAdqqHnbrABPnnSH8eTGXszLBk4UXRZqpceDAE";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 
 // ─── Live pool data fetcher ────────────────────────────────────
@@ -170,6 +172,8 @@ export default function EarnPage() {
     const { connected, publicKey } = useWallet();
     const [pool, setPool] = useState<PoolData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showLP, setShowLP] = useState(false);
+    const [lpLoading, setLpLoading] = useState(true);
 
     useEffect(() => {
         fetchPoolData().then((d) => {
@@ -187,6 +191,40 @@ export default function EarnPage() {
 
     return (
         <main className="min-h-screen bg-background relative overflow-hidden pb-20">
+            {/* ─── Embedded Raydium LP Overlay ─── */}
+            {showLP && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="relative w-full max-w-2xl h-[750px] bg-black/90 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80">
+                            <div className="flex items-center gap-2">
+                                <Droplets size={16} className="text-primary" />
+                                <span className="text-sm font-bold text-white">Add Liquidity — SHX/USDC</span>
+                                <span className="text-[10px] text-muted-foreground">via Raydium</span>
+                            </div>
+                            <button onClick={() => setShowLP(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                                <X size={16} className="text-muted-foreground" />
+                            </button>
+                        </div>
+                        {lpLoading && (
+                            <div className="absolute inset-0 mt-12 flex items-center justify-center bg-black/90 z-10">
+                                <div className="flex flex-col items-center gap-3">
+                                    <Loader2 className="animate-spin text-primary" size={32} />
+                                    <span className="text-sm text-muted-foreground">Loading Raydium...</span>
+                                </div>
+                            </div>
+                        )}
+                        <iframe
+                            src={`https://raydium.io/liquidity/increase/?mode=add&pool_id=${RAYDIUM_POOL_ID}`}
+                            className="w-full h-[calc(100%-48px)] border-0"
+                            onLoad={() => setLpLoading(false)}
+                            title="Raydium Add Liquidity"
+                            allow="clipboard-write"
+                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-top-navigation"
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* Background effects */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-green-500/15 blur-[150px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-primary/8 blur-[120px] rounded-full pointer-events-none" />
@@ -280,7 +318,7 @@ export default function EarnPage() {
                 <div className="grid lg:grid-cols-3 gap-6">
                     {/* Left — Pool Card + CTA */}
                     <div className="lg:col-span-2 space-y-6">
-                        {/* SHX-SOL Raydium Pool */}
+                        {/* SHX-USDC Raydium Pool */}
                         <div className="bg-black/60 border border-primary/30 rounded-2xl p-6 backdrop-blur-xl shadow-[0_0_40px_rgba(34,197,94,0.08)]">
                             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                                 <div className="flex items-center gap-4">
@@ -288,22 +326,18 @@ export default function EarnPage() {
                                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center border-2 border-black z-10 shadow-lg shadow-green-500/20">
                                             <span className="text-xs font-black text-black">SHX</span>
                                         </div>
-                                        <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center border-2 border-black overflow-hidden">
-                                            <img
-                                                src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
-                                                alt="SOL"
-                                                className="w-full h-full rounded-full"
-                                            />
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-2 border-black overflow-hidden">
+                                            <span className="text-[8px] font-black text-white">USDC</span>
                                         </div>
                                     </div>
                                     <div>
                                         <h2 className="text-xl font-black text-white flex items-center gap-2">
-                                            SHX / SOL
+                                            SHX / USDC
                                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/30">
                                                 Raydium
                                             </span>
                                         </h2>
-                                        <p className="text-sm text-muted-foreground">Fee Tier: 0.25% • Concentrated Liquidity</p>
+                                        <p className="text-sm text-muted-foreground">Pool ID: {RAYDIUM_POOL_ID.slice(0, 8)}... • Concentrated Liquidity</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4 md:gap-6">
@@ -332,14 +366,12 @@ export default function EarnPage() {
 
                             {/* CTA Buttons */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <a
-                                    href={`https://raydium.io/liquidity/increase/?mode=add&pool_id=YOUR_POOL_ID`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <button
+                                    onClick={() => { setLpLoading(true); setShowLP(true); }}
                                     className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-black py-3.5 rounded-xl font-black text-sm transition-all shadow-[0_0_25px_rgba(34,197,94,0.3)] hover:shadow-[0_0_40px_rgba(34,197,94,0.5)] hover:scale-[1.02]"
                                 >
-                                    <Droplets size={16} /> Add Liquidity <ExternalLink size={14} />
-                                </a>
+                                    <Droplets size={16} /> Add Liquidity
+                                </button>
                                 <a
                                     href="/"
                                     className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white py-3.5 rounded-xl font-bold text-sm border border-white/10 transition-all hover:scale-[1.02]"
