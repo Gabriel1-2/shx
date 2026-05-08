@@ -43,7 +43,7 @@ export function Header() {
                     Dashboard
                 </Link>
                 <Link href="/earn" className="ml-2 md:ml-4 text-xs md:text-sm font-bold text-green-400 hover:text-green-300 transition-colors shrink-0 flex items-center gap-1">
-                    Earn 150% APY
+                    💰 Earn
                 </Link>
                 <div className="ml-2 md:ml-4 hidden sm:flex items-center gap-1 rounded-full border border-white/5 bg-white/5 px-2 py-0.5 text-[9px] md:text-[10px] font-medium text-muted-foreground">
                     <span className="relative flex h-1.5 w-1.5">

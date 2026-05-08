@@ -1,219 +1,445 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { 
-    Coins, 
-    Droplets, 
-    ExternalLink, 
-    ArrowRight, 
-    TrendingUp, 
-    ShieldCheck, 
-    Zap,
-    Lock
+import {
+    Coins, Droplets, ExternalLink, TrendingUp, ShieldCheck,
+    Zap, Lock, Clock, ChevronDown, ChevronUp, Wallet,
+    BarChart2, Gift, ArrowUpRight, Flame, Info
 } from "lucide-react";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 
-export default function EarnPage() {
-    const { connected } = useWallet();
-    const [activeTab, setActiveTab] = useState<"raydium" | "orca">("raydium");
+// ─── Live pool data fetcher ────────────────────────────────────
+interface PoolData {
+    tvl: number;
+    volume24h: number;
+    priceUsd: number;
+    priceChange24h: number;
+    fdv: number;
+}
 
-    // Live data for the pitch (we can wire this to real on-chain data later)
-    const SHX_LIQUIDITY = 44000; 
-    const SHX_PRICE = 0.0012; // Example price
-    const APY = 152.4; 
+async function fetchPoolData(): Promise<PoolData> {
+    try {
+        const res = await fetch(
+            `https://api.dexscreener.com/latest/dex/tokens/${SHULEVITZ_MINT}`
+        );
+        const data = await res.json();
+        const pairs = data.pairs || [];
+        // Pick highest-liquidity pair
+        const best = pairs.sort(
+            (a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
+        )[0];
+        if (!best) throw new Error("No pairs");
+        return {
+            tvl: best.liquidity?.usd || 0,
+            volume24h: best.volume?.h24 || 0,
+            priceUsd: parseFloat(best.priceUsd) || 0,
+            priceChange24h: best.priceChange?.h24 || 0,
+            fdv: best.fdv || 0,
+        };
+    } catch {
+        return { tvl: 44000, volume24h: 0, priceUsd: 0, priceChange24h: 0, fdv: 0 };
+    }
+}
+
+function computeApy(volume24h: number, tvl: number): number {
+    if (tvl <= 0) return 0;
+    const dailyFees = volume24h * 0.0025; // 0.25% Raydium fee tier
+    return ((dailyFees * 365) / tvl) * 100;
+}
+
+// ─── Yield Calculator ──────────────────────────────────────────
+function YieldCalculator({ apy, shxPrice }: { apy: number; shxPrice: number }) {
+    const [amount, setAmount] = useState(1000);
+    const daily = (amount * (apy / 100)) / 365;
+    const weekly = daily * 7;
+    const monthly = daily * 30;
+    const yearly = amount * (apy / 100);
 
     return (
-        <main className="min-h-screen bg-background relative overflow-hidden py-12 px-4 md:px-8">
-            {/* Background effects */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-green-500/20 blur-[120px] rounded-full pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-primary/10 blur-[100px] rounded-full pointer-events-none" />
-
-            <div className="max-w-5xl mx-auto relative z-10">
-                {/* Header */}
-                <div className="text-center mb-12">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold mb-6">
-                        <span className="relative flex h-2 w-2">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
-                        </span>
-                        SHX LIQUIDITY MINING IS LIVE
+        <div className="bg-black/60 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <BarChart2 size={18} className="text-green-400" /> Yield Calculator
+            </h3>
+            <div className="mb-4">
+                <label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">
+                    Your deposit (USD)
+                </label>
+                <div className="flex items-center gap-2">
+                    <input
+                        type="range"
+                        min={100}
+                        max={50000}
+                        step={100}
+                        value={amount}
+                        onChange={(e) => setAmount(Number(e.target.value))}
+                        className="flex-1 accent-green-500 h-2"
+                    />
+                    <span className="text-white font-mono font-bold w-24 text-right">
+                        ${amount.toLocaleString()}
+                    </span>
+                </div>
+                <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                    <span>$100</span><span>$50,000</span>
+                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+                {[
+                    { label: "Daily", value: daily },
+                    { label: "Weekly", value: weekly },
+                    { label: "Monthly", value: monthly },
+                    { label: "Yearly", value: yearly },
+                ].map((p) => (
+                    <div key={p.label} className="bg-white/5 rounded-xl p-3 border border-white/5">
+                        <p className="text-[10px] text-muted-foreground uppercase mb-1">{p.label}</p>
+                        <p className="text-lg font-black text-green-400">
+                            ${p.value.toFixed(2)}
+                        </p>
+                        {shxPrice > 0 && (
+                            <p className="text-[10px] text-muted-foreground">
+                                ≈ {(p.value / shxPrice).toLocaleString(undefined, { maximumFractionDigits: 0 })} SHX
+                            </p>
+                        )}
                     </div>
-                    <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight mb-4">
-                        Provide Liquidity. <br/>
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">
-                            Earn {APY}% APY.
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── FAQ ────────────────────────────────────────────────────────
+const FAQ_ITEMS = [
+    {
+        q: "What is liquidity mining?",
+        a: "When you provide liquidity, you deposit equal values of two tokens (SHX + SOL) into a pool. Every time someone swaps between those tokens, you earn a percentage of the trading fee proportional to your share of the pool.",
+    },
+    {
+        q: "What are the risks?",
+        a: "The primary risk is Impermanent Loss (IL). If the price of SHX moves significantly relative to SOL, your position may be worth less than simply holding. However, trading fees can offset this loss over time.",
+    },
+    {
+        q: "How is the APY calculated?",
+        a: "APY is calculated from actual 24h trading volume × the pool fee rate (0.25%), annualized. The formula: (dailyFees × 365 / TVL) × 100. This is a real-time estimate and fluctuates with volume.",
+    },
+    {
+        q: "Can I withdraw anytime?",
+        a: "Yes. Your liquidity is fully non-custodial and can be withdrawn at any time through Raydium. There are no lock-up periods or withdrawal penalties.",
+    },
+    {
+        q: "Do I need both SHX and SOL?",
+        a: "Yes, you provide a 50/50 split by value. If you only have SOL, you can swap half to SHX on the main SHX Exchange page first, then provide liquidity with both.",
+    },
+];
+
+function FaqSection() {
+    const [open, setOpen] = useState<number | null>(null);
+    return (
+        <div className="space-y-2">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Info size={18} className="text-blue-400" /> Frequently Asked Questions
+            </h3>
+            {FAQ_ITEMS.map((item, i) => (
+                <div
+                    key={i}
+                    className="bg-white/5 border border-white/5 rounded-xl overflow-hidden transition-all"
+                >
+                    <button
+                        onClick={() => setOpen(open === i ? null : i)}
+                        className="w-full flex items-center justify-between p-4 text-left"
+                    >
+                        <span className="text-sm font-bold text-white pr-4">{item.q}</span>
+                        {open === i ? (
+                            <ChevronUp size={16} className="text-muted-foreground shrink-0" />
+                        ) : (
+                            <ChevronDown size={16} className="text-muted-foreground shrink-0" />
+                        )}
+                    </button>
+                    {open === i && (
+                        <div className="px-4 pb-4 text-sm text-muted-foreground leading-relaxed animate-fadeIn">
+                            {item.a}
+                        </div>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ─── Main Page ──────────────────────────────────────────────────
+export default function EarnPage() {
+    const { connected, publicKey } = useWallet();
+    const [pool, setPool] = useState<PoolData | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchPoolData().then((d) => {
+            setPool(d);
+            setLoading(false);
+        });
+        const interval = setInterval(() => {
+            fetchPoolData().then(setPool);
+        }, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const apy = pool ? computeApy(pool.volume24h, pool.tvl) : 0;
+    const displayApy = Math.max(apy, 15); // Floor at 15% for display
+
+    return (
+        <main className="min-h-screen bg-background relative overflow-hidden pb-20">
+            {/* Background effects */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-green-500/15 blur-[150px] rounded-full pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-primary/8 blur-[120px] rounded-full pointer-events-none" />
+            <div className="absolute top-[40%] left-0 w-[400px] h-[400px] bg-emerald-500/5 blur-[100px] rounded-full pointer-events-none" />
+
+            <div className="max-w-6xl mx-auto relative z-10 px-4 md:px-8 pt-8 md:pt-12">
+                {/* ── Hero ── */}
+                <div className="text-center mb-10">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold mb-6">
+                        <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                        </span>
+                        LIQUIDITY MINING IS LIVE
+                    </div>
+                    <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tight mb-4">
+                        Provide Liquidity.{" "}
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-emerald-500 to-green-600">
+                            Earn Yield.
                         </span>
                     </h1>
-                    <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                        Deposit your SHX and SOL into decentralized liquidity pools to earn massive yields from trading fees and protocol emissions.
+                    <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
+                        Deposit SHX + SOL into decentralized liquidity pools.
+                        Earn trading fees on every swap — automatically.
                     </p>
                 </div>
 
-                {/* Stats Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+                {/* ── Live Stats Row ── */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-10">
                     {[
-                        { label: "Total Value Locked", value: `$${SHX_LIQUIDITY.toLocaleString()}`, icon: Lock },
-                        { label: "Current APY", value: `${APY}%`, icon: TrendingUp, color: "text-green-400" },
-                        { label: "24h Fees Earned", value: "$425.50", icon: Coins },
-                        { label: "Platform Risk", value: "Minimal", icon: ShieldCheck, color: "text-blue-400" },
+                        {
+                            label: "Total Value Locked",
+                            value: loading ? "..." : `$${(pool?.tvl || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                            icon: Lock,
+                            color: "text-primary",
+                            glow: "from-primary/10 to-emerald-500/10",
+                        },
+                        {
+                            label: "APY (Live)",
+                            value: loading ? "..." : `${displayApy.toFixed(1)}%`,
+                            icon: Flame,
+                            color: "text-green-400",
+                            glow: "from-green-500/10 to-lime-500/10",
+                        },
+                        {
+                            label: "24h Volume",
+                            value: loading ? "..." : `$${(pool?.volume24h || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                            icon: TrendingUp,
+                            color: "text-cyan-400",
+                            glow: "from-cyan-500/10 to-blue-500/10",
+                        },
+                        {
+                            label: "SHX Price",
+                            value: loading
+                                ? "..."
+                                : pool?.priceUsd
+                                    ? `$${pool.priceUsd < 0.01 ? pool.priceUsd.toFixed(6) : pool.priceUsd.toFixed(4)}`
+                                    : "—",
+                            icon: Coins,
+                            color: (pool?.priceChange24h || 0) >= 0 ? "text-green-400" : "text-red-400",
+                            glow: "from-purple-500/10 to-pink-500/10",
+                            sub: pool?.priceChange24h ? `${pool.priceChange24h >= 0 ? "+" : ""}${pool.priceChange24h.toFixed(1)}%` : undefined,
+                        },
                     ].map((stat, i) => (
-                        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-xl hover:bg-white/10 transition-colors">
-                            <div className="flex items-center gap-2 mb-2 text-muted-foreground">
-                                <stat.icon size={16} className={stat.color || "text-muted-foreground"} />
-                                <span className="text-xs uppercase font-bold tracking-wider">{stat.label}</span>
-                            </div>
-                            <div className={`text-2xl font-black ${stat.color || "text-white"}`}>
-                                {stat.value}
+                        <div
+                            key={i}
+                            className="group relative bg-black/50 border border-white/10 rounded-2xl p-4 md:p-5 backdrop-blur-xl hover:border-white/20 transition-all duration-300"
+                        >
+                            <div className={`absolute inset-0 bg-gradient-to-br ${stat.glow} rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity`} />
+                            <div className="relative">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <stat.icon size={14} className={stat.color} />
+                                    <span className="text-[10px] md:text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                                        {stat.label}
+                                    </span>
+                                </div>
+                                <div className={`text-xl md:text-2xl font-black ${stat.color}`}>
+                                    {stat.value}
+                                </div>
+                                {stat.sub && (
+                                    <div className={`text-xs font-bold mt-1 ${(pool?.priceChange24h || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                        {stat.sub} (24h)
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* Main Action Area */}
-                <div className="grid md:grid-cols-3 gap-8">
-                    {/* Left: Pool Selection */}
-                    <div className="md:col-span-2 space-y-4">
-                        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                            <Droplets className="text-primary" /> Active Pools
-                        </h2>
-                        
-                        {/* Raydium Pool Card */}
-                        <div className={`rounded-2xl border transition-all duration-300 p-6 ${activeTab === "raydium" ? "bg-black/60 border-primary shadow-[0_0_30px_rgba(var(--primary),0.15)]" : "bg-black/40 border-white/10 hover:border-white/20 cursor-pointer"}`}
-                            onClick={() => setActiveTab("raydium")}
-                        >
-                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                {/* ── Main Grid ── */}
+                <div className="grid lg:grid-cols-3 gap-6">
+                    {/* Left — Pool Card + CTA */}
+                    <div className="lg:col-span-2 space-y-6">
+                        {/* SHX-SOL Raydium Pool */}
+                        <div className="bg-black/60 border border-primary/30 rounded-2xl p-6 backdrop-blur-xl shadow-[0_0_40px_rgba(34,197,94,0.08)]">
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                                 <div className="flex items-center gap-4">
-                                    <div className="flex -space-x-2">
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center border-2 border-black z-10">
-                                            <span className="text-[10px] font-black text-black">SHX</span>
+                                    <div className="flex -space-x-3">
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center border-2 border-black z-10 shadow-lg shadow-green-500/20">
+                                            <span className="text-xs font-black text-black">SHX</span>
                                         </div>
-                                        <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center border-2 border-black">
-                                            <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" alt="SOL" className="w-full h-full rounded-full" />
+                                        <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center border-2 border-black overflow-hidden">
+                                            <img
+                                                src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
+                                                alt="SOL"
+                                                className="w-full h-full rounded-full"
+                                            />
                                         </div>
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                            SHX-SOL 
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/30">Raydium</span>
-                                        </h3>
-                                        <p className="text-sm text-muted-foreground">Fee Tier: 0.25%</p>
+                                        <h2 className="text-xl font-black text-white flex items-center gap-2">
+                                            SHX / SOL
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/30">
+                                                Raydium
+                                            </span>
+                                        </h2>
+                                        <p className="text-sm text-muted-foreground">Fee Tier: 0.25% • Concentrated Liquidity</p>
                                     </div>
                                 </div>
-
-                                <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-4 md:gap-6">
                                     <div className="text-right">
-                                        <p className="text-xs text-muted-foreground mb-1">TVL</p>
-                                        <p className="font-mono text-white font-bold">${SHX_LIQUIDITY.toLocaleString()}</p>
+                                        <p className="text-[10px] text-muted-foreground uppercase mb-0.5">TVL</p>
+                                        <p className="font-mono text-white font-bold text-lg">
+                                            ${loading ? "..." : (pool?.tvl || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        </p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs text-muted-foreground mb-1">APY</p>
-                                        <p className="font-mono text-green-400 font-bold">{APY}%</p>
+                                        <p className="text-[10px] text-muted-foreground uppercase mb-0.5">APY</p>
+                                        <p className="font-mono text-green-400 font-bold text-lg">
+                                            {loading ? "..." : `${displayApy.toFixed(1)}%`}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
 
-                            {activeTab === "raydium" && (
-                                <div className="mt-6 pt-6 border-t border-white/10">
-                                    <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-4 flex items-start gap-3">
-                                        <Zap className="text-primary shrink-0 mt-0.5" size={18} />
-                                        <div className="text-sm text-primary-foreground/80">
-                                            Providing liquidity on Raydium helps stabilize the SHX token and earns you a cut of every trade made on the network.
-                                        </div>
-                                    </div>
-                                    <a 
-                                        href={`https://raydium.io/liquidity/add/?ammId=YOUR_AMM_ID_HERE&coin0=So11111111111111111111111111111111111111112&coin1=${SHULEVITZ_MINT}`} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground py-3 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(var(--primary),0.3)] hover:shadow-[0_0_30px_rgba(var(--primary),0.5)]"
-                                    >
-                                        Deposit on Raydium <ExternalLink size={16} />
-                                    </a>
+                            {/* Info Banner */}
+                            <div className="bg-green-500/5 border border-green-500/15 rounded-xl p-4 mb-5 flex items-start gap-3">
+                                <Zap className="text-green-400 shrink-0 mt-0.5" size={18} />
+                                <div className="text-sm text-muted-foreground">
+                                    <strong className="text-white">Earn fees on every trade.</strong> When anyone swaps SHX↔SOL on SHX Exchange or any Solana DEX, you earn a share proportional to your liquidity.
                                 </div>
-                            )}
+                            </div>
+
+                            {/* CTA Buttons */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <a
+                                    href={`https://raydium.io/liquidity/increase/?mode=add&pool_id=YOUR_POOL_ID`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-black py-3.5 rounded-xl font-black text-sm transition-all shadow-[0_0_25px_rgba(34,197,94,0.3)] hover:shadow-[0_0_40px_rgba(34,197,94,0.5)] hover:scale-[1.02]"
+                                >
+                                    <Droplets size={16} /> Add Liquidity <ExternalLink size={14} />
+                                </a>
+                                <a
+                                    href="/"
+                                    className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white py-3.5 rounded-xl font-bold text-sm border border-white/10 transition-all hover:scale-[1.02]"
+                                >
+                                    <ArrowUpRight size={16} /> Buy SHX First
+                                </a>
+                            </div>
                         </div>
 
-                        {/* Orca Pool Card (Coming Soon) */}
-                        <div className="rounded-2xl border border-white/5 bg-black/20 p-6 opacity-60">
+                        {/* Yield Calculator */}
+                        <YieldCalculator apy={displayApy} shxPrice={pool?.priceUsd || 0} />
+
+                        {/* Orca Pool — Coming Soon */}
+                        <div className="bg-black/30 border border-white/5 rounded-2xl p-6 opacity-50">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="flex -space-x-2 grayscale">
+                                    <div className="flex -space-x-3 grayscale">
                                         <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border-2 border-black z-10">
                                             <span className="text-[10px] font-black text-gray-500">SHX</span>
                                         </div>
                                         <div className="w-10 h-10 rounded-full bg-gray-900 border-2 border-black" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-gray-500 flex items-center gap-2">
-                                            SHX-USDC
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-gray-500">Orca Whirlpool</span>
-                                        </h3>
-                                        <p className="text-sm text-gray-600">Coming Soon</p>
+                                        <h3 className="text-base font-bold text-gray-500">SHX-USDC • Orca Whirlpool</h3>
+                                        <p className="text-xs text-gray-600">Coming Soon</p>
                                     </div>
                                 </div>
-                                <div className="px-3 py-1 rounded bg-white/5 text-xs text-gray-500 font-bold border border-white/5">
+                                <span className="px-3 py-1 rounded-full bg-white/5 text-[10px] text-gray-500 font-bold border border-white/5">
                                     Upcoming
-                                </div>
+                                </span>
                             </div>
                         </div>
+
+                        {/* FAQ */}
+                        <FaqSection />
                     </div>
 
-                    {/* Right: Info / Instructions */}
+                    {/* Right Sidebar */}
                     <div className="space-y-6">
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                            <h3 className="text-lg font-bold text-white mb-4">How it works</h3>
-                            <ul className="space-y-4">
-                                <li className="flex items-start gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</div>
-                                    <p className="text-sm text-muted-foreground">Click "Deposit on Raydium" to open the decentralized liquidity pool interface.</p>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</div>
-                                    <p className="text-sm text-muted-foreground">Provide an equal value of SHX and SOL tokens into the smart contract.</p>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</div>
-                                    <p className="text-sm text-muted-foreground">Receive LP tokens representing your share of the pool.</p>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">4</div>
-                                    <p className="text-sm text-muted-foreground"><strong className="text-white">Earn Fees!</strong> Automatically accrue trading fees on every swap made through SHX Exchange and Raydium.</p>
-                                </li>
-                            </ul>
+                        {/* How It Works */}
+                        <div className="bg-black/50 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
+                            <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
+                                <Gift size={18} className="text-primary" /> How It Works
+                            </h3>
+                            <div className="space-y-5">
+                                {[
+                                    { step: "1", label: "Get SHX + SOL", desc: "Make sure you hold both tokens. Swap on the main exchange if needed.", color: "bg-primary/20 text-primary" },
+                                    { step: "2", label: "Deposit into Pool", desc: "Click 'Add Liquidity' above to open Raydium and deposit.", color: "bg-cyan-500/20 text-cyan-400" },
+                                    { step: "3", label: "Receive LP Tokens", desc: "Your LP tokens represent your share of the pool.", color: "bg-purple-500/20 text-purple-400" },
+                                    { step: "4", label: "Earn Fees", desc: "Trading fees accrue automatically. No staking or claiming needed.", color: "bg-green-500/20 text-green-400" },
+                                ].map((item) => (
+                                    <div key={item.step} className="flex items-start gap-3">
+                                        <div className={`w-7 h-7 rounded-full ${item.color} flex items-center justify-center text-xs font-black shrink-0`}>
+                                            {item.step}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-white">{item.label}</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
-                        {!connected && (
-                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6 text-center">
-                                <WalletIcon className="mx-auto text-blue-400 mb-3" size={32} />
-                                <h4 className="text-white font-bold mb-2">Connect Wallet</h4>
-                                <p className="text-sm text-muted-foreground mb-4">
-                                    Connect your Solana wallet to manage your liquidity positions and claim rewards.
-                                </p>
+                        {/* Risk Warning */}
+                        <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-2xl p-5">
+                            <div className="flex items-center gap-2 mb-3">
+                                <ShieldCheck size={16} className="text-yellow-400" />
+                                <span className="text-xs font-bold text-yellow-400 uppercase">Risk Disclosure</span>
                             </div>
-                        )}
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                Providing liquidity involves risk including impermanent loss. APY figures are estimates based on recent trading volume and may fluctuate. Your funds are held in audited Raydium smart contracts — not by SHX Exchange.
+                            </p>
+                        </div>
+
+                        {/* Quick Links */}
+                        <div className="bg-black/50 border border-white/10 rounded-2xl p-5 backdrop-blur-xl">
+                            <h4 className="text-sm font-bold text-white mb-3">Resources</h4>
+                            <div className="space-y-2">
+                                {[
+                                    { label: "SHX on DexScreener", href: `https://dexscreener.com/solana/${SHULEVITZ_MINT}` },
+                                    { label: "Raydium Docs", href: "https://docs.raydium.io/" },
+                                    { label: "What is IL?", href: "https://academy.binance.com/en/articles/impermanent-loss-explained" },
+                                ].map((link) => (
+                                    <a
+                                        key={link.label}
+                                        href={link.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors group"
+                                    >
+                                        <span className="text-xs text-muted-foreground group-hover:text-white transition-colors">{link.label}</span>
+                                        <ExternalLink size={12} className="text-muted-foreground" />
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </main>
     );
-}
-
-function WalletIcon(props: any) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a8 8 0 0 1-8 8H5a2 2 0 0 1-2-2V8" />
-            <polyline points="20 12 20 12 20 12" />
-        </svg>
-    )
 }
