@@ -57,6 +57,16 @@ export default function RootLayout({
           <ToastProvider>
             <Header />
             {children}
+            <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto">
+              <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
+                <span className="text-xs text-muted-foreground">© 2026 Shulevitz Exchange. All rights reserved.</span>
+                <div className="flex items-center gap-4">
+                  <a href="/whitepaper" className="text-xs text-muted-foreground hover:text-primary transition-colors">White Paper</a>
+                  <a href="/privacy" className="text-xs text-muted-foreground hover:text-primary transition-colors">Privacy</a>
+                  <a href="/terms" className="text-xs text-muted-foreground hover:text-primary transition-colors">Terms</a>
+                </div>
+              </div>
+            </footer>
             <ServiceWorkerRegistration />
           </ToastProvider>
         </SolanaProvider>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import Script from "next/script";
 import {
@@ -21,6 +21,23 @@ const MOONPAY_API_KEY = process.env.NEXT_PUBLIC_MOONPAY_API_KEY || "";
 const STRIPE_PK = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
 const AMOUNTS = [50, 100, 250, 500, 1000];
+
+function useSolPrice() {
+    const [price, setPrice] = useState(170);
+    useEffect(() => {
+        const fetchPrice = async () => {
+            try {
+                const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+                const data = await res.json();
+                if (data.solana?.usd) setPrice(data.solana.usd);
+            } catch {}
+        };
+        fetchPrice();
+        const interval = setInterval(fetchPrice, 60000);
+        return () => clearInterval(interval);
+    }, []);
+    return price;
+}
 
 // ─── MoonPay Widget ─────────────────────────────────────────────
 function MoonPayWidget({ wallet, amount, onClose }: { wallet: string; amount: number; onClose: () => void }) {
@@ -180,6 +197,7 @@ function StripeWidget({ wallet, amount, onClose }: { wallet: string; amount: num
 export default function BuyPage() {
     const { publicKey, connected } = useWallet();
     const [selectedProvider, setSelectedProvider] = useState("moonpay");
+    const solPrice = useSolPrice();
     const [amount, setAmount] = useState(100);
     const [customAmount, setCustomAmount] = useState("");
     const [showWidget, setShowWidget] = useState(false);
@@ -299,7 +317,8 @@ export default function BuyPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            You&apos;ll receive approximately <strong className="text-white">{(effectiveAmount / 170).toFixed(2)} SOL</strong>
+                            You&apos;ll receive approximately <strong className="text-white">{(effectiveAmount / solPrice).toFixed(4)} SOL</strong>
+                            <span className="ml-1 text-muted-foreground/50">(@ ${solPrice.toFixed(0)}/SOL)</span>
                         </p>
                     </div>
 

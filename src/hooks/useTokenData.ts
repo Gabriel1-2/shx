@@ -25,14 +25,10 @@ export function useTokenBalance(tokenMint: string, decimals: number = 9) {
                     return;
                 }
 
-                // Handle SPL Tokens - Optimized: Check ATA directly
+                // Handle SPL Tokens - Check ATA directly
                 const token = new PublicKey(tokenMint);
                 const owner = publicKey;
-
-                // Derive ATA
                 const ata = await getAssociatedTokenAddress(token, owner);
-
-                // Fetch account info
                 const response = await connection.getParsedAccountInfo(ata);
 
                 if (response.value) {
@@ -59,11 +55,37 @@ export function useTokenBalance(tokenMint: string, decimals: number = 9) {
     return { balance, loading };
 }
 
+/**
+ * Fetches live token price from DexScreener with:
+ * - 60-second polling interval
+ * - 3 retry attempts with exponential backoff
+ * - CoinGecko fallback for SOL
+ */
 export function useTokenPrice(tokenMint: string) {
     const [data, setData] = useState({ price: 0, pairAddress: "" });
 
     useEffect(() => {
         if (!tokenMint) return;
+
+        const fetchWithRetry = async (url: string, retries = 3): Promise<Response | null> => {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) return res;
+                    // Rate limited - wait and retry
+                    if (res.status === 429) {
+                        await new Promise(r => setTimeout(r, (i + 1) * 2000));
+                        continue;
+                    }
+                    return res;
+                } catch {
+                    if (i < retries - 1) {
+                        await new Promise(r => setTimeout(r, (i + 1) * 1500));
+                    }
+                }
+            }
+            return null;
+        };
 
         const fetchPrice = async () => {
             // USDC hardcode
@@ -73,31 +95,41 @@ export function useTokenPrice(tokenMint: string) {
             }
 
             try {
-                const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
-                if (res.ok) {
+                const res = await fetchWithRetry(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
+                if (res?.ok) {
                     const apiData = await res.json();
                     if (apiData.pairs && apiData.pairs.length > 0) {
-                        // Sort by liquidity desc — highest liquidity pair is most reliable
-                        // This avoids the FOGO bug where a random token shares SOL's baseToken.address
                         const sortedPairs = [...apiData.pairs].sort(
                             (a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
                         );
                         const bestPair = sortedPairs[0];
-
-                        setData({
-                            price: parseFloat(bestPair.priceUsd) || 0,
-                            pairAddress: bestPair.pairAddress
-                        });
-                        return;
+                        const price = parseFloat(bestPair.priceUsd) || 0;
+                        if (price > 0) {
+                            setData({ price, pairAddress: bestPair.pairAddress });
+                            return;
+                        }
                     }
                 }
 
                 // Fallback: CoinGecko for SOL
                 if (tokenMint === "So11111111111111111111111111111111111111112") {
-                    const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-                    const cgData = await cgRes.json();
-                    if (cgData.solana?.usd) {
-                        setData({ price: cgData.solana.usd, pairAddress: "" });
+                    const cgRes = await fetchWithRetry('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+                    if (cgRes?.ok) {
+                        const cgData = await cgRes.json();
+                        if (cgData.solana?.usd) {
+                            setData({ price: cgData.solana.usd, pairAddress: "" });
+                            return;
+                        }
+                    }
+                }
+
+                // Fallback: Jupiter Price API v2 for any token
+                const jupRes = await fetchWithRetry(`https://api.jup.ag/price/v2?ids=${tokenMint}`);
+                if (jupRes?.ok) {
+                    const jupData = await jupRes.json();
+                    const jupPrice = jupData?.data?.[tokenMint]?.price;
+                    if (jupPrice) {
+                        setData({ price: parseFloat(jupPrice), pairAddress: "" });
                     }
                 }
             } catch (e) {
@@ -106,6 +138,9 @@ export function useTokenPrice(tokenMint: string) {
         };
 
         fetchPrice();
+        // Poll every 60 seconds
+        const interval = setInterval(fetchPrice, 60000);
+        return () => clearInterval(interval);
     }, [tokenMint]);
 
     return data;
