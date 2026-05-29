@@ -32,9 +32,9 @@ const TOKEN_INFO: Record<string, { symbol: string; name: string; logoURI: string
         logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
     },
     "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q": {
-        symbol: "SHX",
-        name: "Shulevitz",
-        logoURI: "https://ui-avatars.com/api/?name=SHX&background=22c55e&color=000"
+        symbol: "Shulevitz",
+        name: "SHX",
+        logoURI: "/icons/icon-192.png"
     },
     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": {
         symbol: "USDC",
