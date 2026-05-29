@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 import {
     TrendingUp, TrendingDown, Activity, Zap,
@@ -17,12 +18,19 @@ const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
 
 // ── Token Presets ──
 const TOKENS = [
-    { symbol: "SHX", name: "Shulevitz", address: SHULEVITZ_MINT, logo: "🟢" },
-    { symbol: "SOL", name: "Solana", address: "So11111111111111111111111111111111111111112", logo: "◎" },
-    { symbol: "BONK", name: "Bonk", address: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", logo: "🐕" },
-    { symbol: "WIF", name: "dogwifhat", address: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm", logo: "🎩" },
-    { symbol: "JUP", name: "Jupiter", address: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", logo: "🪐" },
+    { symbol: "Shulevitz", name: "SHX", address: SHULEVITZ_MINT, logo: "/icons/icon-192.png", isImage: true },
+    { symbol: "SOL", name: "Solana", address: "So11111111111111111111111111111111111111112", logo: "◎", isImage: false },
+    { symbol: "BONK", name: "Bonk", address: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", logo: "🐕", isImage: false },
+    { symbol: "WIF", name: "dogwifhat", address: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm", logo: "🎩", isImage: false },
+    { symbol: "JUP", name: "Jupiter", address: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", logo: "🪐", isImage: false },
 ];
+
+function TokenLogo({ token, size = 20 }: { token: typeof TOKENS[0]; size?: number }) {
+    if (token.isImage) {
+        return <Image src={token.logo} alt={token.symbol} width={size} height={size} className="rounded-full" />;
+    }
+    return <span style={{ fontSize: size * 0.8 }}>{token.logo}</span>;
+}
 
 interface PairData {
     price: number;
@@ -194,7 +202,7 @@ export default function ProPage() {
                             onClick={() => setShowTokenList(!showTokenList)}
                             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
                         >
-                            <span className="text-base">{activeToken.logo}</span>
+                            <TokenLogo token={activeToken} size={20} />
                             <span className="text-sm font-black text-white">{activeToken.symbol}<span className="text-muted-foreground font-normal">/USD</span></span>
                             <ChevronDown size={14} className={`text-muted-foreground transition-transform ${showTokenList ? "rotate-180" : ""}`} />
                         </button>
@@ -206,7 +214,7 @@ export default function ProPage() {
                                         onClick={() => { setActiveToken(t); setShowTokenList(false); }}
                                         className={`w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/10 transition-colors ${activeToken.address === t.address ? "bg-primary/10 text-primary" : "text-white"}`}
                                     >
-                                        <span className="text-base">{t.logo}</span>
+                                        <TokenLogo token={t} size={20} />
                                         <span className="font-bold text-sm">{t.symbol}</span>
                                         <span className="text-xs text-muted-foreground ml-auto">{t.name}</span>
                                     </button>
