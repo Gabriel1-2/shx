@@ -5,9 +5,9 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 import {
-    TrendingUp, TrendingDown, Activity, Zap, ArrowUpRight,
-    ChevronDown, Clock, BarChart2, Loader2, ExternalLink,
-    Layers, DollarSign, Users, ArrowDownUp
+    TrendingUp, TrendingDown, Activity, Zap,
+    ChevronDown, BarChart2, Loader2, ExternalLink,
+    DollarSign, ArrowDownUp, Droplets, PieChart
 } from "lucide-react";
 
 const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
@@ -32,6 +32,8 @@ interface PairData {
     fdv: number;
     txns24h: { buys: number; sells: number };
     pairAddress: string;
+    change1h: number;
+    change6h: number;
 }
 
 // ── Data Fetcher ──
@@ -46,6 +48,8 @@ async function fetchPairData(address: string): Promise<PairData | null> {
         return {
             price: parseFloat(pair.priceUsd) || 0,
             change24h: pair.priceChange?.h24 || 0,
+            change1h: pair.priceChange?.h1 || 0,
+            change6h: pair.priceChange?.h6 || 0,
             volume24h: pair.volume?.h24 || 0,
             liquidity: pair.liquidity?.usd || 0,
             fdv: pair.fdv || 0,
@@ -58,152 +62,85 @@ async function fetchPairData(address: string): Promise<PairData | null> {
 }
 
 // ── Components ──
-function TokenStat({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
+function TokenStat({ label, value, color }: { label: string; value: string; color?: string }) {
     return (
         <div className="flex flex-col">
             <span className="text-[9px] md:text-[10px] text-muted-foreground uppercase tracking-wider">{label}</span>
             <span className={`text-xs md:text-sm font-bold font-mono ${color || "text-white"}`}>{value}</span>
-            {sub && <span className="text-[9px] text-muted-foreground">{sub}</span>}
         </div>
     );
 }
 
-function OrderBookDepth({ pairData }: { pairData: PairData | null }) {
-    if (!pairData) return null;
+function ChangeChip({ value, label }: { value: number; label: string }) {
+    const positive = value >= 0;
+    return (
+        <div className="flex flex-col items-center p-2.5 bg-white/[0.02] rounded-lg border border-white/5">
+            <span className="text-[9px] text-muted-foreground uppercase mb-1">{label}</span>
+            <span className={`text-xs font-bold font-mono flex items-center gap-0.5 ${positive ? "text-green-400" : "text-red-400"}`}>
+                {positive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                {positive ? "+" : ""}{value.toFixed(2)}%
+            </span>
+        </div>
+    );
+}
 
+// ── Market Stats Panel (100% real data from DexScreener) ──
+function MarketStats({ pairData, symbol }: { pairData: PairData | null; symbol: string }) {
+    if (!pairData) return null;
     const totalTxns = (pairData.txns24h.buys || 0) + (pairData.txns24h.sells || 0);
     const buyRatio = totalTxns > 0 ? (pairData.txns24h.buys / totalTxns) * 100 : 50;
-    const sellRatio = 100 - buyRatio;
 
-    // Generate depth levels based on real price + liquidity data
-    const price = pairData.price;
-    const spread = price * 0.002; // 0.2% spread estimate
-
-    const bidLevels = Array.from({ length: 6 }, (_, i) => ({
-        price: price - spread * (i + 1),
-        size: (pairData.liquidity / 12) * (1 - i * 0.12) * (0.8 + Math.random() * 0.4),
-    }));
-
-    const askLevels = Array.from({ length: 6 }, (_, i) => ({
-        price: price + spread * (i + 1),
-        size: (pairData.liquidity / 12) * (1 - i * 0.12) * (0.8 + Math.random() * 0.4),
-    }));
-
-    const maxSize = Math.max(...bidLevels.map(l => l.size), ...askLevels.map(l => l.size));
-
-    const fmtPrice = (p: number) => {
-        if (p < 0.0001) return p.toExponential(2);
-        if (p < 1) return p.toFixed(6);
-        return p.toFixed(4);
+    const fmt = (n: number) => {
+        if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+        if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+        return `$${n.toFixed(0)}`;
     };
-
-    const fmtSize = (s: number) => {
-        if (s >= 1e6) return `$${(s / 1e6).toFixed(1)}M`;
-        if (s >= 1e3) return `$${(s / 1e3).toFixed(1)}K`;
-        return `$${s.toFixed(0)}`;
-    };
-
-    return (
-        <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Layers size={14} className="text-primary" />
-                    <h3 className="text-sm font-bold text-white">Order Book</h3>
-                </div>
-                <div className="flex items-center gap-2 text-[10px]">
-                    <span className="text-green-400 font-bold">{buyRatio.toFixed(0)}% Buy</span>
-                    <span className="text-muted-foreground">/</span>
-                    <span className="text-red-400 font-bold">{sellRatio.toFixed(0)}% Sell</span>
-                </div>
-            </div>
-
-            {/* Buy/Sell pressure bar */}
-            <div className="px-4 py-2 border-b border-white/5">
-                <div className="flex h-1.5 rounded-full overflow-hidden bg-white/5">
-                    <div className="bg-green-500/80 transition-all" style={{ width: `${buyRatio}%` }} />
-                    <div className="bg-red-500/80 transition-all" style={{ width: `${sellRatio}%` }} />
-                </div>
-            </div>
-
-            {/* Header */}
-            <div className="grid grid-cols-3 px-4 py-1.5 text-[9px] text-muted-foreground uppercase border-b border-white/5">
-                <span>Price</span>
-                <span className="text-right">Size</span>
-                <span className="text-right">Depth</span>
-            </div>
-
-            {/* Asks (sells) - reversed so highest is at top */}
-            <div className="flex flex-col-reverse">
-                {askLevels.map((level, i) => (
-                    <div key={`ask-${i}`} className="relative grid grid-cols-3 px-4 py-1 text-xs font-mono">
-                        <div className="absolute inset-0 bg-red-500/10" style={{ width: `${(level.size / maxSize) * 100}%`, right: 0, left: 'auto' }} />
-                        <span className="relative text-red-400">{fmtPrice(level.price)}</span>
-                        <span className="relative text-right text-muted-foreground">{fmtSize(level.size)}</span>
-                        <span className="relative text-right text-muted-foreground/50">
-                            {((level.size / maxSize) * 100).toFixed(0)}%
-                        </span>
-                    </div>
-                ))}
-            </div>
-
-            {/* Spread */}
-            <div className="px-4 py-2 border-y border-white/5 flex items-center justify-between bg-white/[0.02]">
-                <span className="text-[10px] text-muted-foreground">Spread</span>
-                <span className="text-xs font-mono text-white font-bold">
-                    {fmtPrice(price)} <span className="text-muted-foreground text-[10px]">({(spread / price * 100 * 2).toFixed(3)}%)</span>
-                </span>
-            </div>
-
-            {/* Bids (buys) */}
-            {bidLevels.map((level, i) => (
-                <div key={`bid-${i}`} className="relative grid grid-cols-3 px-4 py-1 text-xs font-mono">
-                    <div className="absolute inset-0 bg-green-500/10" style={{ width: `${(level.size / maxSize) * 100}%`, right: 0, left: 'auto' }} />
-                    <span className="relative text-green-400">{fmtPrice(level.price)}</span>
-                    <span className="relative text-right text-muted-foreground">{fmtSize(level.size)}</span>
-                    <span className="relative text-right text-muted-foreground/50">
-                        {((level.size / maxSize) * 100).toFixed(0)}%
-                    </span>
-                </div>
-            ))}
-
-            {/* Liquidity Summary */}
-            <div className="px-4 py-2.5 border-t border-white/5 bg-white/[0.01] flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">Total Liquidity</span>
-                <span className="text-xs font-mono text-cyan-400 font-bold">{fmtSize(pairData.liquidity)}</span>
-            </div>
-        </div>
-    );
-}
-
-// ── Market Activity Summary ──
-function MarketActivity({ pairData }: { pairData: PairData | null }) {
-    if (!pairData) return null;
-    const totalTxns = (pairData.txns24h.buys || 0) + (pairData.txns24h.sells || 0);
 
     return (
         <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
                 <Activity size={14} className="text-primary" />
-                <h3 className="text-sm font-bold text-white">24h Activity</h3>
+                <h3 className="text-sm font-bold text-white">Market Stats</h3>
+                <span className="text-[10px] text-muted-foreground ml-auto">Live from DexScreener</span>
             </div>
-            <div className="grid grid-cols-2 gap-px bg-white/5">
+
+            {/* Price Changes */}
+            <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/5">
+                <ChangeChip value={pairData.change1h} label="1H" />
+                <ChangeChip value={pairData.change6h} label="6H" />
+                <ChangeChip value={pairData.change24h} label="24H" />
+            </div>
+
+            {/* Buy/Sell Ratio */}
+            <div className="px-4 py-3 border-b border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-muted-foreground uppercase">Buy / Sell Pressure</span>
+                    <div className="flex items-center gap-2 text-[10px]">
+                        <span className="text-green-400 font-bold">{pairData.txns24h.buys} buys</span>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="text-red-400 font-bold">{pairData.txns24h.sells} sells</span>
+                    </div>
+                </div>
+                <div className="flex h-2 rounded-full overflow-hidden bg-white/5">
+                    <div className="bg-green-500 transition-all duration-500" style={{ width: `${buyRatio}%` }} />
+                    <div className="bg-red-500 transition-all duration-500" style={{ width: `${100 - buyRatio}%` }} />
+                </div>
+            </div>
+
+            {/* Key Metrics */}
+            <div className="divide-y divide-white/5">
                 {[
-                    { label: "Volume", value: pairData.volume24h, icon: DollarSign, color: "text-white", fmt: true },
-                    { label: "Transactions", value: totalTxns, icon: ArrowDownUp, color: "text-white", fmt: false },
-                    { label: "Buys", value: pairData.txns24h.buys, icon: TrendingUp, color: "text-green-400", fmt: false },
-                    { label: "Sells", value: pairData.txns24h.sells, icon: TrendingDown, color: "text-red-400", fmt: false },
+                    { icon: DollarSign, label: "24h Volume", value: fmt(pairData.volume24h), color: "text-white" },
+                    { icon: Droplets, label: "Pool Liquidity", value: fmt(pairData.liquidity), color: "text-cyan-400" },
+                    { icon: PieChart, label: "Fully Diluted Value", value: fmt(pairData.fdv), color: "text-white" },
+                    { icon: ArrowDownUp, label: "24h Transactions", value: totalTxns.toLocaleString(), color: "text-white" },
                 ].map((item, i) => (
-                    <div key={i} className="bg-black/40 p-3 flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5">
-                            <item.icon size={10} className={item.color} />
-                            <span className="text-[9px] text-muted-foreground uppercase">{item.label}</span>
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                            <item.icon size={12} className="text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">{item.label}</span>
                         </div>
-                        <span className={`text-sm font-bold font-mono ${item.color}`}>
-                            {item.fmt
-                                ? (item.value >= 1e6 ? `$${(item.value / 1e6).toFixed(1)}M` : item.value >= 1e3 ? `$${(item.value / 1e3).toFixed(1)}K` : `$${item.value.toFixed(0)}`)
-                                : item.value.toLocaleString()
-                            }
-                        </span>
+                        <span className={`text-xs font-bold font-mono ${item.color}`}>{item.value}</span>
                     </div>
                 ))}
             </div>
@@ -297,19 +234,10 @@ export default function ProPage() {
                         <TokenStat label="Liquidity" value={loading ? "..." : fmt(pairData?.liquidity || 0)} color="text-cyan-400" />
                         <TokenStat label="FDV" value={loading ? "..." : fmt(pairData?.fdv || 0)} />
                         <div className="w-px h-6 bg-white/10" />
-                        <TokenStat
-                            label="Buys"
-                            value={loading ? "..." : `${pairData?.txns24h.buys || 0}`}
-                            color="text-green-400"
-                        />
-                        <TokenStat
-                            label="Sells"
-                            value={loading ? "..." : `${pairData?.txns24h.sells || 0}`}
-                            color="text-red-400"
-                        />
+                        <TokenStat label="Buys" value={loading ? "..." : `${pairData?.txns24h.buys || 0}`} color="text-green-400" />
+                        <TokenStat label="Sells" value={loading ? "..." : `${pairData?.txns24h.sells || 0}`} color="text-red-400" />
                     </div>
 
-                    {/* DexScreener Link */}
                     <a
                         href={`https://dexscreener.com/solana/${activeToken.address}`}
                         target="_blank"
@@ -366,11 +294,8 @@ export default function ProPage() {
                         <JupiterTerminal />
                     </div>
 
-                    {/* Order Book Depth */}
-                    <OrderBookDepth pairData={pairData} />
-
-                    {/* Market Activity */}
-                    <MarketActivity pairData={pairData} />
+                    {/* Market Stats — 100% real data */}
+                    <MarketStats pairData={pairData} symbol={activeToken.symbol} />
                 </div>
             </div>
         </main>
