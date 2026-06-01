@@ -1,10 +1,12 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
     FileText, Zap, Target, Shield, TrendingUp, BarChart2,
     Layers, Users, Globe, Cpu, Rocket, DollarSign,
-    ArrowRight, CheckCircle, ChevronRight, Calendar
+    ArrowRight, CheckCircle, ChevronRight, Calendar, Loader2
 } from "lucide-react";
+import { SHULEVITZ_MINT } from "@/lib/constants";
 
 function Section({ id, title, children, icon: Icon }: { id: string; title: string; children: React.ReactNode; icon: any }) {
     return (
@@ -20,11 +22,15 @@ function Section({ id, title, children, icon: Icon }: { id: string; title: strin
     );
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatCard({ label, value, sub, loading }: { label: string; value: string; sub?: string; loading?: boolean }) {
     return (
         <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 text-center">
             <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{label}</div>
-            <div className="text-xl font-black text-white">{value}</div>
+            {loading ? (
+                <Loader2 size={18} className="animate-spin text-primary mx-auto my-1" />
+            ) : (
+                <div className="text-xl font-black text-white">{value}</div>
+            )}
             {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
         </div>
     );
@@ -52,6 +58,41 @@ function RoadmapItem({ quarter, title, items, done }: { quarter: string; title: 
 }
 
 export default function WhitepaperPage() {
+    const [lpData, setLpData] = useState<{ liquidity: string; price: string; volume24h: string; fdv: string; loading: boolean }>({
+        liquidity: "—", price: "—", volume24h: "—", fdv: "—", loading: true
+    });
+
+    useEffect(() => {
+        async function fetchLPData() {
+            try {
+                const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${SHULEVITZ_MINT}`);
+                const data = await res.json();
+                const pair = data.pairs?.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+                if (pair) {
+                    const fmt = (n: number) => {
+                        if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+                        if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+                        return `$${n.toFixed(0)}`;
+                    };
+                    setLpData({
+                        liquidity: fmt(pair.liquidity?.usd || 0),
+                        price: `$${parseFloat(pair.priceUsd || "0").toFixed(6)}`,
+                        volume24h: fmt(pair.volume?.h24 || 0),
+                        fdv: fmt(pair.fdv || 0),
+                        loading: false,
+                    });
+                } else {
+                    setLpData(prev => ({ ...prev, loading: false }));
+                }
+            } catch {
+                setLpData(prev => ({ ...prev, loading: false }));
+            }
+        }
+        fetchLPData();
+        const interval = setInterval(fetchLPData, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <main className="min-h-screen bg-background relative overflow-hidden pb-20">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 blur-[180px] rounded-full pointer-events-none" />
@@ -79,7 +120,7 @@ export default function WhitepaperPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-16">
                     <StatCard label="Blockchain" value="Solana" sub="400ms finality" />
                     <StatCard label="Swap Engine" value="Jupiter" sub="Ultra routing" />
-                    <StatCard label="LP Pool" value="$44K+" sub="SHX/USDC on Raydium" />
+                    <StatCard label="LP Pool" value={lpData.liquidity} sub="SHX/USDC on Raydium" loading={lpData.loading} />
                     <StatCard label="Platform Fee" value="0.50-0.65%" sub="Tier-based" />
                 </div>
 
@@ -163,10 +204,15 @@ export default function WhitepaperPage() {
 
                     {/* Tokenomics */}
                     <Section id="tokenomics" title="Tokenomics" icon={DollarSign}>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                             <StatCard label="Token Name" value="SHX" sub="Shulevitz Token" />
                             <StatCard label="Blockchain" value="Solana" sub="SPL Token Standard" />
-                            <StatCard label="LP Pool" value="Raydium" sub="SHX/USDC" />
+                            <StatCard label="Pool Liquidity" value={lpData.liquidity} sub="SHX/USDC" loading={lpData.loading} />
+                            <StatCard label="Token Price" value={lpData.price} sub="Live" loading={lpData.loading} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            <StatCard label="24h Volume" value={lpData.volume24h} sub="DexScreener" loading={lpData.loading} />
+                            <StatCard label="Fully Diluted Value" value={lpData.fdv} sub="Market cap" loading={lpData.loading} />
                         </div>
                         <p><strong className="text-white">Mint Address:</strong></p>
                         <code className="block text-xs font-mono text-primary bg-primary/5 border border-primary/10 rounded-lg p-3 break-all">
@@ -176,7 +222,7 @@ export default function WhitepaperPage() {
                         <code className="block text-xs font-mono text-cyan-400 bg-cyan-500/5 border border-cyan-500/10 rounded-lg p-3 break-all">
                             65aXZcQAdqqHnbrABPnnSH8eTGXszLBk4UXRZqpceDAE
                         </code>
-                        <p className="mt-4"><strong className="text-white">Current Liquidity:</strong> ~$44,000 in the SHX/USDC pool on Raydium. This provides a solid foundation for price discovery and trading. Additional LP is being provisioned to deepen liquidity ahead of major exchange partnerships.</p>
+                        <p className="mt-4"><strong className="text-white">Current Liquidity:</strong> {lpData.loading ? "Loading..." : `${lpData.liquidity}`} in the SHX/USDC pool on Raydium. This provides a solid foundation for price discovery and trading. Additional LP is being provisioned to deepen liquidity ahead of major exchange partnerships.</p>
                     </Section>
 
                     {/* Utility */}

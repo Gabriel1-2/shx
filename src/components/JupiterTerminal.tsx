@@ -135,29 +135,82 @@ export default function JupiterTerminal() {
                                 inputMint = quote.inputMint || "";
                                 outputMint = quote.outputMint || "";
 
-                                const inDecimals = inputMint === SOL_MINT ? 9 : 6;
-                                const outDecimals = outputMint === SOL_MINT ? 9 : 6;
+                                // ─── ACCURATE DECIMALS ───
+                                // Jupiter quote provides raw lamport amounts. We need correct decimals.
+                                // Common known decimals, with fallback to fetching from Jupiter Price API
+                                const KNOWN_DECIMALS: Record<string, number> = {
+                                    "So11111111111111111111111111111111111111112": 9,       // SOL
+                                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": 6,    // USDC
+                                    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": 6,    // USDT
+                                    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": 5,   // BONK
+                                    "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": 6,   // WIF
+                                    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN": 6,    // JUP
+                                    "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q": 9,    // SHX
+                                };
+
+                                const inDecimals = KNOWN_DECIMALS[inputMint] ?? 6;
+                                const outDecimals = KNOWN_DECIMALS[outputMint] ?? 6;
                                 inputAmount = Number(quote.inAmount) / Math.pow(10, inDecimals);
                                 outputAmount = Number(quote.outAmount) / Math.pow(10, outDecimals);
 
+                                // ─── ACCURATE USD VOLUME ───
                                 const STABLECOINS = [
-                                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                                    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+                                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  // USDC
+                                    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  // USDT
+                                    "USDH1SM1ojwWUga67PBrgQm7e7LZdPJRMghS7gsBSfB",   // USDH
                                 ];
+
                                 if (STABLECOINS.includes(inputMint)) {
+                                    // Input is stablecoin — amount IS the USD value
                                     volumeUSD = inputAmount;
                                 } else if (STABLECOINS.includes(outputMint)) {
+                                    // Output is stablecoin — amount IS the USD value
                                     volumeUSD = outputAmount;
                                 } else {
-                                    volumeUSD = inputAmount * 150;
+                                    // Neither is a stablecoin — fetch real USD price from Jupiter
+                                    try {
+                                        const priceRes = await fetch(
+                                            `https://api.jup.ag/price/v2?ids=${inputMint}`
+                                        );
+                                        const priceData = await priceRes.json();
+                                        const tokenPrice = parseFloat(priceData?.data?.[inputMint]?.price || "0");
+                                        if (tokenPrice > 0) {
+                                            volumeUSD = inputAmount * tokenPrice;
+                                            console.log(`[Volume] ${inputAmount} tokens × $${tokenPrice} = $${volumeUSD.toFixed(2)}`);
+                                        } else {
+                                            // Jupiter price unavailable — try DexScreener as fallback
+                                            const dexRes = await fetch(
+                                                `https://api.dexscreener.com/latest/dex/tokens/${inputMint}`
+                                            );
+                                            const dexData = await dexRes.json();
+                                            const dexPrice = parseFloat(dexData?.pairs?.[0]?.priceUsd || "0");
+                                            if (dexPrice > 0) {
+                                                volumeUSD = inputAmount * dexPrice;
+                                                console.log(`[Volume] DexScreener fallback: ${inputAmount} × $${dexPrice} = $${volumeUSD.toFixed(2)}`);
+                                            }
+                                        }
+                                    } catch (priceErr) {
+                                        console.warn("[Volume] Price fetch failed, skipping volume tracking", priceErr);
+                                        // Do NOT record fake volume — leave at 0
+                                    }
                                 }
 
-                                inputSymbol = inputMint === SOL_MINT ? "SOL" : inputMint.slice(0, 6);
-                                outputSymbol = outputMint === SOL_MINT ? "SOL" : outputMint.slice(0, 6);
+                                // Resolve human-readable token symbols
+                                try {
+                                    const symbolRes = await fetch(
+                                        `https://api.jup.ag/price/v2?ids=${inputMint},${outputMint}`
+                                    );
+                                    const symbolData = await symbolRes.json();
+                                    inputSymbol = symbolData?.data?.[inputMint]?.mintSymbol || inputMint.slice(0, 6);
+                                    outputSymbol = symbolData?.data?.[outputMint]?.mintSymbol || outputMint.slice(0, 6);
+                                } catch {
+                                    inputSymbol = inputMint === SOL_MINT ? "SOL" : inputMint.slice(0, 6);
+                                    outputSymbol = outputMint === SOL_MINT ? "SOL" : outputMint.slice(0, 6);
+                                }
                             }
                         } catch (e) {
-                            console.warn("[Analytics] Could not parse swap result", e);
-                            volumeUSD = 100;
+                            console.error("[Analytics] Could not parse swap result", e);
+                            // Do NOT set a fake fallback — volumeUSD stays at 0
                         }
 
                         // Use effective fee for this trade (0% if buying SHX)

@@ -52,6 +52,9 @@ export function Header() {
                     <Link href="/dashboard" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-medium text-muted-foreground hover:text-white transition-colors shrink-0">
                         Stats
                     </Link>
+                    <Link href="/whitepaper" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-medium text-muted-foreground hover:text-white transition-colors shrink-0">
+                        Paper
+                    </Link>
                 </nav>
                 <div className="ml-1 md:ml-2 hidden sm:flex items-center gap-1 rounded-full border border-white/5 bg-white/5 px-2 py-0.5 text-[9px] md:text-[10px] font-medium text-muted-foreground shrink-0">
                     <span className="relative flex h-1.5 w-1.5">
