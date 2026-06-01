@@ -444,10 +444,17 @@ export default function WhitepaperPage() {
 
                     {/* Team */}
                     <Section id="team" title="Team" icon={Users}>
-                        <div className="bg-white/[0.02] border border-white/5 rounded-xl p-5">
-                            <h3 className="text-lg font-bold text-white mb-1">Gabriel Shulevitz</h3>
-                            <p className="text-xs text-primary mb-3">Founder & CEO</p>
-                            <p>Architect and sole developer of the SHX platform. Presented at a crypto Y Combinator-style accelerator with strong investor interest from institutional players. Building at the intersection of DeFi, AI, and institutional trading infrastructure.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-5">
+                                <h3 className="text-lg font-bold text-white mb-1">Yeshaya Shulevitz</h3>
+                                <p className="text-xs text-primary mb-3">Founder & CEO</p>
+                                <p>Visionary behind the SHX platform. Presented at a crypto Y Combinator-style accelerator with strong investor interest from institutional players. Focused on the intersection of DeFi, AI, and institutional trading.</p>
+                            </div>
+                            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-5">
+                                <h3 className="text-lg font-bold text-white mb-1">Gabriel Shagas</h3>
+                                <p className="text-xs text-primary mb-3">CTO / Tech Overlord</p>
+                                <p>Lead architect and core developer of the SHX platform. Specializing in high-performance Solana infrastructure, robust smart contract integrations, and AI-native trading capabilities.</p>
+                            </div>
                         </div>
                     </Section>
 
