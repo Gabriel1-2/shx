@@ -115,8 +115,10 @@ export default function JupiterTerminal() {
                 },
 
                 // ─── ANALYTICS CALLBACKS ──────────────────────
-                onSuccess: async ({ txid, swapResult, quoteResponseMeta }: any) => {
+                onSuccess: async (params: any) => {
+                    const { txid, swapResult, quoteResponseMeta } = params;
                     console.log("✅ Swap Successful!", txid);
+                    console.log("[Jupiter] Callback payload:", { swapResult, quoteResponseMeta });
                     setLastTx(txid);
 
                     if (publicKey) {
@@ -130,8 +132,10 @@ export default function JupiterTerminal() {
                         let outputMint = "";
 
                         try {
-                            if (quoteResponseMeta?.quoteResponse) {
-                                const quote = quoteResponseMeta.quoteResponse;
+                            const rawQuote = quoteResponseMeta?.quoteResponse || quoteResponseMeta?.original || swapResult?.quoteResponse || swapResult;
+                            
+                            if (rawQuote && (rawQuote.inputMint || rawQuote.inAmount)) {
+                                const quote = rawQuote;
                                 inputMint = quote.inputMint || "";
                                 outputMint = quote.outputMint || "";
 
