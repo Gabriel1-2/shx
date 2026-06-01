@@ -8,10 +8,21 @@ import { SHULEVITZ_MINT } from "@/lib/constants";
 import {
     TrendingUp, TrendingDown, Activity, Zap,
     ChevronDown, BarChart2, Loader2, ExternalLink,
-    DollarSign, ArrowDownUp, Droplets, PieChart
+    DollarSign, ArrowDownUp, Droplets, PieChart,
+    Target, RefreshCw
 } from "lucide-react";
 
 const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
+    ssr: false,
+    loading: () => <div className="w-full min-h-[420px] bg-white/5 animate-pulse rounded-2xl" />,
+});
+
+const LimitOrderPanel = dynamic(() => import("@/components/LimitOrderPanel"), {
+    ssr: false,
+    loading: () => <div className="w-full min-h-[420px] bg-white/5 animate-pulse rounded-2xl" />,
+});
+
+const DCAPanel = dynamic(() => import("@/components/DCAPanel"), {
     ssr: false,
     loading: () => <div className="w-full min-h-[420px] bg-white/5 animate-pulse rounded-2xl" />,
 });
@@ -164,6 +175,7 @@ export default function ProPage() {
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(true);
     const [showTokenList, setShowTokenList] = useState(false);
+    const [activeTab, setActiveTab] = useState<"swap" | "limit" | "dca">("swap");
 
     const loadData = useCallback(async () => {
         const pair = await fetchPairData(activeToken.address);
@@ -290,16 +302,44 @@ export default function ProPage() {
 
                 {/* Right Sidebar */}
                 <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-3 p-3 lg:p-0">
-                    {/* Jupiter Swap */}
+                    {/* Tab Switcher */}
+                    <div className="flex rounded-xl bg-white/[0.03] border border-white/10 p-1 gap-1">
+                        {([
+                            { id: "swap" as const, label: "Swap", icon: Zap, color: "text-green-400" },
+                            { id: "limit" as const, label: "Limit", icon: Target, color: "text-amber-400" },
+                            { id: "dca" as const, label: "DCA", icon: RefreshCw, color: "text-blue-400" },
+                        ]).map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                                    activeTab === tab.id
+                                        ? `bg-white/10 ${tab.color} shadow-lg`
+                                        : "text-muted-foreground hover:text-white hover:bg-white/5"
+                                }`}
+                            >
+                                <tab.icon size={13} />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Active Panel */}
                     <div className="rounded-2xl border border-primary/20 bg-black/40 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(34,197,94,0.05)]">
-                        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-primary/5 to-transparent">
-                            <div className="flex items-center gap-2">
-                                <Zap size={14} className="text-primary" />
-                                <h3 className="text-sm font-bold text-white">Swap</h3>
-                            </div>
-                            <span className="text-[10px] text-primary font-bold px-2 py-0.5 bg-primary/10 rounded-full">Jupiter Ultra</span>
-                        </div>
-                        <JupiterTerminal />
+                        {activeTab === "swap" && (
+                            <>
+                                <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-primary/5 to-transparent">
+                                    <div className="flex items-center gap-2">
+                                        <Zap size={14} className="text-primary" />
+                                        <h3 className="text-sm font-bold text-white">Swap</h3>
+                                    </div>
+                                    <span className="text-[10px] text-primary font-bold px-2 py-0.5 bg-primary/10 rounded-full">Jupiter Ultra</span>
+                                </div>
+                                <JupiterTerminal />
+                            </>
+                        )}
+                        {activeTab === "limit" && <LimitOrderPanel />}
+                        {activeTab === "dca" && <DCAPanel />}
                     </div>
 
                     {/* Market Stats — 100% real data */}
