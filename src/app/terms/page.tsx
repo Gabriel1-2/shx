@@ -63,7 +63,7 @@ export default function TermsPage() {
                     </Section>
 
                     <Section id="fees" title="4. Fees" icon={DollarSign}>
-                        <p>SHX charges a platform fee on each swap transaction. The fee rate depends on your SHX token holdings:</p>
+                        <p>SHX charges a platform fee on each swap transaction. The fee rate depends on your Shulevitz token holdings:</p>
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs font-mono mt-2">
                                 <thead>
@@ -82,7 +82,7 @@ export default function TermsPage() {
                                 </tbody>
                             </table>
                         </div>
-                        <p className="mt-3">Purchasing SHX token on the platform incurs a <strong className="text-primary">0% platform fee</strong>. Network gas fees (Solana transaction fees) still apply and are not controlled by SHX.</p>
+                        <p className="mt-3">Purchasing Shulevitz token on the platform incurs a <strong className="text-primary">0% platform fee</strong>. Network gas fees (Solana transaction fees) still apply and are not controlled by SHX.</p>
                     </Section>
 
                     <Section id="risks" title="5. Risks" icon={AlertTriangle}>

@@ -66,7 +66,7 @@ export default function PrivacyPage() {
                     <Section title="How We Use Your Information" icon={Eye}>
                         <p>We use the information we collect to:</p>
                         <ul className="list-disc pl-5 space-y-1">
-                            <li>Determine your fee tier based on SHX token holdings</li>
+                            <li>Determine your fee tier based on Shulevitz token holdings</li>
                             <li>Display your trading statistics and leaderboard ranking</li>
                             <li>Track and distribute referral rewards</li>
                             <li>Display aggregate platform statistics (total volume, users, etc.)</li>

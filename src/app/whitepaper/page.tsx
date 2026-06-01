@@ -152,7 +152,7 @@ export default function WhitepaperPage() {
                     {/* Executive Summary */}
                     <Section id="executive" title="Executive Summary" icon={FileText}>
                         <p>Shulevitz Exchange (SHX) is a non-custodial decentralized exchange aggregator built on the Solana blockchain. Unlike traditional CEXs that custody user funds, SHX operates as a pure software interface that routes trades through Jupiter&apos;s aggregation engine — ensuring users always maintain full ownership of their assets.</p>
-                        <p>The SHX token serves as the platform&apos;s utility token, providing holders with tiered fee discounts, leaderboard rewards, and future governance rights. By holding more SHX, traders unlock progressively lower fees — creating a natural demand flywheel that aligns incentives between the platform and its users.</p>
+                        <p>The Shulevitz token serves as the platform&apos;s utility token, providing holders with tiered fee discounts, leaderboard rewards, and future governance rights. By holding more SHX, traders unlock progressively lower fees — creating a natural demand flywheel that aligns incentives between the platform and its users.</p>
                         <p><strong className="text-white">Key differentiators:</strong></p>
                         <ul className="list-disc pl-5 space-y-1">
                             <li>Zero counterparty risk — fully non-custodial architecture</li>
@@ -186,7 +186,7 @@ export default function WhitepaperPage() {
                         <p>SHX addresses each problem with a comprehensive, integrated platform:</p>
                         <div className="grid gap-4 md:grid-cols-2 mt-4">
                             {[
-                                { icon: Layers, title: "Fee Tiers", desc: "Hold SHX tokens to unlock lower trading fees — from 0.65% down to 0.50% for Diamond holders." },
+                                { icon: Layers, title: "Fee Tiers", desc: "Hold Shulevitz tokens to unlock lower trading fees — from 0.65% down to 0.50% for Diamond holders." },
                                 { icon: Globe, title: "Fiat On-Ramp", desc: "Buy crypto directly with Apple Pay, Google Pay, and credit cards via embedded MoonPay and Stripe widgets." },
                                 { icon: Cpu, title: "Agent API", desc: "RESTful API endpoints for autonomous trading agents to swap, quote, and manage positions programmatically." },
                                 { icon: BarChart2, title: "Pro Terminal", desc: "Institutional-grade trading interface with live charts, order book depth, real-time market data, and Jupiter Ultra routing." },
@@ -205,7 +205,7 @@ export default function WhitepaperPage() {
                     {/* Tokenomics */}
                     <Section id="tokenomics" title="Tokenomics" icon={DollarSign}>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                            <StatCard label="Token Name" value="SHX" sub="Shulevitz Token" />
+                            <StatCard label="Token Name" value="Shulevitz" sub="Ticker: SHX" />
                             <StatCard label="Blockchain" value="Solana" sub="SPL Token Standard" />
                             <StatCard label="Pool Liquidity" value={lpData.liquidity} sub="SHX/USDC" loading={lpData.loading} />
                             <StatCard label="Token Price" value={lpData.price} sub="Live" loading={lpData.loading} />
@@ -233,9 +233,9 @@ export default function WhitepaperPage() {
                                 { title: "Zero-Fee SHX Purchases", desc: "Buying SHX on the platform incurs a 0% platform fee, encouraging token acquisition.", active: true },
                                 { title: "Leaderboard & Rewards", desc: "Top traders earn weekly XP rewards. $500 weekly reward pool distributed to top 10.", active: true },
                                 { title: "Referral Revenue Share", desc: "Earn a percentage of fees from referred traders.", active: true },
-                                { title: "Governance (Upcoming)", desc: "SHX holders will vote on fee structures, reward pool sizes, and platform features.", active: false },
+                                { title: "Governance (Upcoming)", desc: "Shulevitz holders will vote on fee structures, reward pool sizes, and platform features.", active: false },
                                 { title: "Revenue Sharing (Upcoming)", desc: "Diamond tier holders will receive a share of platform trading fees.", active: false },
-                                { title: "Staking Rewards (Upcoming)", desc: "Lock SHX tokens to earn yield from platform revenue.", active: false },
+                                { title: "Staking Rewards (Upcoming)", desc: "Lock Shulevitz tokens to earn yield from platform revenue.", active: false },
                             ].map((u, i) => (
                                 <div key={i} className={`flex items-start gap-3 p-3 rounded-lg ${u.active ? "bg-primary/5 border border-primary/10" : "bg-white/[0.02] border border-white/5"}`}>
                                     <CheckCircle size={14} className={u.active ? "text-primary shrink-0 mt-0.5" : "text-muted-foreground shrink-0 mt-0.5"} />
@@ -387,7 +387,7 @@ export default function WhitepaperPage() {
                                 title="Platform Foundation"
                                 items={[
                                     "Core DEX aggregator launch via Jupiter",
-                                    "SHX token creation and Raydium LP",
+                                    "Shulevitz token creation and Raydium LP",
                                     "Fee tier system implementation",
                                     "Leaderboard and XP rewards",
                                     "Firebase real-time analytics"
@@ -421,7 +421,7 @@ export default function WhitepaperPage() {
                                 quarter="Q4 2026"
                                 title="Governance & Revenue Sharing"
                                 items={[
-                                    "On-chain governance voting for SHX holders",
+                                    "On-chain governance voting for Shulevitz holders",
                                     "Revenue sharing for Diamond tier",
                                     "SHX staking program",
                                     "Advanced API v2 with WebSocket feeds",
@@ -462,7 +462,7 @@ export default function WhitepaperPage() {
                     <div className="mt-14 pt-8 border-t border-white/10">
                         <h3 className="text-sm font-bold text-white mb-3">Legal Disclaimer</h3>
                         <p className="text-[11px] text-muted-foreground leading-relaxed">
-                            This white paper is for informational purposes only and does not constitute financial, investment, legal, or tax advice. The SHX token is a utility token and is not intended to be a security, commodity, or any other form of regulated financial instrument. Cryptocurrency trading involves substantial risk of loss. Past performance is not indicative of future results. Projections and forward-looking statements are estimates based on current market conditions and comparable protocols — actual results may differ materially. SHX Exchange does not guarantee any returns on investment. Users should conduct their own research and consult with qualified financial advisors before making any investment decisions. The regulatory landscape for digital assets is evolving — users are responsible for compliance with local laws.
+                            This white paper is for informational purposes only and does not constitute financial, investment, legal, or tax advice. The Shulevitz token is a utility token and is not intended to be a security, commodity, or any other form of regulated financial instrument. Cryptocurrency trading involves substantial risk of loss. Past performance is not indicative of future results. Projections and forward-looking statements are estimates based on current market conditions and comparable protocols — actual results may differ materially. SHX Exchange does not guarantee any returns on investment. Users should conduct their own research and consult with qualified financial advisors before making any investment decisions. The regulatory landscape for digital assets is evolving — users are responsible for compliance with local laws.
                         </p>
                     </div>
                 </div>
