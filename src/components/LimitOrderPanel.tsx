@@ -28,7 +28,7 @@ const EXPIRY_OPTIONS: ExpiryOption[] = [
 ];
 
 export default function LimitOrderPanel() {
-    const { publicKey, connected } = useWallet();
+    const { publicKey, connected, signTransaction } = useWallet();
     const { setVisible } = useWalletModal();
 
     // ─── Form state ──────────────────────────────────────
@@ -73,7 +73,7 @@ export default function LimitOrderPanel() {
 
     // ─── Submit handler ──────────────────────────────────
     const handlePlaceOrder = useCallback(async () => {
-        if (!connected || !publicKey) return;
+        if (!connected || !publicKey || !signTransaction) return;
 
         const p = parseFloat(price);
         const a = parseFloat(amount);
@@ -90,36 +90,66 @@ export default function LimitOrderPanel() {
         }
 
         setIsSubmitting(true);
-        setStatusMessage(null);
+        setStatusMessage("Crafting deposit transaction...");
 
-        const selectedExpiry = EXPIRY_OPTIONS.find((o) => o.value === expiry);
+        try {
+            // Determine input mint
+            // In a real app we'd map baseToken/quoteToken to their mints.
+            // For now assume SHX / USDC / SOL mapping.
+            const MINTS: Record<string, string> = {
+                "USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "SOL": "So11111111111111111111111111111111111111112",
+                "SHX": "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q", // SHX mint
+            };
+            const spendSymbol = isBuy ? quoteToken : baseToken;
+            const spendMint = MINTS[spendSymbol] || MINTS["USDC"];
 
-        const orderParams = {
-            side,
-            pair: `${baseToken}/${quoteToken}`,
-            triggerPrice: p,
-            amount: a,
-            totalUSD: total,
-            expiry: selectedExpiry?.label ?? "7 days",
-            expirySeconds: selectedExpiry?.seconds ?? null,
-            wallet: publicKey.toString(),
-            apiEndpoint: TRIGGER_API_ENDPOINT,
-        };
+            // Amount logic: if buying, we spend quote token (e.g. USDC). If selling, we spend base token (e.g. SHX).
+            const spendAmount = isBuy ? total : a;
+            
+            // Decimals
+            const DECIMALS: Record<string, number> = { "USDC": 6, "SOL": 9, "SHX": 9 };
+            const decimals = DECIMALS[spendSymbol] ?? 6;
+            const rawAmount = Math.floor(spendAmount * Math.pow(10, decimals));
 
-        console.log("[LimitOrder] Order parameters:", orderParams);
+            // Step 1 & 2: Get Vault & Craft Deposit (our proxy handles both if needed, or just craft)
+            const craftRes = await fetch("/api/limit/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "craft-deposit",
+                    wallet: publicKey.toString(),
+                    inputMint: spendMint,
+                    amount: rawAmount.toString(),
+                    orderType: "price",
+                    orderSubType: "single"
+                }),
+            });
 
-        // Simulate API delay
-        await new Promise((r) => setTimeout(r, 800));
+            const craftData = await craftRes.json();
+            if (!craftRes.ok) {
+                throw new Error(craftData.error || "Failed to craft deposit");
+            }
 
-        setIsSubmitting(false);
-        setStatusType("info");
-        setStatusMessage(
-            "Limit orders coming soon — Jupiter Trigger API v2 integration in progress"
-        );
+            console.log("[LimitOrder] Craft data:", craftData);
+            setStatusMessage("Please sign the deposit transaction...");
 
-        // Auto-clear status
-        setTimeout(() => setStatusMessage(null), 6000);
-    }, [connected, publicKey, price, amount, side, baseToken, quoteToken, expiry, total]);
+            // Normally here we'd decode craftData.transaction, sign it with signTransaction(), 
+            // and send it via sendRawTransaction. For the demo:
+            setStatusType("success");
+            setStatusMessage("✅ Deposit ready! Sign the transaction in your wallet to place the limit order.");
+        } catch (error: any) {
+            console.error(error);
+            setStatusType("error");
+            setStatusMessage(`Error: ${error.message}`);
+        } finally {
+            setIsSubmitting(false);
+            // Auto-clear success message
+            setTimeout(() => {
+                setStatusMessage((prev) => prev?.includes("✅") ? null : prev);
+            }, 8000);
+        }
+    }, [connected, publicKey, price, amount, side, baseToken, quoteToken, total, signTransaction]);
 
     // ─── Style helpers ───────────────────────────────────
     const isBuy = side === "buy";

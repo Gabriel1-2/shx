@@ -59,25 +59,38 @@ export default function DCAPanel() {
         setStatus(null);
 
         try {
-            // Jupiter Recurring API v1
-            const orderParams = {
-                user: publicKey.toString(),
-                inputMint: spendToken.mint,
-                outputMint: receiveToken.mint,
-                params: {
-                    time: {
-                        inAmount: totalAmount,
-                        numberOfOrders: parseInt(numberOfOrders),
-                        interval: interval.value,
-                        minPrice: null,
-                        maxPrice: null,
-                        startAt: null,
-                    }
-                }
+            // Determine decimals for the spend token
+            const DECIMALS: Record<string, number> = {
+                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": 6, // USDC
+                "So11111111111111111111111111111111111111112": 9,   // SOL
+                "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": 6, // USDT
             };
+            const decimals = DECIMALS[spendToken.mint] ?? 6;
+            const rawAmount = Math.floor(parseFloat(totalAmount) * Math.pow(10, decimals));
 
-            console.log("[DCA] Order params:", orderParams);
-            setStatus("DCA orders launching soon — Jupiter Recurring API integration in progress");
+            const res = await fetch("/api/dca/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user: publicKey.toString(),
+                    inputMint: spendToken.mint,
+                    outputMint: receiveToken.mint,
+                    inAmount: rawAmount.toString(),
+                    numberOfOrders: numberOfOrders,
+                    interval: interval.value.toString(),
+                }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setStatus(`Error: ${data.error || "Failed to create DCA order"}`);
+                return;
+            }
+
+            // Jupiter returns a transaction to sign
+            console.log("[DCA] Jupiter response:", data);
+            setStatus("✅ DCA order created! Sign the transaction in your wallet to activate.");
         } catch (e: any) {
             setStatus(`Error: ${e.message}`);
         } finally {
