@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "claim-fees": "ts-node scripts/claim-fees.ts"
+    "claim-fees": "ts-node scripts/claim-fees.ts",
+    "init-fee-accounts": "ts-node scripts/init-fee-accounts.ts"
   },
   "dependencies": {
     "@jup-ag/api": "^6.0.47",
