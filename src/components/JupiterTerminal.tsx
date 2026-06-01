@@ -134,10 +134,10 @@ export default function JupiterTerminal() {
                         try {
                             const rawQuote = quoteResponseMeta?.quoteResponse || quoteResponseMeta?.original || swapResult?.quoteResponse || swapResult;
                             
-                            if (rawQuote && (rawQuote.inputMint || rawQuote.inAmount)) {
+                            if (rawQuote) {
                                 const quote = rawQuote;
-                                inputMint = quote.inputMint || "";
-                                outputMint = quote.outputMint || "";
+                                inputMint = quote.inputMint || quote.inputAddress || "";
+                                outputMint = quote.outputMint || quote.outputAddress || "";
 
                                 // ─── ACCURATE DECIMALS ───
                                 // Jupiter quote provides raw lamport amounts. We need correct decimals.
@@ -154,8 +154,16 @@ export default function JupiterTerminal() {
 
                                 const inDecimals = KNOWN_DECIMALS[inputMint] ?? 6;
                                 const outDecimals = KNOWN_DECIMALS[outputMint] ?? 6;
-                                inputAmount = Number(quote.inAmount) / Math.pow(10, inDecimals);
-                                outputAmount = Number(quote.outAmount) / Math.pow(10, outDecimals);
+                                
+                                // Handle both v1/v2/v3 plugin formats (inAmount vs inputAmount)
+                                const rawIn = quote.inAmount ?? quote.inputAmount ?? 0;
+                                const rawOut = quote.outAmount ?? quote.outputAmount ?? 0;
+                                
+                                inputAmount = Number(rawIn) / Math.pow(10, inDecimals);
+                                outputAmount = Number(rawOut) / Math.pow(10, outDecimals);
+                                
+                                if (isNaN(inputAmount)) inputAmount = 0;
+                                if (isNaN(outputAmount)) outputAmount = 0;
 
                                 // ─── ACCURATE USD VOLUME ───
                                 const STABLECOINS = [
