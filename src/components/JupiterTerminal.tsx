@@ -38,8 +38,14 @@ export default function JupiterTerminal() {
     const lastInitFeeBps = useRef<number | null>(null);
     const currentOutputMint = useRef<string>(USDC_MINT);
 
+    // ─── REFS to avoid stale closures in Jupiter callbacks ───
+    const publicKeyRef = useRef(publicKey);
+    publicKeyRef.current = publicKey;
+    const feeBpsRef = useRef(0);
+
     // SHX Tier — determines the dynamic fee
     const tierData = useSHXTier();
+    feeBpsRef.current = tierData.feeBps;
 
     // Load Jupiter Plugin script
     useEffect(() => {
@@ -118,138 +124,228 @@ export default function JupiterTerminal() {
                 onSuccess: async (params: any) => {
                     const { txid, swapResult, quoteResponseMeta } = params;
                     console.log("✅ Swap Successful!", txid);
-                    console.log("[Jupiter] Callback payload:", { swapResult, quoteResponseMeta });
+                    console.log("[Jupiter] Full callback keys:", Object.keys(params));
+                    console.log("[Jupiter] swapResult:", JSON.stringify(swapResult, null, 2));
+                    console.log("[Jupiter] quoteResponseMeta:", JSON.stringify(quoteResponseMeta, null, 2));
                     setLastTx(txid);
 
-                    if (publicKey) {
-                        const walletAddr = publicKey.toString();
-                        let volumeUSD = 0;
-                        let inputSymbol = "Unknown";
-                        let outputSymbol = "Unknown";
-                        let inputAmount = 0;
-                        let outputAmount = 0;
-                        let inputMint = "";
-                        let outputMint = "";
+                    // Use REFS (not closure variables) to always get the latest wallet/fee
+                    const currentPubKey = publicKeyRef.current;
+                    if (!currentPubKey) {
+                        console.warn("[Analytics] No wallet connected (publicKeyRef is null), skipping.");
+                        return;
+                    }
 
+                    const walletAddr = currentPubKey.toString();
+                    let volumeUSD = 0;
+                    let inputSymbol = "Unknown";
+                    let outputSymbol = "Unknown";
+                    let inputAmount = 0;
+                    let outputAmount = 0;
+                    let inputMint = "";
+                    let outputMint = "";
+
+                    const KNOWN_DECIMALS: Record<string, number> = {
+                        "So11111111111111111111111111111111111111112": 9,       // SOL
+                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": 6,    // USDC
+                        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": 6,    // USDT
+                        "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": 5,   // BONK
+                        "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": 6,   // WIF
+                        "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN": 6,    // JUP
+                        "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q": 9,    // SHX
+                    };
+
+                    const STABLECOINS = [
+                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  // USDC
+                        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  // USDT
+                        "USDH1SM1ojwWUga67PBrgQm7e7LZdPJRMghS7gsBSfB",   // USDH
+                    ];
+
+                    // ─── STRATEGY 1: Try to parse from Jupiter callback ───
+                    try {
+                        const rawQuote = quoteResponseMeta?.quoteResponse
+                            || quoteResponseMeta?.original
+                            || swapResult?.quoteResponse
+                            || swapResult;
+
+                        if (rawQuote) {
+                            inputMint = rawQuote.inputMint || rawQuote.inputAddress || "";
+                            outputMint = rawQuote.outputMint || rawQuote.outputAddress || "";
+                            const rawIn = rawQuote.inAmount ?? rawQuote.inputAmount ?? 0;
+                            const rawOut = rawQuote.outAmount ?? rawQuote.outputAmount ?? 0;
+                            const inDec = KNOWN_DECIMALS[inputMint] ?? 6;
+                            const outDec = KNOWN_DECIMALS[outputMint] ?? 6;
+                            inputAmount = Number(rawIn) / Math.pow(10, inDec);
+                            outputAmount = Number(rawOut) / Math.pow(10, outDec);
+                            if (isNaN(inputAmount)) inputAmount = 0;
+                            if (isNaN(outputAmount)) outputAmount = 0;
+                            console.log(`[Strategy 1] Parsed: ${inputAmount} (${inputMint.slice(0,6)}) → ${outputAmount} (${outputMint.slice(0,6)})`);
+                        }
+                    } catch (e) {
+                        console.warn("[Strategy 1] Failed to parse Jupiter callback:", e);
+                    }
+
+                    // ─── STRATEGY 2: Helius Enhanced Transaction API fallback ───
+                    if (inputAmount === 0 && txid) {
+                        console.log("[Strategy 2] Callback parsing failed, using Helius Enhanced TX API...");
                         try {
-                            const rawQuote = quoteResponseMeta?.quoteResponse || quoteResponseMeta?.original || swapResult?.quoteResponse || swapResult;
-                            
-                            if (rawQuote) {
-                                const quote = rawQuote;
-                                inputMint = quote.inputMint || quote.inputAddress || "";
-                                outputMint = quote.outputMint || quote.outputAddress || "";
+                            // Wait briefly for tx to be confirmed on-chain
+                            await new Promise(r => setTimeout(r, 3000));
 
-                                // ─── ACCURATE DECIMALS ───
-                                // Jupiter quote provides raw lamport amounts. We need correct decimals.
-                                // Common known decimals, with fallback to fetching from Jupiter Price API
-                                const KNOWN_DECIMALS: Record<string, number> = {
-                                    "So11111111111111111111111111111111111111112": 9,       // SOL
-                                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": 6,    // USDC
-                                    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": 6,    // USDT
-                                    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": 5,   // BONK
-                                    "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": 6,   // WIF
-                                    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN": 6,    // JUP
-                                    "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q": 9,    // SHX
-                                };
+                            const heliusRes = await fetch(
+                                "https://mainnet.helius-rpc.com/?api-key=e36d269b-1bf1-4c2a-9efd-47d319ca4882",
+                                {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        jsonrpc: "2.0",
+                                        id: "shx-vol",
+                                        method: "getTransaction",
+                                        params: [txid, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }],
+                                    }),
+                                }
+                            );
+                            const heliusData = await heliusRes.json();
+                            const tx = heliusData?.result;
 
-                                const inDecimals = KNOWN_DECIMALS[inputMint] ?? 6;
-                                const outDecimals = KNOWN_DECIMALS[outputMint] ?? 6;
+                            if (tx?.meta && !tx.meta.err) {
+                                // Parse token balance changes from pre/post token balances
+                                const preBalances = tx.meta.preTokenBalances || [];
+                                const postBalances = tx.meta.postTokenBalances || [];
+
+                                // Find all token balance changes for this wallet
+                                const accountKeys = tx.transaction?.message?.accountKeys?.map((k: any) => 
+                                    typeof k === 'string' ? k : k.pubkey
+                                ) || [];
                                 
-                                // Handle both v1/v2/v3 plugin formats (inAmount vs inputAmount)
-                                const rawIn = quote.inAmount ?? quote.inputAmount ?? 0;
-                                const rawOut = quote.outAmount ?? quote.outputAmount ?? 0;
-                                
-                                inputAmount = Number(rawIn) / Math.pow(10, inDecimals);
-                                outputAmount = Number(rawOut) / Math.pow(10, outDecimals);
-                                
-                                if (isNaN(inputAmount)) inputAmount = 0;
-                                if (isNaN(outputAmount)) outputAmount = 0;
+                                const changes: { mint: string; change: number; decimals: number }[] = [];
 
-                                // ─── ACCURATE USD VOLUME ───
-                                const STABLECOINS = [
-                                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  // USDC
-                                    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  // USDT
-                                    "USDH1SM1ojwWUga67PBrgQm7e7LZdPJRMghS7gsBSfB",   // USDH
-                                ];
+                                for (const post of postBalances) {
+                                    const owner = post.owner || accountKeys[post.accountIndex];
+                                    if (owner !== walletAddr) continue;
+                                    
+                                    const pre = preBalances.find((p: any) => 
+                                        p.mint === post.mint && (p.owner || accountKeys[p.accountIndex]) === walletAddr
+                                    );
+                                    const preAmt = pre ? Number(pre.uiTokenAmount?.amount || 0) : 0;
+                                    const postAmt = Number(post.uiTokenAmount?.amount || 0);
+                                    const decimals = post.uiTokenAmount?.decimals || KNOWN_DECIMALS[post.mint] || 6;
+                                    const diff = (postAmt - preAmt) / Math.pow(10, decimals);
 
-                                if (STABLECOINS.includes(inputMint)) {
-                                    // Input is stablecoin — amount IS the USD value
-                                    volumeUSD = inputAmount;
-                                } else if (STABLECOINS.includes(outputMint)) {
-                                    // Output is stablecoin — amount IS the USD value
-                                    volumeUSD = outputAmount;
-                                } else {
-                                    // Neither is a stablecoin — fetch real USD price from Jupiter
-                                    try {
-                                        const priceRes = await fetch(
-                                            `https://api.jup.ag/price/v2?ids=${inputMint}`
-                                        );
-                                        const priceData = await priceRes.json();
-                                        const tokenPrice = parseFloat(priceData?.data?.[inputMint]?.price || "0");
-                                        if (tokenPrice > 0) {
-                                            volumeUSD = inputAmount * tokenPrice;
-                                            console.log(`[Volume] ${inputAmount} tokens × $${tokenPrice} = $${volumeUSD.toFixed(2)}`);
-                                        } else {
-                                            // Jupiter price unavailable — try DexScreener as fallback
-                                            const dexRes = await fetch(
-                                                `https://api.dexscreener.com/latest/dex/tokens/${inputMint}`
-                                            );
-                                            const dexData = await dexRes.json();
-                                            const dexPrice = parseFloat(dexData?.pairs?.[0]?.priceUsd || "0");
-                                            if (dexPrice > 0) {
-                                                volumeUSD = inputAmount * dexPrice;
-                                                console.log(`[Volume] DexScreener fallback: ${inputAmount} × $${dexPrice} = $${volumeUSD.toFixed(2)}`);
-                                            }
-                                        }
-                                    } catch (priceErr) {
-                                        console.warn("[Volume] Price fetch failed, skipping volume tracking", priceErr);
-                                        // Do NOT record fake volume — leave at 0
+                                    if (Math.abs(diff) > 0.000001) {
+                                        changes.push({ mint: post.mint, change: diff, decimals });
                                     }
                                 }
 
-                                // Resolve human-readable token symbols
-                                try {
-                                    const symbolRes = await fetch(
-                                        `https://api.jup.ag/price/v2?ids=${inputMint},${outputMint}`
-                                    );
-                                    const symbolData = await symbolRes.json();
-                                    inputSymbol = symbolData?.data?.[inputMint]?.mintSymbol || inputMint.slice(0, 6);
-                                    outputSymbol = symbolData?.data?.[outputMint]?.mintSymbol || outputMint.slice(0, 6);
-                                } catch {
-                                    inputSymbol = inputMint === SOL_MINT ? "SOL" : inputMint.slice(0, 6);
-                                    outputSymbol = outputMint === SOL_MINT ? "SOL" : outputMint.slice(0, 6);
+                                // Also check SOL balance change (lamport diff)
+                                const walletIdx = accountKeys.indexOf(walletAddr);
+                                if (walletIdx >= 0) {
+                                    const preSol = (tx.meta.preBalances?.[walletIdx] || 0) / 1e9;
+                                    const postSol = (tx.meta.postBalances?.[walletIdx] || 0) / 1e9;
+                                    const solDiff = postSol - preSol;
+                                    // Only count significant SOL changes (not just tx fees)
+                                    if (Math.abs(solDiff) > 0.001) {
+                                        changes.push({ mint: SOL_MINT, change: solDiff, decimals: 9 });
+                                    }
                                 }
+
+                                console.log("[Strategy 2] Token changes:", changes);
+
+                                // The token that decreased = input, token that increased = output
+                                const spent = changes.find(c => c.change < 0);
+                                const received = changes.find(c => c.change > 0);
+
+                                if (spent) {
+                                    inputMint = spent.mint;
+                                    inputAmount = Math.abs(spent.change);
+                                }
+                                if (received) {
+                                    outputMint = received.mint;
+                                    outputAmount = received.change;
+                                }
+                                console.log(`[Strategy 2] Parsed: ${inputAmount} (${inputMint.slice(0,6)}) → ${outputAmount} (${outputMint.slice(0,6)})`);
                             }
-                        } catch (e) {
-                            console.error("[Analytics] Could not parse swap result", e);
-                            // Do NOT set a fake fallback — volumeUSD stays at 0
+                        } catch (heliusErr) {
+                            console.error("[Strategy 2] Helius lookup failed:", heliusErr);
                         }
-
-                        // Use effective fee for this trade (0% if buying SHX)
-                        const actualFeePct = isSHXBuy(outputMint) ? 0 : feeBps / 10000;
-                        const feeUSD = volumeUSD * actualFeePct;
-                        const xpEarned = Math.max(100, Math.floor(volumeUSD * 10));
-
-                        await Promise.all([
-                            addPoints(walletAddr, xpEarned),
-                            addVolume(walletAddr, volumeUSD),
-                            addFeesPaid(walletAddr, feeUSD),
-                            saveSwapTransaction({
-                                wallet: walletAddr,
-                                inputToken: inputSymbol,
-                                inputAmount,
-                                inputMint,
-                                outputToken: outputSymbol,
-                                outputAmount,
-                                outputMint,
-                                volumeUSD,
-                                feePaid: feeUSD,
-                                txSignature: txid,
-                            }),
-                        ]);
-
-                        console.log(`[Analytics] +${xpEarned} XP, $${volumeUSD.toFixed(2)} vol, fee: ${actualFeePct * 100}%`);
                     }
+
+                    // ─── CALCULATE USD VOLUME ───
+                    if (inputAmount > 0 || outputAmount > 0) {
+                        if (STABLECOINS.includes(inputMint)) {
+                            volumeUSD = inputAmount;
+                        } else if (STABLECOINS.includes(outputMint)) {
+                            volumeUSD = outputAmount;
+                        } else {
+                            // Neither is a stablecoin — fetch price
+                            const mintToPrice = inputMint || outputMint;
+                            try {
+                                const priceRes = await fetch(`https://api.jup.ag/price/v2?ids=${mintToPrice}`);
+                                const priceData = await priceRes.json();
+                                const tokenPrice = parseFloat(priceData?.data?.[mintToPrice]?.price || "0");
+                                if (tokenPrice > 0) {
+                                    volumeUSD = inputAmount > 0 ? inputAmount * tokenPrice : outputAmount * tokenPrice;
+                                } else {
+                                    // DexScreener fallback
+                                    const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mintToPrice}`);
+                                    const dexData = await dexRes.json();
+                                    const dexPrice = parseFloat(dexData?.pairs?.[0]?.priceUsd || "0");
+                                    if (dexPrice > 0) {
+                                        volumeUSD = inputAmount > 0 ? inputAmount * dexPrice : outputAmount * dexPrice;
+                                    }
+                                }
+                            } catch (priceErr) {
+                                console.warn("[Volume] Price fetch failed:", priceErr);
+                            }
+                        }
+                    }
+
+                    // Resolve symbols
+                    try {
+                        const mints = [inputMint, outputMint].filter(Boolean).join(",");
+                        if (mints) {
+                            const symbolRes = await fetch(`https://api.jup.ag/price/v2?ids=${mints}`);
+                            const symbolData = await symbolRes.json();
+                            inputSymbol = symbolData?.data?.[inputMint]?.mintSymbol || (inputMint === SOL_MINT ? "SOL" : inputMint.slice(0, 6));
+                            outputSymbol = symbolData?.data?.[outputMint]?.mintSymbol || (outputMint === SOL_MINT ? "SOL" : outputMint.slice(0, 6));
+                        }
+                    } catch {
+                        inputSymbol = inputMint === SOL_MINT ? "SOL" : inputMint.slice(0, 6);
+                        outputSymbol = outputMint === SOL_MINT ? "SOL" : outputMint.slice(0, 6);
+                    }
+
+                    // Ensure no NaN values
+                    if (isNaN(volumeUSD)) volumeUSD = 0;
+                    if (isNaN(inputAmount)) inputAmount = 0;
+                    if (isNaN(outputAmount)) outputAmount = 0;
+
+                    // Calculate fee and XP
+                    const currentFeeBps = feeBpsRef.current;
+                    const actualFeePct = isSHXBuy(outputMint) ? 0 : currentFeeBps / 10000;
+                    const feeUSD = volumeUSD * actualFeePct;
+                    const xpEarned = Math.max(100, Math.floor(volumeUSD * 10));
+
+                    console.log(`[Analytics] FINAL: vol=$${volumeUSD.toFixed(4)}, in=${inputAmount}, out=${outputAmount}, fee=${actualFeePct * 100}%, xp=${xpEarned}`);
+
+                    await Promise.all([
+                        addPoints(walletAddr, xpEarned),
+                        addVolume(walletAddr, volumeUSD),
+                        addFeesPaid(walletAddr, feeUSD),
+                        saveSwapTransaction({
+                            wallet: walletAddr,
+                            inputToken: inputSymbol,
+                            inputAmount,
+                            inputMint,
+                            outputToken: outputSymbol,
+                            outputAmount,
+                            outputMint,
+                            volumeUSD,
+                            feePaid: feeUSD,
+                            txSignature: txid,
+                        }),
+                    ]);
+
+                    console.log(`[Analytics] ✅ Saved: +${xpEarned} XP, $${volumeUSD.toFixed(2)} vol`);
                 },
 
                 onSwapError: ({ error }: any) => {
