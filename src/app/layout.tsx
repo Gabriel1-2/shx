@@ -5,6 +5,8 @@ import { SolanaProvider } from "@/components/SolanaProvider";
 import { Header } from "@/components/Header";
 import { ToastProvider } from "@/components/Toast";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorker";
+import { QueryProvider } from "@/components/QueryProvider";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
@@ -53,23 +55,27 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className={mono.className} suppressHydrationWarning>
-        <SolanaProvider>
-          <ToastProvider>
-            <Header />
-            {children}
-            <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto">
-              <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
-                <span className="text-xs text-muted-foreground">© 2026 Shulevitz Holdings Inc. All rights reserved.</span>
-                <div className="flex items-center gap-4">
-                  <a href="/whitepaper" className="text-xs text-muted-foreground hover:text-primary transition-colors">White Paper</a>
-                  <a href="/privacy" className="text-xs text-muted-foreground hover:text-primary transition-colors">Privacy</a>
-                  <a href="/terms" className="text-xs text-muted-foreground hover:text-primary transition-colors">Terms</a>
-                </div>
-              </div>
-            </footer>
-            <ServiceWorkerRegistration />
-          </ToastProvider>
-        </SolanaProvider>
+        <QueryProvider>
+          <ErrorBoundary>
+            <SolanaProvider>
+              <ToastProvider>
+                <Header />
+                {children}
+                <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto">
+                  <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">© 2026 Shulevitz Holdings Inc. All rights reserved.</span>
+                    <div className="flex items-center gap-4">
+                      <a href="/whitepaper" className="text-xs text-muted-foreground hover:text-primary transition-colors">White Paper</a>
+                      <a href="/privacy" className="text-xs text-muted-foreground hover:text-primary transition-colors">Privacy</a>
+                      <a href="/terms" className="text-xs text-muted-foreground hover:text-primary transition-colors">Terms</a>
+                    </div>
+                  </div>
+                </footer>
+                <ServiceWorkerRegistration />
+              </ToastProvider>
+            </SolanaProvider>
+          </ErrorBoundary>
+        </QueryProvider>
       </body>
     </html>
   );

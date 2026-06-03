@@ -18,11 +18,10 @@ const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
   loading: () => <div className="w-full min-h-[500px] bg-white/5 animate-pulse rounded-2xl" />
 });
 
+import { useStore } from "@/store";
+
 function HomeContent() {
-
-
-  const [isChartVisible, setIsChartVisible] = useState(false);
-  const [chartToken, setChartToken] = useState({ address: SHULEVITZ_MINT, symbol: "SHULEVITZ" });
+  const { isChartVisible, chartToken, toggleChartVisible } = useStore();
 
   return (
     <main className="min-h-screen bg-background relative overflow-hidden">
@@ -95,7 +94,7 @@ function HomeContent() {
               {/* Chart Toggle */}
               <div className="flex justify-end mb-3">
                 <button
-                  onClick={() => setIsChartVisible(!isChartVisible)}
+                  onClick={toggleChartVisible}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${isChartVisible ? 'bg-primary/20 border-primary text-primary' : 'hover:bg-white/10 border-white/10 text-muted-foreground'}`}
                 >
                   {isChartVisible ? <Minimize2 size={12} /> : <BarChart2 size={12} />}

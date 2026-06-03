@@ -1,18 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rateLimit";
+import { z } from "zod";
 
 const JUP_API_KEY = process.env.JUPITER_API_KEY || "";
 const JUP_RECURRING_URL = "https://api.jup.ag/recurring/v1/createOrder";
 
+const DCASchema = z.object({
+    user: z.string(),
+    inputMint: z.string(),
+    outputMint: z.string(),
+    inAmount: z.union([z.string(), z.number()]),
+    numberOfOrders: z.union([z.string(), z.number()]),
+    interval: z.union([z.string(), z.number()]),
+});
+
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const { user, inputMint, outputMint, inAmount, numberOfOrders, interval } = body;
-
-        if (!user || !inputMint || !outputMint || !inAmount || !numberOfOrders || !interval) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        const rateLimitResult = rateLimit(req, 20, 60000);
+        if (!rateLimitResult.success) {
+            return NextResponse.json({ error: "Too many requests" }, { status: 429 });
         }
 
-        if (!JUP_API_KEY) {
+        const rawBody = await req.json();
+        const parsedBody = DCASchema.safeParse(rawBody);
+
+        if (!parsedBody.success) {
+            return NextResponse.json({ error: "Invalid request body", details: parsedBody.error.format() }, { status: 400 });
+        }
+
+        const { user, inputMint, outputMint, inAmount, numberOfOrders, interval } = parsedBody.data;
+
+        const apiKey = process.env.JUPITER_API_KEY || "";
+        if (!apiKey) {
             return NextResponse.json({ error: "Jupiter API key not configured" }, { status: 500 });
         }
 
@@ -22,9 +41,9 @@ export async function POST(req: NextRequest) {
             outputMint,
             params: {
                 time: {
-                    inAmount: parseInt(inAmount),
-                    numberOfOrders: parseInt(numberOfOrders),
-                    interval: parseInt(interval),
+                    inAmount: parseInt(inAmount.toString()),
+                    numberOfOrders: parseInt(numberOfOrders.toString()),
+                    interval: parseInt(interval.toString()),
                     minPrice: null,
                     maxPrice: null,
                     startAt: null,
@@ -38,7 +57,7 @@ export async function POST(req: NextRequest) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "x-api-key": JUP_API_KEY,
+                "x-api-key": apiKey,
             },
             body: JSON.stringify(orderPayload),
         });

@@ -13,7 +13,7 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 export function SolanaProvider({ children }: { children: React.ReactNode }) {
     const network = WalletAdapterNetwork.Mainnet;
     // Using Helius Premium RPC for reliable, fast connections
-    const endpoint = useMemo(() => "https://mainnet.helius-rpc.com/?api-key=e36d269b-1bf1-4c2a-9efd-47d319ca4882", []);
+    const endpoint = useMemo(() => process.env.NEXT_PUBLIC_HELIUS_RPC_URL || "https://api.mainnet-beta.solana.com", []);
 
     // Include common wallet adapters
     const wallets = useMemo(

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { getFavoriteTokens, addFavoriteToken, removeFavoriteToken, DEFAULT_TOKENS } from "@/lib/favorites";
 import { TrendingUp, TrendingDown, Star, Plus, X, Loader2, Search, Zap } from "lucide-react";
@@ -63,14 +64,12 @@ const UPDATE_INTERVAL = 5000; // 5 seconds for "real-time" feel
 
 export function MarketWatch() {
     const { publicKey, connected } = useWallet();
-    const [tokens, setTokens] = useState<TokenData[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [showAddModal, setShowAddModal] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [searching, setSearching] = useState(false);
     const [addingToken, setAddingToken] = useState<string | null>(null);
-    const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
     const previousPrices = useRef<Record<string, number>>({});
 
     const searchTokens = useCallback(async (query: string) => {
@@ -244,25 +243,19 @@ export function MarketWatch() {
         return results;
     }, []);
 
-    const loadTokens = useCallback(async () => {
-        let addresses = [...DEFAULT_TOKENS, SHULEVITZ_MINT];
+    const { data: userFavorites = [] } = useQuery({
+        queryKey: ["favorites", publicKey?.toString()],
+        queryFn: () => getFavoriteTokens(publicKey!.toString()),
+        enabled: !!publicKey,
+    });
 
-        if (publicKey) {
-            const userFavorites = await getFavoriteTokens(publicKey.toString());
-            addresses = [...new Set([...addresses, ...userFavorites])];
-        }
+    const addresses = [...new Set([...DEFAULT_TOKENS, SHULEVITZ_MINT, ...userFavorites])];
 
-        const tokenData = await fetchPricesForTokens(addresses);
-        setTokens(tokenData);
-        setLoading(false);
-        setLastUpdate(new Date());
-    }, [publicKey, fetchPricesForTokens]);
-
-    useEffect(() => {
-        loadTokens();
-        const interval = setInterval(loadTokens, UPDATE_INTERVAL);
-        return () => clearInterval(interval);
-    }, [loadTokens]);
+    const { data: tokens = [], isLoading: loading } = useQuery({
+        queryKey: ["tokenPrices", addresses],
+        queryFn: () => fetchPricesForTokens(addresses),
+        refetchInterval: UPDATE_INTERVAL,
+    });
 
     const handleAddToken = async (result: SearchResult) => {
         if (!publicKey) return;
@@ -273,7 +266,8 @@ export function MarketWatch() {
             setSearchQuery("");
             setSearchResults([]);
             setShowAddModal(false);
-            loadTokens();
+            queryClient.invalidateQueries({ queryKey: ["favorites"] });
+            queryClient.invalidateQueries({ queryKey: ["tokenPrices"] });
         } finally {
             setAddingToken(null);
         }
@@ -282,7 +276,8 @@ export function MarketWatch() {
     const handleRemoveToken = async (address: string) => {
         if (!publicKey) return;
         await removeFavoriteToken(publicKey.toString(), address);
-        loadTokens();
+        queryClient.invalidateQueries({ queryKey: ["favorites"] });
+        queryClient.invalidateQueries({ queryKey: ["tokenPrices"] });
     };
 
     const formatPrice = (price: number) => {

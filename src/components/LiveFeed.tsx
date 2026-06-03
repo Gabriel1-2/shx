@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchPoolTrades, TradeData } from "@/lib/chartData";
 import { ExternalLink, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { SHULEVITZ_MINT } from "@/lib/constants";
@@ -10,25 +10,13 @@ interface LiveFeedProps {
 }
 
 export function LiveFeed({ tokenAddress }: LiveFeedProps) {
-    const [trades, setTrades] = useState<TradeData[]>([]);
-    const [loading, setLoading] = useState(true);
-
     const activeToken = tokenAddress || SHULEVITZ_MINT;
 
-    useEffect(() => {
-        const loadTrades = async () => {
-            // Don't set loading on poll to avoid flicker
-            const data = await fetchPoolTrades(activeToken);
-            if (data && data.length > 0) {
-                setTrades(data);
-            }
-            setLoading(false);
-        };
-
-        loadTrades();
-        const interval = setInterval(loadTrades, 10000); // Poll every 10s
-        return () => clearInterval(interval);
-    }, [activeToken]);
+    const { data: trades = [], isLoading: loading } = useQuery({
+        queryKey: ["liveFeed", activeToken],
+        queryFn: () => fetchPoolTrades(activeToken),
+        refetchInterval: 10000, // Poll every 10s
+    });
 
     const formatTime = (ts: number) => {
         const date = new Date(ts);

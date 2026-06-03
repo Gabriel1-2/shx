@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const SHX_MINT = "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q";
-const HELIUS_RPC = "https://mainnet.helius-rpc.com/?api-key=e36d269b-1bf1-4c2a-9efd-47d319ca4882";
+const HELIUS_RPC = process.env.NEXT_PUBLIC_HELIUS_RPC_URL || "https://api.mainnet-beta.solana.com";
 
 // ─── Symbol → Mint resolver ──────────────────────────────────
 const SYMBOL_MAP: Record<string, { mint: string; decimals: number; name: string }> = {
