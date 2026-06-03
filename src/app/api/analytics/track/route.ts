@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { rateLimit } from "@/lib/rateLimit";
@@ -11,7 +11,7 @@ const STABLECOINS = [
     "USDH1SM1ojwWUga67PBrgQm7e7LZdPJRMghS7gsBSfB",   // USDH
 ];
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     const rateLimitResult = rateLimit(req, 10, 60000);
     if (!rateLimitResult.success) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
