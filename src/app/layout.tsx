@@ -7,6 +7,7 @@ import { ToastProvider } from "@/components/Toast";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorker";
 import { QueryProvider } from "@/components/QueryProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Analytics } from '@vercel/analytics/next';
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
@@ -76,6 +77,7 @@ export default function RootLayout({
             </SolanaProvider>
           </ErrorBoundary>
         </QueryProvider>
+        <Analytics />
       </body>
     </html>
   );
