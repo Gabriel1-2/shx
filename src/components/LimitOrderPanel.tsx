@@ -27,7 +27,7 @@ const EXPIRY_OPTIONS: ExpiryOption[] = [
 const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 
 export default function LimitOrderPanel() {
-    const { publicKey, connected, sendTransaction, signMessage } = useWallet();
+    const { publicKey, connected, sendTransaction, signMessage, signTransaction } = useWallet();
     const { setVisible } = useWalletModal();
 
     // ─── Form state ──────────────────────────────────────
@@ -148,8 +148,8 @@ export default function LimitOrderPanel() {
 
             // Using signTransaction to just sign without sending!
             // Note: Since this is standard Wallet Adapter, we need the wallet to sign it
-            if (!wallet?.adapter.signTransaction) throw new Error("Wallet does not support signTransaction");
-            const signedTxObj = await wallet.adapter.signTransaction(tx);
+            if (!signTransaction) throw new Error("Wallet does not support signTransaction");
+            const signedTxObj = await signTransaction(tx);
             const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
 
             // --- SUBMIT FINAL ORDER ---
