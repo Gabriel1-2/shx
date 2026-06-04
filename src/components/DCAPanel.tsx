@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { RefreshCw, Clock, TrendingUp, Loader2, Info } from "lucide-react";
+import { Connection, VersionedTransaction } from "@solana/web3.js";
+import { RefreshCw, Clock, TrendingUp, Loader2, Info, ShieldCheck } from "lucide-react";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 
 const TOKENS = [
@@ -21,13 +22,15 @@ const INTERVALS = [
 ];
 
 const SPEND_TOKENS = [
-    { symbol: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
-    { symbol: "SOL", mint: "So11111111111111111111111111111111111111112" },
-    { symbol: "USDT", mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" },
+    { symbol: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
+    { symbol: "SOL", mint: "So11111111111111111111111111111111111111112", decimals: 9 },
+    { symbol: "USDT", mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6 },
 ];
 
+const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+
 export default function DCAPanel() {
-    const { connected, publicKey } = useWallet();
+    const { connected, publicKey, signTransaction } = useWallet();
     const { setVisible } = useWalletModal();
 
     const [spendToken, setSpendToken] = useState(SPEND_TOKENS[0]);
@@ -37,6 +40,8 @@ export default function DCAPanel() {
     const [interval, setInterval] = useState(INTERVALS[2]); // Daily
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
+    const [statusType, setStatusType] = useState<"info" | "success" | "error">("info");
+    const [currentStep, setCurrentStep] = useState<"create" | "sign" | "execute" | "">("");
 
     const perOrder = totalAmount && numberOfOrders
         ? (parseFloat(totalAmount) / parseInt(numberOfOrders)).toFixed(4)
@@ -54,24 +59,31 @@ export default function DCAPanel() {
     };
 
     const handleSubmit = async () => {
-        if (!connected || !publicKey) return;
+        if (!connected || !publicKey || !signTransaction) return;
+
+        const parsedAmount = parseFloat(totalAmount);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+            setStatusType("error");
+            setStatus("Enter a valid amount");
+            return;
+        }
+
         setIsSubmitting(true);
         setStatus(null);
 
         try {
-            // Determine decimals for the spend token
-            const DECIMALS: Record<string, number> = {
-                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": 6, // USDC
-                "So11111111111111111111111111111111111111112": 9,   // SOL
-                "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": 6, // USDT
-            };
-            const decimals = DECIMALS[spendToken.mint] ?? 6;
-            const rawAmount = Math.floor(parseFloat(totalAmount) * Math.pow(10, decimals));
+            // ── Step 1: Create order (get unsigned tx) ────
+            setCurrentStep("create");
+            setStatusType("info");
+            setStatus("Creating DCA order...");
 
-            const res = await fetch("/api/dca/create", {
+            const rawAmount = Math.floor(parsedAmount * Math.pow(10, spendToken.decimals));
+
+            const createRes = await fetch("/api/dca/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    action: "create",
                     user: publicKey.toString(),
                     inputMint: spendToken.mint,
                     outputMint: receiveToken.mint,
@@ -81,22 +93,54 @@ export default function DCAPanel() {
                 }),
             });
 
-            const data = await res.json();
-
-            if (!res.ok) {
-                setStatus(`Error: ${data.error || "Failed to create DCA order"}`);
-                return;
+            const createData = await createRes.json();
+            if (!createRes.ok) {
+                throw new Error(createData.error || "Failed to create DCA order");
             }
 
-            // Jupiter returns a transaction to sign
-            console.log("[DCA] Jupiter response:", data);
-            setStatus("✅ DCA order created! Sign the transaction in your wallet to activate.");
+            // ── Step 2: Sign the transaction ──────────────
+            setCurrentStep("sign");
+            setStatus("Please sign the transaction in your wallet...");
+
+            const txBuffer = Buffer.from(createData.transaction, "base64");
+            const tx = VersionedTransaction.deserialize(txBuffer);
+            const signedTx = await signTransaction(tx);
+
+            // ── Step 3: Execute via Jupiter ───────────────
+            setCurrentStep("execute");
+            setStatus("Executing DCA order on-chain...");
+
+            const executeRes = await fetch("/api/dca/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "execute",
+                    signedTransaction: Buffer.from(signedTx.serialize()).toString("base64"),
+                    requestId: createData.requestId,
+                }),
+            });
+
+            const executeData = await executeRes.json();
+            if (!executeRes.ok) {
+                throw new Error(executeData.error || "Failed to execute DCA order");
+            }
+
+            setCurrentStep("");
+            setStatusType("success");
+            setStatus(`✅ DCA strategy activated! Buying ${perOrder} ${spendToken.symbol} of ${receiveToken.symbol} ${interval.label.toLowerCase()}.`);
         } catch (e: any) {
+            setStatusType("error");
             setStatus(`Error: ${e.message}`);
         } finally {
             setIsSubmitting(false);
         }
     };
+
+    const steps = [
+        { id: "create", label: "Create" },
+        { id: "sign", label: "Sign" },
+        { id: "execute", label: "Execute" },
+    ];
 
     return (
         <div className="w-full">
@@ -120,9 +164,7 @@ export default function DCAPanel() {
             <div className="rounded-b-2xl border border-white/10 bg-[#0A0A0A] p-4 space-y-4">
                 {/* Spend Token */}
                 <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                        You Spend
-                    </label>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">You Spend</label>
                     <div className="flex gap-2">
                         <select
                             value={spendToken.symbol}
@@ -145,9 +187,7 @@ export default function DCAPanel() {
 
                 {/* Receive Token */}
                 <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                        You Receive
-                    </label>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">You Receive</label>
                     <select
                         value={receiveToken.symbol}
                         onChange={(e) => setReceiveToken(TOKENS.find(t => t.symbol === e.target.value)!)}
@@ -162,8 +202,7 @@ export default function DCAPanel() {
                 {/* Frequency */}
                 <div>
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                        <Clock size={10} className="inline mr-1" />
-                        Frequency
+                        <Clock size={10} className="inline mr-1" />Frequency
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                         {INTERVALS.map(i => (
@@ -184,9 +223,7 @@ export default function DCAPanel() {
 
                 {/* Number of Orders */}
                 <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                        Number of Orders
-                    </label>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">Number of Orders</label>
                     <input
                         type="number"
                         min="2"
@@ -223,6 +260,19 @@ export default function DCAPanel() {
                     </div>
                 </div>
 
+                {/* Step Progress (during submission) */}
+                {isSubmitting && (
+                    <div className="flex items-center justify-between px-2">
+                        {steps.map((s, i) => (
+                            <div key={s.id} className="flex items-center gap-1">
+                                <div className={`w-2 h-2 rounded-full transition-all ${currentStep === s.id ? "bg-blue-400 animate-pulse" : (steps.findIndex(st => st.id === currentStep) > i ? "bg-green-500" : "bg-white/10")}`} />
+                                <span className={`text-[9px] uppercase tracking-wider ${currentStep === s.id ? "text-blue-400" : "text-muted-foreground"}`}>{s.label}</span>
+                                {i < steps.length - 1 && <div className="w-6 h-px bg-white/10 mx-1" />}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {/* Submit */}
                 {connected ? (
                     <button
@@ -247,10 +297,29 @@ export default function DCAPanel() {
 
                 {/* Status */}
                 {status && (
-                    <div className="text-xs text-center text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+                    <div className={`text-xs text-center rounded-lg px-3 py-2 ${
+                        statusType === "error" ? "text-red-400 bg-red-500/10 border border-red-500/20"
+                        : statusType === "success" ? "text-green-400 bg-green-500/10 border border-green-500/20"
+                        : "text-blue-400 bg-blue-500/10 border border-blue-500/20"
+                    }`}>
                         {status}
                     </div>
                 )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-center gap-3 pt-2">
+                    <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider">On-Chain</span>
+                    </div>
+                    <div className="h-3 w-px bg-white/10" />
+                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Non-Custodial</span>
+                    <div className="h-3 w-px bg-white/10" />
+                    <div className="flex items-center gap-1">
+                        <ShieldCheck size={9} className="text-green-500" />
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Jupiter Powered</span>
+                    </div>
+                </div>
             </div>
         </div>
     );

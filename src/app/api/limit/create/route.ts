@@ -5,77 +5,27 @@ import { z } from "zod";
 const JUP_TRIGGER_BASE = "https://api.jup.ag/trigger/v2";
 
 const BodySchema = z.object({
-    action: z.enum(["get-vault", "craft-deposit", "submit-order"]),
+    action: z.enum([
+        "request-challenge",  // Step 1: Get a challenge for wallet to sign
+        "verify-challenge",   // Step 2: Submit signed challenge, get JWT
+        "craft-deposit",      // Step 3: Craft unsigned deposit transaction
+        "submit-order",       // Step 4: Submit signed deposit + order params
+    ]),
     wallet: z.string().optional(),
-    inputMint: z.string().optional(),
-    amount: z.string().optional(),
-    orderType: z.string().optional(),
-    orderSubType: z.string().optional(),
-    depositRequestId: z.string().optional(),
-    orderParams: z.any().optional(),
+    // For verify-challenge
+    signature: z.string().optional(),
+    challengeType: z.string().optional(),
+    // For craft-deposit
     jwt: z.string().optional(),
+    inputMint: z.string().optional(),
+    outputMint: z.string().optional(),
+    amount: z.string().optional(),
+    orderSubType: z.string().optional(),
+    // For submit-order
+    depositRequestId: z.string().optional(),
+    signedTransaction: z.string().optional(),
+    orderParams: z.any().optional(),
 });
-
-// Step 1: Get or register vault for a wallet
-async function getOrCreateVault(walletPubkey: string) {
-    const apiKey = process.env.JUPITER_API_KEY || "";
-    const getRes = await fetch(`${JUP_TRIGGER_BASE}/vault?wallet=${walletPubkey}`, {
-        headers: { "x-api-key": apiKey },
-    });
-
-    if (getRes.ok) {
-        const data = await getRes.json();
-        if (data?.vault) return data.vault;
-    }
-
-    const registerRes = await fetch(`${JUP_TRIGGER_BASE}/vault/register`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-api-key": process.env.JUPITER_API_KEY || "",
-        },
-        body: JSON.stringify({ wallet: walletPubkey }),
-    });
-
-    if (!registerRes.ok) {
-        const err = await registerRes.json();
-        throw new Error(`Vault registration failed: ${JSON.stringify(err)}`);
-    }
-
-    const registerData = await registerRes.json();
-    return registerData.vault;
-}
-
-// Step 2: Craft deposit transaction
-async function craftDeposit(params: {
-    wallet: string;
-    inputMint: string;
-    amount: string;
-    orderType: string;
-    orderSubType: string;
-}) {
-    const res = await fetch(`${JUP_TRIGGER_BASE}/deposit/craft`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-api-key": process.env.JUPITER_API_KEY || "",
-        },
-        body: JSON.stringify({
-            wallet: params.wallet,
-            inputMint: params.inputMint,
-            amount: params.amount,
-            orderType: "price",
-            orderSubType: params.orderSubType,
-        }),
-    });
-
-    if (!res.ok) {
-        const err = await res.json();
-        throw new Error(`Deposit craft failed: ${JSON.stringify(err)}`);
-    }
-
-    return await res.json();
-}
 
 export async function POST(req: NextRequest) {
     try {
@@ -92,48 +42,138 @@ export async function POST(req: NextRequest) {
         }
 
         const body = parsedBody.data;
-        const { action } = body;
-
         const apiKey = process.env.JUPITER_API_KEY || "";
         if (!apiKey) {
             return NextResponse.json({ error: "Jupiter API key not configured" }, { status: 500 });
         }
 
-        if (action === "get-vault" && body.wallet) {
-            const vault = await getOrCreateVault(body.wallet);
-            return NextResponse.json({ vault });
+        // --- COMPLIANCE CHECK ---
+        if (body.wallet) {
+            const { checkWalletRisk } = await import('@/lib/compliance');
+            const risk = await checkWalletRisk(body.wallet);
+            if (risk.isBlocked) {
+                console.warn(`[Compliance] Blocked high-risk wallet in Limit API: ${body.wallet}`);
+                return NextResponse.json({ error: "Address restricted by compliance policy" }, { status: 403 });
+            }
         }
+        // ------------------------
 
-        if (action === "craft-deposit" && body.wallet && body.inputMint && body.amount) {
-            const deposit = await craftDeposit({
-                wallet: body.wallet,
-                inputMint: body.inputMint,
-                amount: body.amount,
-                orderType: body.orderType || "price",
-                orderSubType: body.orderSubType || "single",
+        // ─── STEP 1: REQUEST CHALLENGE ────────────────────────
+        // Client calls this to get a challenge message for wallet to sign
+        if (body.action === "request-challenge" && body.wallet) {
+            console.log("[Limit API] Requesting challenge for wallet:", body.wallet.slice(0, 8));
+
+            const res = await fetch(`${JUP_TRIGGER_BASE}/auth/challenge`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": apiKey,
+                },
+                body: JSON.stringify({
+                    walletPubkey: body.wallet,
+                    type: "message",
+                }),
             });
-            return NextResponse.json(deposit);
+
+            const data = await res.json();
+            if (!res.ok) {
+                console.error("[Limit API] Challenge error:", data);
+                return NextResponse.json({ error: data.error || "Failed to get challenge" }, { status: res.status });
+            }
+
+            return NextResponse.json(data);
         }
 
-        if (action === "submit-order") {
+        // ─── STEP 2: VERIFY CHALLENGE ─────────────────────────
+        // Client signs the challenge, sends signature here. We exchange it for a JWT.
+        if (body.action === "verify-challenge" && body.wallet && body.signature) {
+            console.log("[Limit API] Verifying challenge for wallet:", body.wallet.slice(0, 8));
+
+            const res = await fetch(`${JUP_TRIGGER_BASE}/auth/verify`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": apiKey,
+                },
+                body: JSON.stringify({
+                    type: body.challengeType || "message",
+                    walletPubkey: body.wallet,
+                    signature: body.signature,
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                console.error("[Limit API] Verify error:", data);
+                return NextResponse.json({ error: data.error || "Failed to verify challenge" }, { status: res.status });
+            }
+
+            // Returns { token: "jwt..." }
+            return NextResponse.json(data);
+        }
+
+        // ─── STEP 3: CRAFT DEPOSIT ────────────────────────────
+        // With JWT, craft the unsigned deposit transaction
+        if (body.action === "craft-deposit" && body.wallet && body.inputMint && body.amount && body.jwt) {
+            console.log("[Limit API] Crafting deposit for wallet:", body.wallet.slice(0, 8));
+
+            const res = await fetch(`${JUP_TRIGGER_BASE}/deposit/craft`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": apiKey,
+                    "Authorization": `Bearer ${body.jwt}`,
+                },
+                body: JSON.stringify({
+                    userAddress: body.wallet,
+                    inputMint: body.inputMint,
+                    outputMint: body.outputMint || "",
+                    amount: body.amount,
+                    orderType: "price",
+                    orderSubType: body.orderSubType || "single",
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                console.error("[Limit API] Deposit craft error:", data);
+                return NextResponse.json(
+                    { error: data.error || data.message || "Failed to craft deposit", details: data },
+                    { status: res.status }
+                );
+            }
+
+            // Returns { transaction, requestId, receiverAddress, ... }
+            console.log("[Limit API] Deposit crafted, returning unsigned tx");
+            return NextResponse.json(data);
+        }
+
+        // ─── STEP 4: SUBMIT ORDER ─────────────────────────────
+        // After client signs the deposit tx, submit the order
+        if (body.action === "submit-order" && body.jwt) {
+            console.log("[Limit API] Submitting order");
+
             const res = await fetch(`${JUP_TRIGGER_BASE}/orders/price`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "x-api-key": process.env.JUPITER_API_KEY || "",
-                    ...(body.jwt ? { Authorization: `Bearer ${body.jwt}` } : {}),
+                    "x-api-key": apiKey,
+                    "Authorization": `Bearer ${body.jwt}`,
                 },
                 body: JSON.stringify({
-                    orderType: body.orderType || "single",
                     depositRequestId: body.depositRequestId,
+                    signedTransaction: body.signedTransaction,
                     ...body.orderParams,
                 }),
             });
 
             const data = await res.json();
             if (!res.ok) {
-                return NextResponse.json({ error: data }, { status: res.status });
+                console.error("[Limit API] Order submission error:", data);
+                return NextResponse.json({ error: data.error || "Failed to submit order", details: data }, { status: res.status });
             }
+
+            console.log("[Limit API] Order created successfully");
             return NextResponse.json(data);
         }
 

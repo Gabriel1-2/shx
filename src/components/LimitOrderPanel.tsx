@@ -3,21 +3,16 @@
 import { useState, useMemo, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { ArrowDownUp, Clock, Loader2 } from "lucide-react";
-
-// Jupiter Trigger Order API v2 endpoint
-const TRIGGER_API_ENDPOINT = "https://api.jup.ag/trigger/v2/orders/price";
-
-// Default token pair
-const DEFAULT_INPUT_TOKEN = "SHX";
-const DEFAULT_OUTPUT_TOKEN = "USDC";
+import { Connection, VersionedTransaction } from "@solana/web3.js";
+import { ArrowDownUp, Clock, Loader2, ShieldCheck } from "lucide-react";
+import bs58 from "bs58";
 
 type OrderSide = "buy" | "sell";
 
 interface ExpiryOption {
     label: string;
     value: string;
-    seconds: number | null; // null = never
+    seconds: number | null;
 }
 
 const EXPIRY_OPTIONS: ExpiryOption[] = [
@@ -27,92 +22,108 @@ const EXPIRY_OPTIONS: ExpiryOption[] = [
     { label: "Never", value: "never", seconds: null },
 ];
 
+const MINTS: Record<string, string> = {
+    "USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "SOL": "So11111111111111111111111111111111111111112",
+    "SHX": "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q",
+};
+
+const DECIMALS: Record<string, number> = { "USDC": 6, "SOL": 9, "SHX": 9 };
+
+const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+
 export default function LimitOrderPanel() {
-    const { publicKey, connected, signTransaction } = useWallet();
+    const { publicKey, connected, signMessage, signTransaction, sendTransaction } = useWallet();
     const { setVisible } = useWalletModal();
 
     // ─── Form state ──────────────────────────────────────
     const [side, setSide] = useState<OrderSide>("buy");
-    const [baseToken, setBaseToken] = useState(DEFAULT_INPUT_TOKEN);
-    const [quoteToken, setQuoteToken] = useState(DEFAULT_OUTPUT_TOKEN);
+    const [baseToken, setBaseToken] = useState("SHX");
+    const [quoteToken, setQuoteToken] = useState("USDC");
     const [price, setPrice] = useState("");
     const [amount, setAmount] = useState("");
     const [expiry, setExpiry] = useState("7d");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
     const [statusType, setStatusType] = useState<"info" | "success" | "error">("info");
+    const [currentStep, setCurrentStep] = useState<string>("");
 
-    // ─── Computed total ──────────────────────────────────
+    // ─── Computed ─────────────────────────────────────────
+    const isBuy = side === "buy";
     const total = useMemo(() => {
         const p = parseFloat(price);
         const a = parseFloat(amount);
-        if (!isNaN(p) && !isNaN(a) && p > 0 && a > 0) {
-            return p * a;
-        }
-        return 0;
+        return (!isNaN(p) && !isNaN(a) && p > 0 && a > 0) ? p * a : 0;
     }, [price, amount]);
 
-    // ─── Swap pair direction ─────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────
     const handleSwapTokens = useCallback(() => {
-        setBaseToken((prev) => {
-            setQuoteToken(prev);
-            return quoteToken;
-        });
+        setBaseToken((prev) => { setQuoteToken(prev); return quoteToken; });
     }, [quoteToken]);
 
-    // ─── Sanitize numeric input ──────────────────────────
-    const handleNumericInput = (
-        value: string,
-        setter: (v: string) => void
-    ) => {
-        // Allow empty, digits, and one decimal point
-        if (value === "" || /^\d*\.?\d*$/.test(value)) {
-            setter(value);
-        }
+    const handleNumericInput = (value: string, setter: (v: string) => void) => {
+        if (value === "" || /^\d*\.?\d*$/.test(value)) setter(value);
     };
 
-    // ─── Submit handler ──────────────────────────────────
+    // ─── SUBMIT: Full Jupiter Trigger v2 Flow ────────────
     const handlePlaceOrder = useCallback(async () => {
-        if (!connected || !publicKey || !signTransaction) return;
+        if (!connected || !publicKey || !signMessage || !signTransaction) return;
 
         const p = parseFloat(price);
         const a = parseFloat(amount);
 
-        if (isNaN(p) || p <= 0) {
-            setStatusType("error");
-            setStatusMessage("Enter a valid trigger price");
-            return;
-        }
-        if (isNaN(a) || a <= 0) {
-            setStatusType("error");
-            setStatusMessage("Enter a valid amount");
-            return;
-        }
+        if (isNaN(p) || p <= 0) { setStatusType("error"); setStatusMessage("Enter a valid trigger price"); return; }
+        if (isNaN(a) || a <= 0) { setStatusType("error"); setStatusMessage("Enter a valid amount"); return; }
 
         setIsSubmitting(true);
-        setStatusMessage("Crafting deposit transaction...");
+        setStatusMessage(null);
 
         try {
-            // Determine input mint
-            // In a real app we'd map baseToken/quoteToken to their mints.
-            // For now assume SHX / USDC / SOL mapping.
-            const MINTS: Record<string, string> = {
-                "USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                "SOL": "So11111111111111111111111111111111111111112",
-                "SHX": "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q", // SHX mint
-            };
-            const spendSymbol = isBuy ? quoteToken : baseToken;
-            const spendMint = MINTS[spendSymbol] || MINTS["USDC"];
+            // ── Step 1: Request challenge ─────────────────
+            setCurrentStep("auth");
+            setStatusType("info");
+            setStatusMessage("Requesting authentication challenge...");
 
-            // Amount logic: if buying, we spend quote token (e.g. USDC). If selling, we spend base token (e.g. SHX).
+            const challengeRes = await fetch("/api/limit/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "request-challenge", wallet: publicKey.toString() }),
+            });
+            const challengeData = await challengeRes.json();
+            if (!challengeRes.ok) throw new Error(challengeData.error || "Failed to get challenge");
+
+            // ── Step 2: Sign the challenge and verify ─────
+            setStatusMessage("Please sign the authentication message in your wallet...");
+            const encodedMessage = new TextEncoder().encode(challengeData.challenge);
+            const signature = await signMessage(encodedMessage);
+            const signatureBase58 = bs58.encode(signature);
+
+            const verifyRes = await fetch("/api/limit/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "verify-challenge",
+                    wallet: publicKey.toString(),
+                    signature: signatureBase58,
+                    challengeType: "message",
+                }),
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) throw new Error(verifyData.error || "Failed to verify signature");
+            const jwt = verifyData.token;
+
+            // ── Step 3: Craft deposit transaction ─────────
+            setCurrentStep("deposit");
+            setStatusMessage("Crafting deposit transaction...");
+
+            const spendSymbol = isBuy ? quoteToken : baseToken;
+            const receiveSymbol = isBuy ? baseToken : quoteToken;
+            const spendMint = MINTS[spendSymbol] || MINTS["USDC"];
+            const receiveMint = MINTS[receiveSymbol] || MINTS["SHX"];
             const spendAmount = isBuy ? total : a;
-            
-            // Decimals
-            const DECIMALS: Record<string, number> = { "USDC": 6, "SOL": 9, "SHX": 9 };
             const decimals = DECIMALS[spendSymbol] ?? 6;
             const rawAmount = Math.floor(spendAmount * Math.pow(10, decimals));
 
-            // Step 1 & 2: Get Vault & Craft Deposit (our proxy handles both if needed, or just craft)
             const craftRes = await fetch("/api/limit/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -120,40 +131,72 @@ export default function LimitOrderPanel() {
                     action: "craft-deposit",
                     wallet: publicKey.toString(),
                     inputMint: spendMint,
+                    outputMint: receiveMint,
                     amount: rawAmount.toString(),
-                    orderType: "price",
-                    orderSubType: "single"
+                    orderSubType: "single",
+                    jwt,
                 }),
             });
 
             const craftData = await craftRes.json();
-            if (!craftRes.ok) {
-                throw new Error(craftData.error || "Failed to craft deposit");
-            }
+            if (!craftRes.ok) throw new Error(craftData.error || "Failed to craft deposit");
 
-            console.log("[LimitOrder] Craft data:", craftData);
-            setStatusMessage("Please sign the deposit transaction...");
+            // ── Step 4: Sign the deposit transaction ──────
+            setStatusMessage("Please sign the deposit transaction in your wallet...");
+            const connection = new Connection(RPC_ENDPOINT);
+            const txBuffer = Buffer.from(craftData.transaction, "base64");
+            const tx = VersionedTransaction.deserialize(txBuffer);
+            const signedTx = await signTransaction(tx);
 
-            // Normally here we'd decode craftData.transaction, sign it with signTransaction(), 
-            // and send it via sendRawTransaction. For the demo:
+            // ── Step 5: Submit order ──────────────────────
+            setCurrentStep("submit");
+            setStatusMessage("Submitting limit order...");
+
+            const expiryOption = EXPIRY_OPTIONS.find(o => o.value === expiry);
+            const expiresAt = expiryOption?.seconds
+                ? Math.floor(Date.now() / 1000) + expiryOption.seconds
+                : null;
+
+            const submitRes = await fetch("/api/limit/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "submit-order",
+                    jwt,
+                    depositRequestId: craftData.requestId,
+                    signedTransaction: Buffer.from(signedTx.serialize()).toString("base64"),
+                    orderParams: {
+                        inputMint: spendMint,
+                        outputMint: receiveMint,
+                        makingAmount: rawAmount.toString(),
+                        takingAmount: Math.floor(a * Math.pow(10, DECIMALS[receiveSymbol] ?? 9)).toString(),
+                        ...(expiresAt ? { expiredAt: expiresAt } : {}),
+                    },
+                }),
+            });
+
+            const submitData = await submitRes.json();
+            if (!submitRes.ok) throw new Error(submitData.error || "Failed to submit order");
+
+            setCurrentStep("");
             setStatusType("success");
-            setStatusMessage("✅ Deposit ready! Sign the transaction in your wallet to place the limit order.");
+            setStatusMessage("✅ Limit order placed successfully!");
         } catch (error: any) {
-            console.error(error);
+            console.error("[LimitOrder]", error);
             setStatusType("error");
             setStatusMessage(`Error: ${error.message}`);
         } finally {
             setIsSubmitting(false);
-            // Auto-clear success message
-            setTimeout(() => {
-                setStatusMessage((prev) => prev?.includes("✅") ? null : prev);
-            }, 8000);
+            setTimeout(() => { setStatusMessage((prev) => prev?.includes("✅") ? null : prev); }, 8000);
         }
-    }, [connected, publicKey, price, amount, side, baseToken, quoteToken, total, signTransaction]);
+    }, [connected, publicKey, price, amount, side, baseToken, quoteToken, total, signMessage, signTransaction, isBuy, expiry]);
 
-    // ─── Style helpers ───────────────────────────────────
-    const isBuy = side === "buy";
-    const accentColor = isBuy ? "green" : "red";
+    // ─── Step indicator ──────────────────────────────────
+    const steps = [
+        { id: "auth", label: "Authenticate" },
+        { id: "deposit", label: "Deposit" },
+        { id: "submit", label: "Submit" },
+    ];
 
     return (
         <div className="w-full rounded-2xl border border-white/10 bg-[#0A0A0A] shadow-2xl shadow-black/50 overflow-hidden">
@@ -161,25 +204,10 @@ export default function LimitOrderPanel() {
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06] bg-black/60 backdrop-blur-xl">
                 <div className="flex items-center gap-2.5">
                     <div className="relative flex items-center justify-center">
-                        <div
-                            className={`absolute w-5 h-5 blur-sm opacity-50 animate-pulse rounded-full ${
-                                isBuy ? "bg-green-500" : "bg-red-500"
-                            }`}
-                        />
-                        <ArrowDownUp
-                            className={`relative z-10 ${
-                                isBuy ? "text-green-400" : "text-red-400"
-                            }`}
-                            size={16}
-                        />
+                        <div className={`absolute w-5 h-5 blur-sm opacity-50 animate-pulse rounded-full ${isBuy ? "bg-green-500" : "bg-red-500"}`} />
+                        <ArrowDownUp className={`relative z-10 ${isBuy ? "text-green-400" : "text-red-400"}`} size={16} />
                     </div>
-                    <span
-                        className={`font-bold text-sm tracking-wide text-transparent bg-clip-text bg-gradient-to-r ${
-                            isBuy
-                                ? "from-green-400 to-emerald-500"
-                                : "from-red-400 to-rose-500"
-                        }`}
-                    >
+                    <span className={`font-bold text-sm tracking-wide text-transparent bg-clip-text bg-gradient-to-r ${isBuy ? "from-green-400 to-emerald-500" : "from-red-400 to-rose-500"}`}>
                         LIMIT ORDER
                     </span>
                 </div>
@@ -194,204 +222,114 @@ export default function LimitOrderPanel() {
                 <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                     <button
                         onClick={() => setSide("buy")}
-                        className={`relative py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 ${
-                            isBuy
-                                ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 shadow-[inset_0_1px_0_rgba(34,197,94,0.2)]"
-                                : "text-muted-foreground hover:text-white/70"
-                        }`}
+                        className={`relative py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 ${isBuy ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 shadow-[inset_0_1px_0_rgba(34,197,94,0.2)]" : "text-muted-foreground hover:text-white/70"}`}
                     >
-                        {isBuy && (
-                            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-green-500 to-transparent" />
-                        )}
+                        {isBuy && <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-green-500 to-transparent" />}
                         Buy
                     </button>
                     <button
                         onClick={() => setSide("sell")}
-                        className={`relative py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 ${
-                            !isBuy
-                                ? "bg-gradient-to-r from-red-500/20 to-rose-500/20 text-red-400 shadow-[inset_0_1px_0_rgba(239,68,68,0.2)]"
-                                : "text-muted-foreground hover:text-white/70"
-                        }`}
+                        className={`relative py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 ${!isBuy ? "bg-gradient-to-r from-red-500/20 to-rose-500/20 text-red-400 shadow-[inset_0_1px_0_rgba(239,68,68,0.2)]" : "text-muted-foreground hover:text-white/70"}`}
                     >
-                        {!isBuy && (
-                            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-red-500 to-transparent" />
-                        )}
+                        {!isBuy && <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-red-500 to-transparent" />}
                         Sell
                     </button>
                 </div>
 
                 {/* ── Token Pair ───────────────────────────── */}
                 <div className="space-y-1.5">
-                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
-                        Pair
-                    </label>
+                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Pair</label>
                     <div className="flex items-center gap-2">
                         <div className="flex-1 relative">
-                            <input
-                                type="text"
-                                value={baseToken}
-                                onChange={(e) =>
-                                    setBaseToken(e.target.value.toUpperCase())
-                                }
-                                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all"
-                                placeholder="SHX"
-                            />
+                            <input type="text" value={baseToken} onChange={(e) => setBaseToken(e.target.value.toUpperCase())}
+                                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all" placeholder="SHX" />
                         </div>
-                        <button
-                            onClick={handleSwapTokens}
-                            className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] hover:border-white/[0.15] transition-all group"
-                            title="Swap pair"
-                        >
-                            <ArrowDownUp
-                                size={14}
-                                className="text-muted-foreground group-hover:text-white transition-colors rotate-90"
-                            />
+                        <button onClick={handleSwapTokens} className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] hover:border-white/[0.15] transition-all group" title="Swap pair">
+                            <ArrowDownUp size={14} className="text-muted-foreground group-hover:text-white transition-colors rotate-90" />
                         </button>
                         <div className="flex-1 relative">
-                            <input
-                                type="text"
-                                value={quoteToken}
-                                onChange={(e) =>
-                                    setQuoteToken(e.target.value.toUpperCase())
-                                }
-                                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all"
-                                placeholder="USDC"
-                            />
+                            <input type="text" value={quoteToken} onChange={(e) => setQuoteToken(e.target.value.toUpperCase())}
+                                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all" placeholder="USDC" />
                         </div>
                     </div>
                 </div>
 
                 {/* ── Trigger Price ────────────────────────── */}
                 <div className="space-y-1.5">
-                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
-                        Trigger Price (USD)
-                    </label>
+                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Trigger Price (USD)</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono">
-                            $
-                        </span>
-                        <input
-                            type="text"
-                            inputMode="decimal"
-                            value={price}
-                            onChange={(e) =>
-                                handleNumericInput(e.target.value, setPrice)
-                            }
-                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-7 pr-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all"
-                            placeholder="0.00"
-                        />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono">$</span>
+                        <input type="text" inputMode="decimal" value={price} onChange={(e) => handleNumericInput(e.target.value, setPrice)}
+                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-7 pr-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all" placeholder="0.00" />
                     </div>
                 </div>
 
                 {/* ── Amount ───────────────────────────────── */}
                 <div className="space-y-1.5">
-                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
-                        Amount
-                    </label>
+                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Amount</label>
                     <div className="relative">
-                        <input
-                            type="text"
-                            inputMode="decimal"
-                            value={amount}
-                            onChange={(e) =>
-                                handleNumericInput(e.target.value, setAmount)
-                            }
-                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all pr-16"
-                            placeholder="0.00"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono font-medium">
-                            {baseToken}
-                        </span>
+                        <input type="text" inputMode="decimal" value={amount} onChange={(e) => handleNumericInput(e.target.value, setAmount)}
+                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all pr-16" placeholder="0.00" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono font-medium">{baseToken}</span>
                     </div>
                 </div>
 
                 {/* ── Total Display ────────────────────────── */}
                 <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
-                        Total
-                    </span>
-                    <span
-                        className={`text-base font-mono font-bold ${
-                            total > 0
-                                ? isBuy
-                                    ? "text-green-400"
-                                    : "text-red-400"
-                                : "text-white/30"
-                        }`}
-                    >
-                        $
-                        {total > 0
-                            ? total.toLocaleString("en-US", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 6,
-                              })
-                            : "0.00"}
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total</span>
+                    <span className={`text-base font-mono font-bold ${total > 0 ? (isBuy ? "text-green-400" : "text-red-400") : "text-white/30"}`}>
+                        ${total > 0 ? total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : "0.00"}
                     </span>
                 </div>
 
                 {/* ── Expiry ───────────────────────────────── */}
                 <div className="space-y-1.5">
                     <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
-                        <Clock size={11} />
-                        Expiry
+                        <Clock size={11} />Expiry
                     </label>
                     <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                         {EXPIRY_OPTIONS.map((opt) => (
-                            <button
-                                key={opt.value}
-                                onClick={() => setExpiry(opt.value)}
-                                className={`py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200 ${
-                                    expiry === opt.value
-                                        ? `bg-white/[0.08] text-white border border-white/[0.12] shadow-sm`
-                                        : "text-muted-foreground hover:text-white/60 border border-transparent"
-                                }`}
-                            >
+                            <button key={opt.value} onClick={() => setExpiry(opt.value)}
+                                className={`py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200 ${expiry === opt.value ? "bg-white/[0.08] text-white border border-white/[0.12] shadow-sm" : "text-muted-foreground hover:text-white/60 border border-transparent"}`}>
                                 {opt.label}
                             </button>
                         ))}
                     </div>
                 </div>
 
+                {/* ── Step Progress (during submission) ───── */}
+                {isSubmitting && (
+                    <div className="flex items-center justify-between px-2">
+                        {steps.map((s, i) => (
+                            <div key={s.id} className="flex items-center gap-1">
+                                <div className={`w-2 h-2 rounded-full transition-all ${currentStep === s.id ? "bg-amber-400 animate-pulse" : (steps.findIndex(st => st.id === currentStep) > i ? "bg-green-500" : "bg-white/10")}`} />
+                                <span className={`text-[9px] uppercase tracking-wider ${currentStep === s.id ? "text-amber-400" : "text-muted-foreground"}`}>{s.label}</span>
+                                {i < steps.length - 1 && <div className="w-6 h-px bg-white/10 mx-1" />}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {/* ── Status Message ───────────────────────── */}
                 {statusMessage && (
-                    <div
-                        className={`px-4 py-3 rounded-xl border text-[12px] font-medium transition-all animate-in fade-in slide-in-from-bottom-2 duration-300 ${
-                            statusType === "error"
-                                ? "bg-red-500/10 border-red-500/20 text-red-400"
-                                : statusType === "success"
-                                ? "bg-green-500/10 border-green-500/20 text-green-400"
-                                : "bg-white/[0.04] border-white/[0.08] text-muted-foreground"
-                        }`}
-                    >
+                    <div className={`px-4 py-3 rounded-xl border text-[12px] font-medium transition-all animate-in fade-in slide-in-from-bottom-2 duration-300 ${statusType === "error" ? "bg-red-500/10 border-red-500/20 text-red-400" : statusType === "success" ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-white/[0.04] border-white/[0.08] text-muted-foreground"}`}>
                         {statusMessage}
                     </div>
                 )}
 
                 {/* ── Submit Button ─────────────────────────── */}
                 {connected ? (
-                    <button
-                        onClick={handlePlaceOrder}
-                        disabled={isSubmitting}
-                        className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                            isBuy
-                                ? "bg-gradient-to-r from-green-500 to-emerald-500 text-black hover:from-green-400 hover:to-emerald-400 shadow-[0_0_20px_rgba(34,197,94,0.25)] hover:shadow-[0_0_30px_rgba(34,197,94,0.35)]"
-                                : "bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 shadow-[0_0_20px_rgba(239,68,68,0.25)] hover:shadow-[0_0_30px_rgba(239,68,68,0.35)]"
-                        }`}
-                    >
+                    <button onClick={handlePlaceOrder} disabled={isSubmitting}
+                        className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${isBuy ? "bg-gradient-to-r from-green-500 to-emerald-500 text-black hover:from-green-400 hover:to-emerald-400 shadow-[0_0_20px_rgba(34,197,94,0.25)] hover:shadow-[0_0_30px_rgba(34,197,94,0.35)]" : "bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 shadow-[0_0_20px_rgba(239,68,68,0.25)] hover:shadow-[0_0_30px_rgba(239,68,68,0.35)]"}`}>
                         {isSubmitting ? (
-                            <span className="flex items-center justify-center gap-2">
-                                <Loader2 size={16} className="animate-spin" />
-                                Placing Order...
-                            </span>
+                            <span className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" />Placing Order...</span>
                         ) : (
                             `Place Limit ${isBuy ? "Buy" : "Sell"} Order`
                         )}
                     </button>
                 ) : (
-                    <button
-                        onClick={() => setVisible(true)}
-                        className="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]"
-                    >
+                    <button onClick={() => setVisible(true)}
+                        className="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
                         Connect Wallet
                     </button>
                 )}
@@ -401,18 +339,15 @@ export default function LimitOrderPanel() {
             <div className="flex items-center justify-center gap-4 px-5 py-3 border-t border-white/[0.06] bg-black/40">
                 <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">
-                        On-Chain
-                    </span>
+                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">On-Chain</span>
                 </div>
                 <div className="h-3 w-px bg-white/10" />
-                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">
-                    Non-Custodial
-                </span>
+                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Non-Custodial</span>
                 <div className="h-3 w-px bg-white/10" />
-                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">
-                    Jupiter Powered
-                </span>
+                <div className="flex items-center gap-1">
+                    <ShieldCheck size={9} className="text-green-500" />
+                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Jupiter Powered</span>
+                </div>
             </div>
         </div>
     );

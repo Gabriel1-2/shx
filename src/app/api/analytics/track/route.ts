@@ -30,6 +30,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Missing txid or walletAddr" }, { status: 400 });
         }
 
+        // --- COMPLIANCE CHECK ---
+        const { checkWalletRisk } = await import('@/lib/compliance');
+        const risk = await checkWalletRisk(walletAddr);
+        if (risk.isBlocked) {
+            console.warn(`[Compliance] Blocked high-risk wallet in Analytics API: ${walletAddr}`);
+            return NextResponse.json({ error: "Address restricted by compliance policy" }, { status: 403 });
+        }
+        // ------------------------
+
         console.log(`[Analytics] Processing txid=${txid.slice(0, 12)}... wallet=${walletAddr.slice(0, 8)}...`);
 
         // 1. Deduplicate — reject replays
@@ -137,6 +146,14 @@ export async function POST(req: NextRequest) {
         const inputMint = spent?.mint || "";
         const outputMint = received?.mint || "";
 
+        // --- WASHTRADING PREVENTION ---
+        // 1. Stable-to-Stable Filter
+        if (STABLECOINS.includes(inputMint) && STABLECOINS.includes(outputMint)) {
+            console.log(`[Analytics] Wash trading prevented: Stable-to-Stable swap ignored.`);
+            return NextResponse.json({ success: true, volumeUSD: 0, points: 0, note: "Stable-to-stable swaps do not generate volume/points." });
+        }
+        // ------------------------------
+
         // 6. Calculate USD volume
         let volumeUSD = 0;
 
@@ -181,20 +198,42 @@ export async function POST(req: NextRequest) {
             } else {
                 // Existing user — increment values
                 const data = userDoc.data()!;
+                
+                // --- WASHTRADING PREVENTION (Velocity Limit) ---
+                const lastActiveDate = new Date(data.lastActive || 0).toISOString().split("T")[0];
+                const today = new Date().toISOString().split("T")[0];
+                
+                let dailyVolume = data.dailyVolume || 0;
+                if (lastActiveDate !== today) {
+                    dailyVolume = 0; // Reset daily volume counter
+                }
+                
+                let finalPoints = points;
+                let finalVolume = volumeUSD;
+                
+                // Soft cap: Maximum $10,000 eligible volume per day for points/rewards
+                if (dailyVolume + volumeUSD > 10000) {
+                    console.warn(`[Analytics] Velocity limit reached for ${walletAddr.slice(0,8)}. Capping points.`);
+                    finalPoints = 0;
+                    finalVolume = 0;
+                }
+                // -----------------------------------------------
+
                 const updateData: any = {
                     wallet: walletAddr,
-                    points: FieldValue.increment(points),
-                    volume: FieldValue.increment(volumeUSD),
+                    points: FieldValue.increment(finalPoints),
+                    volume: FieldValue.increment(finalVolume),
+                    dailyVolume: dailyVolume + volumeUSD,
                     tradeCount: FieldValue.increment(1),
                     lastActive: new Date().toISOString(),
                 };
 
                 // Weekly volume reset
                 if (data.weekStart !== currentWeek) {
-                    updateData.weeklyVolume = volumeUSD;
+                    updateData.weeklyVolume = finalVolume;
                     updateData.weekStart = currentWeek;
                 } else {
-                    updateData.weeklyVolume = FieldValue.increment(volumeUSD);
+                    updateData.weeklyVolume = FieldValue.increment(finalVolume);
                 }
 
                 t.set(userRef, updateData, { merge: true });
