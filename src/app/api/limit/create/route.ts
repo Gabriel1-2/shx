@@ -94,7 +94,13 @@ export async function POST(req: NextRequest) {
                 method: "GET", headers: { "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` }
             });
             const data = await safeJson(res);
-            if (!res.ok) return NextResponse.json({ error: data.error || data.message || "Failed register", details: data }, { status: res.status });
+            if (!res.ok) {
+                // If it's 409 Vault already registered, that's actually a success state for us!
+                if (res.status === 409 && data.error === "Vault already registered") {
+                    return NextResponse.json({ success: true, vault: data.details });
+                }
+                return NextResponse.json({ error: data.error || data.message || "Failed register", details: data }, { status: res.status });
+            }
             return NextResponse.json({ success: true, vault: data });
         }
 

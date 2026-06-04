@@ -170,10 +170,16 @@ export async function POST(req: NextRequest) {
         // ─── VAULT AUTH: REGISTER VAULT ─────────────────────────
         if (body.action === "register-vault" && body.jwt) {
             const res = await fetch(`https://api.jup.ag/trigger/v2/vault/register`, {
-                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` }
+                method: "GET", headers: { "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` }
             });
             const data = await safeJson(res);
-            if (!res.ok) return NextResponse.json({ error: data.error || data.message || "Failed register", details: data }, { status: res.status });
+            if (!res.ok) {
+                // If it's 409 Vault already registered, that's actually a success state for us!
+                if (res.status === 409 && data.error === "Vault already registered") {
+                    return NextResponse.json({ success: true, vault: data.details });
+                }
+                return NextResponse.json({ error: data.error || data.message || "Failed register", details: data }, { status: res.status });
+            }
             return NextResponse.json({ success: true, vault: data });
         }
 
