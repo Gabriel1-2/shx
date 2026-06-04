@@ -156,10 +156,11 @@ export default function LimitOrderPanel() {
                     depositRequestId: craftData.requestId,
                     signedTransaction: Buffer.from(signedTx.serialize()).toString("base64"),
                     orderParams: {
-                        inputMint: spendToken.address,
-                        outputMint: receiveToken.address,
+                        baseToken: baseToken.address,
+                        quoteToken: quoteToken.address,
                         makingAmount: rawAmount.toString(),
                         takingAmount: Math.floor(a * Math.pow(10, receiveToken.decimals)).toString(),
+                        triggerPrice: p.toString(),
                         ...(expiresAt ? { expiredAt: expiresAt } : {}),
                     },
                 }),
