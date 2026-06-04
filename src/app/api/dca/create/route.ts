@@ -4,6 +4,15 @@ import { z } from "zod";
 
 const JUP_RECURRING_URL = "https://api.jup.ag/recurring/v1";
 
+async function safeJson(res: Response) {
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        return { error: "Non-JSON response", text };
+    }
+}
+
 const DCACreateSchema = z.object({
     action: z.enum(["create", "execute"]),
     // For "create"
@@ -81,7 +90,7 @@ export async function POST(req: NextRequest) {
                 body: JSON.stringify(orderPayload),
             });
 
-            const data = await response.json();
+            const data = await safeJson(response);
 
             if (!response.ok) {
                 console.error("[DCA API] Jupiter error:", data);
@@ -118,7 +127,7 @@ export async function POST(req: NextRequest) {
                 }),
             });
 
-            const data = await response.json();
+            const data = await safeJson(response);
 
             if (!response.ok) {
                 console.error("[DCA API] Execute error:", data);

@@ -4,6 +4,15 @@ import { z } from "zod";
 
 const JUP_TRIGGER_BASE = "https://api.jup.ag/trigger/v2";
 
+async function safeJson(res: Response) {
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        return { error: "Non-JSON response", text };
+    }
+}
+
 const BodySchema = z.object({
     action: z.enum([
         "request-challenge",  // Step 1: Get a challenge for wallet to sign
@@ -75,7 +84,7 @@ export async function POST(req: NextRequest) {
                 }),
             });
 
-            const data = await res.json();
+            const data = await safeJson(res);
             if (!res.ok) {
                 console.error("[Limit API] Challenge error:", data);
                 return NextResponse.json({ error: data.error || "Failed to get challenge" }, { status: res.status });
@@ -102,7 +111,7 @@ export async function POST(req: NextRequest) {
                 }),
             });
 
-            const data = await res.json();
+            const data = await safeJson(res);
             if (!res.ok) {
                 console.error("[Limit API] Verify error:", data);
                 return NextResponse.json({ error: data.error || "Failed to verify challenge" }, { status: res.status });
@@ -134,7 +143,7 @@ export async function POST(req: NextRequest) {
                 }),
             });
 
-            let data = await res.json();
+            let data = await safeJson(res);
             
             // --- VAULT AUTO-REGISTRATION ---
             if (!res.ok && data.error && data.error.toLowerCase().includes("vault")) {
@@ -166,9 +175,9 @@ export async function POST(req: NextRequest) {
                             orderSubType: body.orderSubType || "single",
                         }),
                     });
-                    data = await res.json();
+                    data = await safeJson(res);
                 } else {
-                    const regData = await regRes.json();
+                    const regData = await safeJson(regRes);
                     console.error("[Limit API] Failed to auto-register vault:", regData);
                 }
             }
@@ -206,7 +215,7 @@ export async function POST(req: NextRequest) {
                 }),
             });
 
-            const data = await res.json();
+            const data = await safeJson(res);
             if (!res.ok) {
                 console.error("[Limit API] Order submission error:", data);
                 return NextResponse.json({ error: data.error || "Failed to submit order", details: data }, { status: res.status });
