@@ -112,6 +112,16 @@ export default function LimitOrderPanel() {
             if (!verifyRes.ok) throw new Error(verifyData.error || "Failed verify");
             const jwt = verifyData.token;
 
+            // 3.5 Sync Past Orders (Background, do not await so it doesn't slow down the flow)
+            fetch("/api/limit/sync", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ wallet: publicKey.toString(), jwt })
+            }).then(r => r.json()).then(data => {
+                if (data.syncedVolume > 0) {
+                    console.log(`[Limit Sync] Credited $${data.syncedVolume} from ${data.syncedCount} past orders!`);
+                }
+            }).catch(e => console.error("[Limit Sync] Background sync failed", e));
+
             // 4. Register Vault (Safe to call even if exists)
             setStatusMessage("Ensuring Vault is registered on-chain...");
             const regRes = await fetch("/api/limit/create", {

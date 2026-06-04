@@ -258,3 +258,34 @@ export async function getUserStats(wallet: string) {
         return { points: 0, rank: 0, volume: 0, weeklyVolume: 0, tradeCount: 0, totalFeesPaid: 0 };
     }
 }
+
+/**
+ * Checks if an async order (Limit/DCA) has already been processed for volume tracking.
+ */
+export async function hasOrderBeenProcessed(orderId: string): Promise<boolean> {
+    try {
+        const orderRef = doc(db, "processed_orders", orderId);
+        const snap = await getDoc(orderRef);
+        return snap.exists();
+    } catch (error) {
+        console.error("Error checking order status:", error);
+        return true; // Fail safe to true to prevent double crediting if DB fails
+    }
+}
+
+/**
+ * Marks an async order as processed to prevent future double crediting.
+ */
+export async function markOrderProcessed(orderId: string, wallet: string, volumeUsd: number) {
+    try {
+        const orderRef = doc(db, "processed_orders", orderId);
+        await setDoc(orderRef, {
+            orderId,
+            wallet,
+            volumeUsd,
+            processedAt: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error("Error marking order processed:", error);
+    }
+}
