@@ -5,14 +5,8 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
 import { RefreshCw, Clock, TrendingUp, Loader2, Info, ShieldCheck } from "lucide-react";
-import { SHULEVITZ_MINT } from "@/lib/constants";
-
-const TOKENS = [
-    { symbol: "SHX", name: "Shulevitz", mint: SHULEVITZ_MINT },
-    { symbol: "SOL", name: "Solana", mint: "So11111111111111111111111111111111111111112" },
-    { symbol: "BONK", name: "Bonk", mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" },
-    { symbol: "JUP", name: "Jupiter", mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN" },
-];
+import { APP_TOKENS, TokenInfo } from "@/lib/constants";
+import TokenSelector from "./TokenSelector";
 
 const INTERVALS = [
     { label: "Every Minute", value: 60 },
@@ -21,20 +15,12 @@ const INTERVALS = [
     { label: "Every Week", value: 604800 },
 ];
 
-const SPEND_TOKENS = [
-    { symbol: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
-    { symbol: "SOL", mint: "So11111111111111111111111111111111111111112", decimals: 9 },
-    { symbol: "USDT", mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6 },
-];
-
-const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
-
 export default function DCAPanel() {
     const { connected, publicKey, signTransaction } = useWallet();
     const { setVisible } = useWalletModal();
 
-    const [spendToken, setSpendToken] = useState(SPEND_TOKENS[0]);
-    const [receiveToken, setReceiveToken] = useState(TOKENS[0]);
+    const [spendToken, setSpendToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "USDC") || APP_TOKENS[1]);
+    const [receiveToken, setReceiveToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "SHX") || APP_TOKENS[0]);
     const [totalAmount, setTotalAmount] = useState("");
     const [numberOfOrders, setNumberOfOrders] = useState("7");
     const [interval, setInterval] = useState(INTERVALS[2]); // Daily
@@ -56,6 +42,10 @@ export default function DCAPanel() {
         if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours`;
         if (seconds < 604800) return `${Math.floor(seconds / 86400)} days`;
         return `${Math.floor(seconds / 604800)} weeks`;
+    };
+
+    const handleNumericInput = (value: string, setter: (v: string) => void) => {
+        if (value === "" || /^\d*\.?\d*$/.test(value)) setter(value);
     };
 
     const handleSubmit = async () => {
@@ -85,8 +75,8 @@ export default function DCAPanel() {
                 body: JSON.stringify({
                     action: "create",
                     user: publicKey.toString(),
-                    inputMint: spendToken.mint,
-                    outputMint: receiveToken.mint,
+                    inputMint: spendToken.address,
+                    outputMint: receiveToken.address,
                     inAmount: rawAmount.toString(),
                     numberOfOrders: numberOfOrders,
                     interval: interval.value.toString(),
@@ -133,6 +123,7 @@ export default function DCAPanel() {
             setStatus(`Error: ${e.message}`);
         } finally {
             setIsSubmitting(false);
+            setTimeout(() => { setStatus((prev) => prev?.includes("✅") ? null : prev); }, 8000);
         }
     };
 
@@ -163,56 +154,43 @@ export default function DCAPanel() {
             {/* Body */}
             <div className="rounded-b-2xl border border-white/10 bg-[#0A0A0A] p-4 space-y-4">
                 {/* Spend Token */}
-                <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">You Spend</label>
-                    <div className="flex gap-2">
-                        <select
-                            value={spendToken.symbol}
-                            onChange={(e) => setSpendToken(SPEND_TOKENS.find(t => t.symbol === e.target.value)!)}
-                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                        >
-                            {SPEND_TOKENS.map(t => (
-                                <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
-                            ))}
-                        </select>
+                <div className="space-y-1.5">
+                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">You Spend</label>
+                    <div className="flex gap-2 relative">
+                        <div className="w-1/2">
+                            <TokenSelector value={spendToken} onChange={setSpendToken} />
+                        </div>
                         <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             placeholder="Total amount"
                             value={totalAmount}
-                            onChange={(e) => setTotalAmount(e.target.value)}
-                            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder:text-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                            onChange={(e) => handleNumericInput(e.target.value, setTotalAmount)}
+                            className="w-1/2 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all"
                         />
                     </div>
                 </div>
 
                 {/* Receive Token */}
-                <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">You Receive</label>
-                    <select
-                        value={receiveToken.symbol}
-                        onChange={(e) => setReceiveToken(TOKENS.find(t => t.symbol === e.target.value)!)}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                    >
-                        {TOKENS.map(t => (
-                            <option key={t.symbol} value={t.symbol}>{t.symbol} — {t.name}</option>
-                        ))}
-                    </select>
+                <div className="space-y-1.5">
+                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">You Receive</label>
+                    <TokenSelector value={receiveToken} onChange={setReceiveToken} />
                 </div>
 
                 {/* Frequency */}
                 <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                        <Clock size={10} className="inline mr-1" />Frequency
+                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block flex items-center gap-1.5">
+                        <Clock size={11} />Frequency
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                         {INTERVALS.map(i => (
                             <button
                                 key={i.value}
                                 onClick={() => setInterval(i)}
-                                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                                className={`px-3 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all ${
                                     interval.value === i.value
                                         ? "bg-blue-500/20 border border-blue-500/50 text-blue-400"
-                                        : "bg-white/5 border border-white/10 text-muted-foreground hover:text-white hover:border-white/20"
+                                        : "bg-white/[0.04] border border-white/[0.08] text-muted-foreground hover:text-white hover:border-white/[0.15]"
                                 }`}
                             >
                                 {i.label}
@@ -223,19 +201,19 @@ export default function DCAPanel() {
 
                 {/* Number of Orders */}
                 <div>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">Number of Orders</label>
+                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-1.5 block">Number of Orders</label>
                     <input
-                        type="number"
-                        min="2"
-                        max="999"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="e.g. 7"
                         value={numberOfOrders}
-                        onChange={(e) => setNumberOfOrders(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder:text-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                        onChange={(e) => handleNumericInput(e.target.value, setNumberOfOrders)}
+                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all"
                     />
                 </div>
 
                 {/* Summary */}
-                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-2">
+                <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-3 space-y-2">
                     <div className="flex items-center gap-1.5 mb-2">
                         <Info size={10} className="text-blue-400" />
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Order Summary</span>
@@ -278,7 +256,7 @@ export default function DCAPanel() {
                     <button
                         onClick={handleSubmit}
                         disabled={!totalAmount || !numberOfOrders || isSubmitting}
-                        className="w-full py-3.5 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90 transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90 transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {isSubmitting ? (
                             <><Loader2 size={16} className="animate-spin" /> Creating DCA...</>
@@ -289,9 +267,9 @@ export default function DCAPanel() {
                 ) : (
                     <button
                         onClick={() => setVisible(true)}
-                        className="w-full py-3.5 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90 transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)]"
+                        className="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90 transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)]"
                     >
-                        Connect Wallet to Start DCA
+                        Connect Wallet to Start
                     </button>
                 )}
 
@@ -305,20 +283,20 @@ export default function DCAPanel() {
                         {status}
                     </div>
                 )}
+            </div>
 
-                {/* Footer */}
-                <div className="flex items-center justify-center gap-3 pt-2">
-                    <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider">On-Chain</span>
-                    </div>
-                    <div className="h-3 w-px bg-white/10" />
-                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Non-Custodial</span>
-                    <div className="h-3 w-px bg-white/10" />
-                    <div className="flex items-center gap-1">
-                        <ShieldCheck size={9} className="text-green-500" />
-                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Jupiter Powered</span>
-                    </div>
+            {/* Footer */}
+            <div className="flex items-center justify-center gap-4 px-5 py-3 border-t border-white/[0.06] bg-black/40">
+                <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">On-Chain</span>
+                </div>
+                <div className="h-3 w-px bg-white/10" />
+                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Non-Custodial</span>
+                <div className="h-3 w-px bg-white/10" />
+                <div className="flex items-center gap-1">
+                    <ShieldCheck size={9} className="text-green-500" />
+                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Jupiter Powered</span>
                 </div>
             </div>
         </div>

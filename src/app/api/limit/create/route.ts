@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
         if (body.action === "craft-deposit" && body.wallet && body.inputMint && body.amount && body.jwt) {
             console.log("[Limit API] Crafting deposit for wallet:", body.wallet.slice(0, 8));
 
-            const res = await fetch(`${JUP_TRIGGER_BASE}/deposit/craft`, {
+            let res = await fetch(`${JUP_TRIGGER_BASE}/deposit/craft`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -134,7 +134,46 @@ export async function POST(req: NextRequest) {
                 }),
             });
 
-            const data = await res.json();
+            let data = await res.json();
+            
+            // --- VAULT AUTO-REGISTRATION ---
+            if (!res.ok && data.error && data.error.toLowerCase().includes("vault")) {
+                console.log("[Limit API] Vault not registered. Auto-registering...");
+                const regRes = await fetch(`${JUP_TRIGGER_BASE}/vault/register`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-api-key": apiKey,
+                        "Authorization": `Bearer ${body.jwt}`,
+                    }
+                });
+                
+                if (regRes.ok) {
+                    console.log("[Limit API] Vault registered successfully. Retrying deposit craft...");
+                    res = await fetch(`${JUP_TRIGGER_BASE}/deposit/craft`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-api-key": apiKey,
+                            "Authorization": `Bearer ${body.jwt}`,
+                        },
+                        body: JSON.stringify({
+                            userAddress: body.wallet,
+                            inputMint: body.inputMint,
+                            outputMint: body.outputMint || "",
+                            amount: body.amount,
+                            orderType: "price",
+                            orderSubType: body.orderSubType || "single",
+                        }),
+                    });
+                    data = await res.json();
+                } else {
+                    const regData = await regRes.json();
+                    console.error("[Limit API] Failed to auto-register vault:", regData);
+                }
+            }
+            // -------------------------------
+
             if (!res.ok) {
                 console.error("[Limit API] Deposit craft error:", data);
                 return NextResponse.json(

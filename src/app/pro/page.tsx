@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { SHULEVITZ_MINT } from "@/lib/constants";
+import { APP_TOKENS, SHULEVITZ_MINT } from "@/lib/constants";
 import {
     TrendingUp, TrendingDown, Activity, Zap,
     ChevronDown, BarChart2, Loader2, ExternalLink,
@@ -27,16 +27,7 @@ const DCAPanel = dynamic(() => import("@/components/DCAPanel"), {
     loading: () => <div className="w-full min-h-[420px] bg-white/5 animate-pulse rounded-2xl" />,
 });
 
-// ── Token Presets ──
-const TOKENS = [
-    { symbol: "Shulevitz", name: "SHX", address: SHULEVITZ_MINT, logo: "/icons/icon-192.png", isImage: true },
-    { symbol: "SOL", name: "Solana", address: "So11111111111111111111111111111111111111112", logo: "◎", isImage: false },
-    { symbol: "BONK", name: "Bonk", address: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", logo: "🐕", isImage: false },
-    { symbol: "WIF", name: "dogwifhat", address: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm", logo: "🎩", isImage: false },
-    { symbol: "JUP", name: "Jupiter", address: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", logo: "🪐", isImage: false },
-];
-
-function TokenLogo({ token, size = 20 }: { token: typeof TOKENS[0]; size?: number }) {
+function TokenLogo({ token, size = 20 }: { token: typeof APP_TOKENS[0]; size?: number }) {
     if (token.isImage) {
         return <Image src={token.logo} alt={token.symbol} width={size} height={size} className="rounded-full" />;
     }
@@ -170,7 +161,7 @@ function MarketStats({ pairData, symbol }: { pairData: PairData | null; symbol: 
 // ── Main Page ──
 export default function ProPage() {
     const { connected } = useWallet();
-    const [activeToken, setActiveToken] = useState(TOKENS[0]);
+    const [activeToken, setActiveToken] = useState(APP_TOKENS[0]);
     const [pairData, setPairData] = useState<PairData | null>(null);
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(true);
@@ -220,15 +211,15 @@ export default function ProPage() {
                         </button>
                         {showTokenList && (
                             <div className="absolute top-full mt-1 left-0 z-50 bg-black/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl min-w-[200px]">
-                                {TOKENS.map((t) => (
+                                {APP_TOKENS.map((token) => (
                                     <button
-                                        key={t.address}
-                                        onClick={() => { setActiveToken(t); setShowTokenList(false); }}
-                                        className={`w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/10 transition-colors ${activeToken.address === t.address ? "bg-primary/10 text-primary" : "text-white"}`}
+                                        key={token.address}
+                                        onClick={() => { setActiveToken(token); setShowTokenList(false); }}
+                                        className={`w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/10 transition-colors ${activeToken.address === token.address ? "bg-primary/10 text-primary" : "text-white"}`}
                                     >
-                                        <TokenLogo token={t} size={20} />
-                                        <span className="font-bold text-sm">{t.symbol}</span>
-                                        <span className="text-xs text-muted-foreground ml-auto">{t.name}</span>
+                                        <TokenLogo token={token} size={20} />
+                                        <span className="font-bold text-sm">{token.symbol}</span>
+                                        <span className="text-xs text-muted-foreground ml-auto">{token.name}</span>
                                     </button>
                                 ))}
                             </div>

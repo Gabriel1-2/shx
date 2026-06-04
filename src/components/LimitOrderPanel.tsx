@@ -6,6 +6,8 @@ import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
 import { ArrowDownUp, Clock, Loader2, ShieldCheck } from "lucide-react";
 import bs58 from "bs58";
+import { APP_TOKENS, TokenInfo } from "@/lib/constants";
+import TokenSelector from "./TokenSelector";
 
 type OrderSide = "buy" | "sell";
 
@@ -22,24 +24,16 @@ const EXPIRY_OPTIONS: ExpiryOption[] = [
     { label: "Never", value: "never", seconds: null },
 ];
 
-const MINTS: Record<string, string> = {
-    "USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    "SOL": "So11111111111111111111111111111111111111112",
-    "SHX": "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q",
-};
-
-const DECIMALS: Record<string, number> = { "USDC": 6, "SOL": 9, "SHX": 9 };
-
 const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 
 export default function LimitOrderPanel() {
-    const { publicKey, connected, signMessage, signTransaction, sendTransaction } = useWallet();
+    const { publicKey, connected, signMessage, signTransaction } = useWallet();
     const { setVisible } = useWalletModal();
 
     // ─── Form state ──────────────────────────────────────
     const [side, setSide] = useState<OrderSide>("buy");
-    const [baseToken, setBaseToken] = useState("SHX");
-    const [quoteToken, setQuoteToken] = useState("USDC");
+    const [baseToken, setBaseToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "SHX") || APP_TOKENS[0]);
+    const [quoteToken, setQuoteToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "USDC") || APP_TOKENS[1]);
     const [price, setPrice] = useState("");
     const [amount, setAmount] = useState("");
     const [expiry, setExpiry] = useState("7d");
@@ -116,13 +110,10 @@ export default function LimitOrderPanel() {
             setCurrentStep("deposit");
             setStatusMessage("Crafting deposit transaction...");
 
-            const spendSymbol = isBuy ? quoteToken : baseToken;
-            const receiveSymbol = isBuy ? baseToken : quoteToken;
-            const spendMint = MINTS[spendSymbol] || MINTS["USDC"];
-            const receiveMint = MINTS[receiveSymbol] || MINTS["SHX"];
+            const spendToken = isBuy ? quoteToken : baseToken;
+            const receiveToken = isBuy ? baseToken : quoteToken;
             const spendAmount = isBuy ? total : a;
-            const decimals = DECIMALS[spendSymbol] ?? 6;
-            const rawAmount = Math.floor(spendAmount * Math.pow(10, decimals));
+            const rawAmount = Math.floor(spendAmount * Math.pow(10, spendToken.decimals));
 
             const craftRes = await fetch("/api/limit/create", {
                 method: "POST",
@@ -130,8 +121,8 @@ export default function LimitOrderPanel() {
                 body: JSON.stringify({
                     action: "craft-deposit",
                     wallet: publicKey.toString(),
-                    inputMint: spendMint,
-                    outputMint: receiveMint,
+                    inputMint: spendToken.address,
+                    outputMint: receiveToken.address,
                     amount: rawAmount.toString(),
                     orderSubType: "single",
                     jwt,
@@ -143,7 +134,6 @@ export default function LimitOrderPanel() {
 
             // ── Step 4: Sign the deposit transaction ──────
             setStatusMessage("Please sign the deposit transaction in your wallet...");
-            const connection = new Connection(RPC_ENDPOINT);
             const txBuffer = Buffer.from(craftData.transaction, "base64");
             const tx = VersionedTransaction.deserialize(txBuffer);
             const signedTx = await signTransaction(tx);
@@ -166,10 +156,10 @@ export default function LimitOrderPanel() {
                     depositRequestId: craftData.requestId,
                     signedTransaction: Buffer.from(signedTx.serialize()).toString("base64"),
                     orderParams: {
-                        inputMint: spendMint,
-                        outputMint: receiveMint,
+                        inputMint: spendToken.address,
+                        outputMint: receiveToken.address,
                         makingAmount: rawAmount.toString(),
-                        takingAmount: Math.floor(a * Math.pow(10, DECIMALS[receiveSymbol] ?? 9)).toString(),
+                        takingAmount: Math.floor(a * Math.pow(10, receiveToken.decimals)).toString(),
                         ...(expiresAt ? { expiredAt: expiresAt } : {}),
                     },
                 }),
@@ -237,20 +227,17 @@ export default function LimitOrderPanel() {
                 </div>
 
                 {/* ── Token Pair ───────────────────────────── */}
-                <div className="space-y-1.5">
-                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Pair</label>
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1 relative">
-                            <input type="text" value={baseToken} onChange={(e) => setBaseToken(e.target.value.toUpperCase())}
-                                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all" placeholder="SHX" />
+                <div className="space-y-1.5 relative">
+                    <div className="flex flex-col gap-2 relative">
+                        <TokenSelector label="Base Token" value={baseToken} onChange={setBaseToken} />
+                        
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+                            <button onClick={handleSwapTokens} className="p-2 rounded-lg bg-[#111] border border-white/[0.12] hover:bg-white/[0.08] hover:border-white/[0.2] transition-all group shadow-xl" title="Swap pair">
+                                <ArrowDownUp size={14} className="text-white transition-colors" />
+                            </button>
                         </div>
-                        <button onClick={handleSwapTokens} className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] hover:border-white/[0.15] transition-all group" title="Swap pair">
-                            <ArrowDownUp size={14} className="text-muted-foreground group-hover:text-white transition-colors rotate-90" />
-                        </button>
-                        <div className="flex-1 relative">
-                            <input type="text" value={quoteToken} onChange={(e) => setQuoteToken(e.target.value.toUpperCase())}
-                                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all" placeholder="USDC" />
-                        </div>
+                        
+                        <TokenSelector label="Quote Token" value={quoteToken} onChange={setQuoteToken} />
                     </div>
                 </div>
 
@@ -270,7 +257,7 @@ export default function LimitOrderPanel() {
                     <div className="relative">
                         <input type="text" inputMode="decimal" value={amount} onChange={(e) => handleNumericInput(e.target.value, setAmount)}
                             className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all pr-16" placeholder="0.00" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono font-medium">{baseToken}</span>
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono font-medium">{baseToken.symbol}</span>
                     </div>
                 </div>
 
