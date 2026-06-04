@@ -12,7 +12,7 @@ const SANCTIONED_COUNTRIES = [
     'VE', // Venezuela
 ];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
     // In Vercel, the country code is available in the headers 'x-vercel-ip-country'
     const country = req.headers.get('x-vercel-ip-country');
 
