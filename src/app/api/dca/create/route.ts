@@ -14,7 +14,7 @@ async function safeJson(res: Response) {
 }
 
 const DCACreateSchema = z.object({
-    action: z.enum(["create", "execute"]),
+    action: z.enum(["create", "execute", "request-challenge", "verify-challenge", "register-vault"]),
     // For "create"
     user: z.string().optional(),
     inputMint: z.string().optional(),
@@ -25,6 +25,10 @@ const DCACreateSchema = z.object({
     // For "execute"
     signedTransaction: z.string().optional(),
     requestId: z.string().optional(),
+    // For Vault Auth
+    wallet: z.string().optional(),
+    signature: z.string().optional(),
+    jwt: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -139,6 +143,38 @@ export async function POST(req: NextRequest) {
 
             console.log("[DCA API] Order executed successfully");
             return NextResponse.json(data);
+        }
+
+        // ─── VAULT AUTH: REQUEST CHALLENGE ────────────────────────
+        if (body.action === "request-challenge" && body.wallet) {
+            const res = await fetch(`https://api.jup.ag/trigger/v2/auth/challenge`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+                body: JSON.stringify({ walletPubkey: body.wallet, type: "message" }),
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return NextResponse.json({ error: data.error || "Failed challenge" }, { status: res.status });
+            return NextResponse.json(data);
+        }
+
+        // ─── VAULT AUTH: VERIFY CHALLENGE ─────────────────────────
+        if (body.action === "verify-challenge" && body.wallet && body.signature) {
+            const res = await fetch(`https://api.jup.ag/trigger/v2/auth/verify`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+                body: JSON.stringify({ type: "message", walletPubkey: body.wallet, signature: body.signature }),
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return NextResponse.json({ error: data.error || "Failed verify" }, { status: res.status });
+            return NextResponse.json(data);
+        }
+
+        // ─── VAULT AUTH: REGISTER VAULT ─────────────────────────
+        if (body.action === "register-vault" && body.jwt) {
+            const res = await fetch(`https://api.jup.ag/trigger/v2/vault/register`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` }
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return NextResponse.json({ error: data.error || data.message || "Failed register", details: data }, { status: res.status });
+            return NextResponse.json({ success: true, vault: data });
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });

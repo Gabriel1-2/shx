@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import { z } from "zod";
 
-const JUP_TRIGGER_BASE = "https://api.jup.ag/trigger/v2";
-
 async function safeJson(res: Response) {
     const text = await res.text();
     try {
@@ -15,26 +13,25 @@ async function safeJson(res: Response) {
 
 const BodySchema = z.object({
     action: z.enum([
-        "request-challenge",  // Step 1: Get a challenge for wallet to sign
-        "verify-challenge",   // Step 2: Submit signed challenge, get JWT
-        "craft-deposit",      // Step 3: Craft unsigned deposit transaction
-        "submit-order",       // Step 4: Submit signed deposit + order params
-        "register-vault",     // Explicit vault registration
+        "request-challenge",
+        "verify-challenge",
+        "register-vault",
+        "deposit-craft",
+        "submit-order"
     ]),
     wallet: z.string().optional(),
-    // For verify-challenge
     signature: z.string().optional(),
-    challengeType: z.string().optional(),
-    // For craft-deposit
     jwt: z.string().optional(),
+    
+    // For deposit-craft
     inputMint: z.string().optional(),
     outputMint: z.string().optional(),
-    amount: z.string().optional(),
-    orderSubType: z.string().optional(),
+    inAmount: z.string().optional(),
+    
     // For submit-order
     depositRequestId: z.string().optional(),
     signedTransaction: z.string().optional(),
-    orderParams: z.any().optional(),
+    triggerPriceUsd: z.number().optional()
 });
 
 export async function POST(req: NextRequest) {
@@ -57,8 +54,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Jupiter API key not configured" }, { status: 500 });
         }
 
-        // --- COMPLIANCE CHECK ---
-        if (body.wallet) {
+        // --- COMPLIANCE CHECK FOR ACTIONS INVOLVING A WALLET ---
+        if (body.wallet && (body.action === "request-challenge" || body.action === "deposit-craft" || body.action === "submit-order")) {
             const { checkWalletRisk } = await import('@/lib/compliance');
             const risk = await checkWalletRisk(body.wallet);
             if (risk.isBlocked) {
@@ -66,186 +63,85 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: "Address restricted by compliance policy" }, { status: 403 });
             }
         }
-        // ------------------------
+        // -------------------------------------------------------
 
-        // ─── STEP 1: REQUEST CHALLENGE ────────────────────────
-        // Client calls this to get a challenge message for wallet to sign
+        // 1. Request Challenge
         if (body.action === "request-challenge" && body.wallet) {
-            console.log("[Limit API] Requesting challenge for wallet:", body.wallet.slice(0, 8));
-
-            const res = await fetch(`${JUP_TRIGGER_BASE}/auth/challenge`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                },
-                body: JSON.stringify({
-                    walletPubkey: body.wallet,
-                    type: "message",
-                }),
+            const res = await fetch(`https://api.jup.ag/trigger/v2/auth/challenge`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+                body: JSON.stringify({ walletPubkey: body.wallet, type: "message" }),
             });
-
             const data = await safeJson(res);
-            if (!res.ok) {
-                console.error("[Limit API] Challenge error:", data);
-                return NextResponse.json({ error: data.error || "Failed to get challenge" }, { status: res.status });
-            }
-
+            if (!res.ok) return NextResponse.json({ error: data.error || "Failed challenge" }, { status: res.status });
             return NextResponse.json(data);
         }
 
-        // ─── STEP 2: VERIFY CHALLENGE ─────────────────────────
-        // Client signs the challenge, sends signature here. We exchange it for a JWT.
+        // 2. Verify Challenge
         if (body.action === "verify-challenge" && body.wallet && body.signature) {
-            console.log("[Limit API] Verifying challenge for wallet:", body.wallet.slice(0, 8));
-
-            const res = await fetch(`${JUP_TRIGGER_BASE}/auth/verify`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                },
-                body: JSON.stringify({
-                    type: body.challengeType || "message",
-                    walletPubkey: body.wallet,
-                    signature: body.signature,
-                }),
+            const res = await fetch(`https://api.jup.ag/trigger/v2/auth/verify`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+                body: JSON.stringify({ type: "message", walletPubkey: body.wallet, signature: body.signature }),
             });
-
             const data = await safeJson(res);
-            if (!res.ok) {
-                console.error("[Limit API] Verify error:", data);
-                return NextResponse.json({ error: data.error || "Failed to verify challenge" }, { status: res.status });
-            }
-
-            // Returns { token: "jwt..." }
+            if (!res.ok) return NextResponse.json({ error: data.error || "Failed verify" }, { status: res.status });
             return NextResponse.json(data);
         }
 
-        // ─── STEP 3: CRAFT DEPOSIT ────────────────────────────
-        // With JWT, craft the unsigned deposit transaction
-        if (body.action === "craft-deposit" && body.wallet && body.inputMint && body.amount && body.jwt) {
-            console.log("[Limit API] Crafting deposit for wallet:", body.wallet.slice(0, 8));
+        // 3. Register Vault
+        if (body.action === "register-vault" && body.jwt) {
+            // Note: Vault registration uses GET in Trigger V2
+            const res = await fetch(`https://api.jup.ag/trigger/v2/vault/register`, {
+                method: "GET", headers: { "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` }
+            });
+            const data = await safeJson(res);
+            if (!res.ok) return NextResponse.json({ error: data.error || data.message || "Failed register", details: data }, { status: res.status });
+            return NextResponse.json({ success: true, vault: data });
+        }
 
-            let res = await fetch(`${JUP_TRIGGER_BASE}/deposit/craft`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                    "Authorization": `Bearer ${body.jwt}`,
-                },
+        // 4. Deposit Craft
+        if (body.action === "deposit-craft" && body.wallet && body.jwt && body.inputMint && body.outputMint && body.inAmount) {
+            const res = await fetch(`https://api.jup.ag/trigger/v2/deposit/craft`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` },
                 body: JSON.stringify({
                     userAddress: body.wallet,
                     inputMint: body.inputMint,
-                    outputMint: body.outputMint || "",
-                    amount: body.amount,
+                    outputMint: body.outputMint,
+                    amount: body.inAmount,
                     orderType: "price",
-                    orderSubType: body.orderSubType || "single",
-                }),
+                    orderSubType: "single"
+                })
             });
-
-            let data = await safeJson(res);
-            
-            // --- VAULT AUTO-REGISTRATION ---
-            const errorMsg = (data.error || data.message || "").toLowerCase();
-            if (!res.ok && errorMsg.includes("vault")) {
-                console.log("[Limit API] Vault not registered. Auto-registering...");
-                const regRes = await fetch(`${JUP_TRIGGER_BASE}/vault/register`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "x-api-key": apiKey,
-                        "Authorization": `Bearer ${body.jwt}`,
-                    }
-                });
-                
-                if (regRes.ok) {
-                    console.log("[Limit API] Vault registered successfully. Retrying deposit craft...");
-                    res = await fetch(`${JUP_TRIGGER_BASE}/deposit/craft`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "x-api-key": apiKey,
-                            "Authorization": `Bearer ${body.jwt}`,
-                        },
-                        body: JSON.stringify({
-                            userAddress: body.wallet,
-                            inputMint: body.inputMint,
-                            outputMint: body.outputMint || "",
-                            amount: body.amount,
-                            orderType: "price",
-                            orderSubType: body.orderSubType || "single",
-                        }),
-                    });
-                    data = await safeJson(res);
-                } else {
-                    const regData = await safeJson(regRes);
-                    console.error("[Limit API] Failed to auto-register vault:", regData);
-                }
-            }
-            // -------------------------------
-
-            if (!res.ok) {
-                console.error("[Limit API] Deposit craft error:", data);
-                return NextResponse.json(
-                    { error: data.error || data.message || "Failed to craft deposit", details: data },
-                    { status: res.status }
-                );
-            }
-
-            // Returns { transaction, requestId, receiverAddress, ... }
-            console.log("[Limit API] Deposit crafted, returning unsigned tx");
-            return NextResponse.json(data);
-        }
-
-        // ─── STEP 4: SUBMIT ORDER ─────────────────────────────
-        // After client signs the deposit tx, submit the order
-        if (body.action === "submit-order" && body.jwt) {
-            console.log("[Limit API] Submitting order");
-
-            const res = await fetch(`${JUP_TRIGGER_BASE}/orders/price`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                    "Authorization": `Bearer ${body.jwt}`,
-                },
-                body: JSON.stringify({
-                    depositRequestId: body.depositRequestId,
-                    signedTransaction: body.signedTransaction,
-                    ...body.orderParams,
-                }),
-            });
-
             const data = await safeJson(res);
-            if (!res.ok) {
-                console.error("[Limit API] Order submission error:", data);
-                return NextResponse.json({ error: data.error || "Failed to submit order", details: data }, { status: res.status });
-            }
-
-            console.log("[Limit API] Order created successfully");
+            if (!res.ok) return NextResponse.json({ error: data.error || data.message || "Failed craft", details: data }, { status: res.status });
             return NextResponse.json(data);
         }
 
-        // ─── STEP 5: EXPLICIT VAULT REGISTRATION ─────────────────
-        if (body.action === "register-vault" && body.jwt) {
-            console.log("[Limit API] Explicitly registering vault...");
-            const regRes = await fetch(`${JUP_TRIGGER_BASE}/vault/register`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                    "Authorization": `Bearer ${body.jwt}`,
-                }
+        // 5. Submit Order
+        if (body.action === "submit-order" && body.jwt && body.wallet && body.depositRequestId && body.signedTransaction && body.inputMint && body.outputMint && body.inAmount && body.triggerPriceUsd) {
+            const orderPayload = {
+                orderType: "single",
+                depositRequestId: body.depositRequestId,
+                depositSignedTx: body.signedTransaction,
+                userPubkey: body.wallet,
+                inputMint: body.inputMint,
+                inputAmount: body.inAmount,
+                outputMint: body.outputMint,
+                triggerMint: body.outputMint, // Usually the output mint is the trigger target
+                expiresAt: Math.floor(Date.now() / 1000) + (86400 * 30), // 30 days
+                triggerCondition: "above", // Or below, but we must pass a valid string
+                triggerPriceUsd: body.triggerPriceUsd
+            };
+
+            const res = await fetch(`https://api.jup.ag/trigger/v2/orders/price`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` },
+                body: JSON.stringify(orderPayload)
             });
-            const regData = await safeJson(regRes);
-            if (!regRes.ok) {
-                return NextResponse.json({ error: regData.error || regData.message || "Failed to register vault", details: regData }, { status: regRes.status });
-            }
-            return NextResponse.json({ success: true, vault: regData });
+            const data = await safeJson(res);
+            if (!res.ok) return NextResponse.json({ error: data.error || data.message || "Failed submit", details: data }, { status: res.status });
+            return NextResponse.json(data);
         }
 
-        return NextResponse.json({ error: "Invalid action or missing parameters" }, { status: 400 });
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     } catch (error: any) {
         console.error("[Limit API] Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });

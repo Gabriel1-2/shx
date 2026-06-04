@@ -93,7 +93,7 @@ export default function DCAPanel() {
                 setCurrentStep("create");
 
                 // 1. Request Challenge
-                const challengeRes = await fetch("/api/limit/create", {
+                const challengeRes = await fetch("/api/dca/create", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "request-challenge", wallet: publicKey.toString() })
                 });
@@ -106,7 +106,7 @@ export default function DCAPanel() {
                 const base58Sig = (await import("bs58")).default.encode(signature);
 
                 // 3. Verify Challenge -> Get JWT
-                const verifyRes = await fetch("/api/limit/create", {
+                const verifyRes = await fetch("/api/dca/create", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "verify-challenge", wallet: publicKey.toString(), signature: base58Sig })
                 });
@@ -116,7 +116,7 @@ export default function DCAPanel() {
 
                 // 4. Register Vault
                 setStatus("Registering vault on-chain...");
-                const regRes = await fetch("/api/limit/create", {
+                const regRes = await fetch("/api/dca/create", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "register-vault", jwt })
                 });

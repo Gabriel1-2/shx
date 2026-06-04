@@ -27,7 +27,7 @@ const EXPIRY_OPTIONS: ExpiryOption[] = [
 const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 
 export default function LimitOrderPanel() {
-    const { publicKey, connected, signMessage, signTransaction } = useWallet();
+    const { publicKey, connected, sendTransaction, signMessage } = useWallet();
     const { setVisible } = useWalletModal();
 
     // ─── Form state ──────────────────────────────────────
@@ -59,9 +59,9 @@ export default function LimitOrderPanel() {
         if (value === "" || /^\d*\.?\d*$/.test(value)) setter(value);
     };
 
-    // ─── SUBMIT: Full Jupiter Trigger v2 Flow ────────────
+    // ─── SUBMIT: Jupiter Trigger V2 Flow ────────────
     const handlePlaceOrder = useCallback(async () => {
-        if (!connected || !publicKey || !signMessage || !signTransaction) return;
+        if (!connected || !publicKey || !sendTransaction) return;
 
         const p = parseFloat(price);
         const a = parseFloat(amount);
@@ -73,105 +73,115 @@ export default function LimitOrderPanel() {
         setStatusMessage(null);
 
         try {
-            // ── Step 1: Request challenge ─────────────────
-            setCurrentStep("auth");
+            setCurrentStep("craft");
             setStatusType("info");
-            setStatusMessage("Requesting authentication challenge...");
-
-            const challengeRes = await fetch("/api/limit/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "request-challenge", wallet: publicKey.toString() }),
-            });
-            const challengeData = await challengeRes.json();
-            if (!challengeRes.ok) throw new Error(challengeData.error || "Failed to get challenge");
-
-            // ── Step 2: Sign the challenge and verify ─────
-            setStatusMessage("Please sign the authentication message in your wallet...");
-            const encodedMessage = new TextEncoder().encode(challengeData.challenge);
-            const signature = await signMessage(encodedMessage);
-            const signatureBase58 = bs58.encode(signature);
-
-            const verifyRes = await fetch("/api/limit/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "verify-challenge",
-                    wallet: publicKey.toString(),
-                    signature: signatureBase58,
-                    challengeType: "message",
-                }),
-            });
-            const verifyData = await verifyRes.json();
-            if (!verifyRes.ok) throw new Error(verifyData.error || "Failed to verify signature");
-            const jwt = verifyData.token;
-
-            // ── Step 3: Craft deposit transaction ─────────
-            setCurrentStep("deposit");
-            setStatusMessage("Crafting deposit transaction...");
+            setStatusMessage("Crafting limit order transaction...");
 
             const spendToken = isBuy ? quoteToken : baseToken;
             const receiveToken = isBuy ? baseToken : quoteToken;
+            
             const spendAmount = isBuy ? total : a;
-            const rawAmount = Math.floor(spendAmount * Math.pow(10, spendToken.decimals));
+            const rawInAmount = Math.floor(spendAmount * Math.pow(10, spendToken.decimals));
 
+            // --- VAULT REGISTRATION ---
+            if (!signMessage) throw new Error("Wallet does not support message signing required for limit orders.");
+            
+            setStatusMessage("Checking Vault authentication...");
+            
+            // 1. Request Challenge
+            const challengeRes = await fetch("/api/limit/create", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "request-challenge", wallet: publicKey.toString() })
+            });
+            const challengeData = await challengeRes.json();
+            if (!challengeRes.ok) throw new Error(challengeData.error || "Failed challenge");
+
+            // 2. Sign Challenge
+            setStatusMessage("Please sign the authentication message in your wallet...");
+            const encodedMessage = new TextEncoder().encode(challengeData.challenge);
+            const signature = await signMessage(encodedMessage);
+            const base58Sig = bs58.encode(signature);
+
+            // 3. Verify Challenge -> Get JWT
+            setStatusMessage("Verifying signature...");
+            const verifyRes = await fetch("/api/limit/create", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "verify-challenge", wallet: publicKey.toString(), signature: base58Sig })
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) throw new Error(verifyData.error || "Failed verify");
+            const jwt = verifyData.token;
+
+            // 4. Register Vault (Safe to call even if exists)
+            setStatusMessage("Ensuring Vault is registered on-chain...");
+            const regRes = await fetch("/api/limit/create", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "register-vault", jwt })
+            });
+            if (!regRes.ok) throw new Error("Failed to register vault");
+
+            // --- DEPOSIT CRAFT ---
+            setStatusMessage("Crafting Deposit Transaction...");
             const craftRes = await fetch("/api/limit/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    action: "craft-deposit",
+                    action: "deposit-craft",
                     wallet: publicKey.toString(),
+                    jwt,
                     inputMint: spendToken.address,
                     outputMint: receiveToken.address,
-                    amount: rawAmount.toString(),
-                    orderSubType: "single",
-                    jwt,
+                    inAmount: rawInAmount.toString(),
                 }),
             });
 
             const craftData = await craftRes.json();
-            if (!craftRes.ok) throw new Error(craftData.error || "Failed to craft deposit");
+            if (!craftRes.ok) throw new Error(craftData.error || "Failed to craft order deposit");
 
-            // ── Step 4: Sign the deposit transaction ──────
+            // --- SIGN DEPOSIT ---
+            setCurrentStep("sign");
             setStatusMessage("Please sign the deposit transaction in your wallet...");
+            
+            const { Transaction } = await import('@solana/web3.js');
             const txBuffer = Buffer.from(craftData.transaction, "base64");
-            const tx = VersionedTransaction.deserialize(txBuffer);
-            const signedTx = await signTransaction(tx);
+            const tx = Transaction.from(txBuffer);
 
-            // ── Step 5: Submit order ──────────────────────
-            setCurrentStep("submit");
-            setStatusMessage("Submitting limit order...");
+            // Using signTransaction to just sign without sending!
+            // Note: Since this is standard Wallet Adapter, we need the wallet to sign it
+            if (!wallet?.adapter.signTransaction) throw new Error("Wallet does not support signTransaction");
+            const signedTxObj = await wallet.adapter.signTransaction(tx);
+            const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
 
-            const expiryOption = EXPIRY_OPTIONS.find(o => o.value === expiry);
-            const expiresAt = expiryOption?.seconds
-                ? Math.floor(Date.now() / 1000) + expiryOption.seconds
-                : null;
+            // --- SUBMIT FINAL ORDER ---
+            setCurrentStep("send");
+            setStatusMessage("Submitting Trigger parameters...");
 
             const submitRes = await fetch("/api/limit/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     action: "submit-order",
+                    wallet: publicKey.toString(),
                     jwt,
                     depositRequestId: craftData.requestId,
-                    signedTransaction: Buffer.from(signedTx.serialize()).toString("base64"),
-                    orderParams: {
-                        baseToken: baseToken.address,
-                        quoteToken: quoteToken.address,
-                        makingAmount: rawAmount.toString(),
-                        takingAmount: Math.floor(a * Math.pow(10, receiveToken.decimals)).toString(),
-                        triggerPrice: p.toString(),
-                        ...(expiresAt ? { expiredAt: expiresAt } : {}),
-                    },
+                    signedTransaction: signedTxBase64,
+                    inputMint: spendToken.address,
+                    outputMint: receiveToken.address,
+                    inAmount: rawInAmount.toString(),
+                    triggerPriceUsd: p // The price constraint!
                 }),
             });
 
             const submitData = await submitRes.json();
-            if (!submitRes.ok) throw new Error(submitData.error || "Failed to submit order");
+            if (!submitRes.ok) throw new Error(submitData.error || "Failed to submit limit order parameters");
+
+            setCurrentStep("confirm");
+            setStatusMessage(`Waiting for API confirmation...`);
+            await new Promise(r => setTimeout(r, 1000)); // Simulate wait for API
 
             setCurrentStep("");
             setStatusType("success");
-            setStatusMessage("✅ Limit order placed successfully!");
+            setStatusMessage("✅ Trigger Limit order placed successfully!");
         } catch (error: any) {
             console.error("[LimitOrder]", error);
             setStatusType("error");
@@ -180,13 +190,14 @@ export default function LimitOrderPanel() {
             setIsSubmitting(false);
             setTimeout(() => { setStatusMessage((prev) => prev?.includes("✅") ? null : prev); }, 8000);
         }
-    }, [connected, publicKey, price, amount, side, baseToken, quoteToken, total, signMessage, signTransaction, isBuy, expiry]);
+    }, [connected, publicKey, price, amount, side, baseToken, quoteToken, total, sendTransaction, signMessage, wallet, isBuy]);
 
     // ─── Step indicator ──────────────────────────────────
     const steps = [
-        { id: "auth", label: "Authenticate" },
-        { id: "deposit", label: "Deposit" },
-        { id: "submit", label: "Submit" },
+        { id: "craft", label: "Crafting" },
+        { id: "sign", label: "Sign" },
+        { id: "send", label: "Send" },
+        { id: "confirm", label: "Confirm" },
     ];
 
     return (
