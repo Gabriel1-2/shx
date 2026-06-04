@@ -190,7 +190,7 @@ export default function LimitOrderPanel() {
             setIsSubmitting(false);
             setTimeout(() => { setStatusMessage((prev) => prev?.includes("✅") ? null : prev); }, 8000);
         }
-    }, [connected, publicKey, price, amount, side, baseToken, quoteToken, total, sendTransaction, signMessage, wallet, isBuy]);
+    }, [connected, publicKey, price, amount, side, baseToken, quoteToken, total, sendTransaction, signMessage, signTransaction, isBuy]);
 
     // ─── Step indicator ──────────────────────────────────
     const steps = [
