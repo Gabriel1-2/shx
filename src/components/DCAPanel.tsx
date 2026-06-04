@@ -16,7 +16,7 @@ const INTERVALS = [
 ];
 
 export default function DCAPanel() {
-    const { connected, publicKey, signTransaction } = useWallet();
+    const { connected, publicKey, signTransaction, signMessage } = useWallet();
     const { setVisible } = useWalletModal();
 
     const [spendToken, setSpendToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "USDC") || APP_TOKENS[1]);
@@ -83,8 +83,65 @@ export default function DCAPanel() {
                 }),
             });
 
-            const createData = await createRes.json();
-            if (!createRes.ok) {
+            let createData = await createRes.json();
+            
+            // --- VAULT AUTO-REGISTRATION FOR DCA ---
+            if (!createRes.ok && createData.error && createData.error.toLowerCase().includes("vault")) {
+                if (!signMessage) throw new Error("Wallet does not support message signing required for vault registration.");
+                
+                setStatus("Vault missing. Please sign message to authorize vault...");
+                setCurrentStep("create");
+
+                // 1. Request Challenge
+                const challengeRes = await fetch("/api/limit/create", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "request-challenge", wallet: publicKey.toString() })
+                });
+                const challengeData = await challengeRes.json();
+                if (!challengeRes.ok) throw new Error(challengeData.error || "Failed challenge");
+
+                // 2. Sign Challenge
+                const encodedMessage = new TextEncoder().encode(challengeData.challenge);
+                const signature = await signMessage(encodedMessage);
+                const base58Sig = (await import("bs58")).default.encode(signature);
+
+                // 3. Verify Challenge -> Get JWT
+                const verifyRes = await fetch("/api/limit/create", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "verify-challenge", wallet: publicKey.toString(), signature: base58Sig })
+                });
+                const verifyData = await verifyRes.json();
+                if (!verifyRes.ok) throw new Error(verifyData.error || "Failed verify");
+                const jwt = verifyData.token;
+
+                // 4. Register Vault
+                setStatus("Registering vault on-chain...");
+                const regRes = await fetch("/api/limit/create", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "register-vault", jwt })
+                });
+                if (!regRes.ok) throw new Error("Failed to register vault");
+
+                // 5. Retry Create DCA Order
+                setStatus("Vault registered! Retrying DCA creation...");
+                const retryCreateRes = await fetch("/api/dca/create", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "create",
+                        user: publicKey.toString(),
+                        inputMint: spendToken.address,
+                        outputMint: receiveToken.address,
+                        inAmount: rawAmount.toString(),
+                        numberOfOrders: numberOfOrders,
+                        interval: interval.value.toString(),
+                    }),
+                });
+                createData = await retryCreateRes.json();
+                if (!retryCreateRes.ok) throw new Error(createData.error || "Failed to create DCA order after vault registration");
+            }
+            // ---------------------------------------
+
+            if (!createRes.ok && (!createData.error || !createData.error.toLowerCase().includes("vault"))) {
                 throw new Error(createData.error || "Failed to create DCA order");
             }
 

@@ -19,6 +19,7 @@ const BodySchema = z.object({
         "verify-challenge",   // Step 2: Submit signed challenge, get JWT
         "craft-deposit",      // Step 3: Craft unsigned deposit transaction
         "submit-order",       // Step 4: Submit signed deposit + order params
+        "register-vault",     // Explicit vault registration
     ]),
     wallet: z.string().optional(),
     // For verify-challenge
@@ -146,7 +147,8 @@ export async function POST(req: NextRequest) {
             let data = await safeJson(res);
             
             // --- VAULT AUTO-REGISTRATION ---
-            if (!res.ok && data.error && data.error.toLowerCase().includes("vault")) {
+            const errorMsg = (data.error || data.message || "").toLowerCase();
+            if (!res.ok && errorMsg.includes("vault")) {
                 console.log("[Limit API] Vault not registered. Auto-registering...");
                 const regRes = await fetch(`${JUP_TRIGGER_BASE}/vault/register`, {
                     method: "POST",
@@ -223,6 +225,24 @@ export async function POST(req: NextRequest) {
 
             console.log("[Limit API] Order created successfully");
             return NextResponse.json(data);
+        }
+
+        // ─── STEP 5: EXPLICIT VAULT REGISTRATION ─────────────────
+        if (body.action === "register-vault" && body.jwt) {
+            console.log("[Limit API] Explicitly registering vault...");
+            const regRes = await fetch(`${JUP_TRIGGER_BASE}/vault/register`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": apiKey,
+                    "Authorization": `Bearer ${body.jwt}`,
+                }
+            });
+            const regData = await safeJson(regRes);
+            if (!regRes.ok) {
+                return NextResponse.json({ error: regData.error || regData.message || "Failed to register vault", details: regData }, { status: regRes.status });
+            }
+            return NextResponse.json({ success: true, vault: regData });
         }
 
         return NextResponse.json({ error: "Invalid action or missing parameters" }, { status: 400 });
