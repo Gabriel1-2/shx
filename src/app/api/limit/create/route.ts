@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
                 inputAmount: body.inAmount,
                 outputMint: body.outputMint,
                 triggerMint: body.outputMint, // Usually the output mint is the trigger target
-                expiresAt: Math.floor(Date.now() / 1000) + (86400 * 30), // 30 days
+                expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000), // 30 days in milliseconds
                 triggerCondition: "above", // Or below, but we must pass a valid string
                 triggerPriceUsd: body.triggerPriceUsd
             };
