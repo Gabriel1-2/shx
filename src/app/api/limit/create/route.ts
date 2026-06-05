@@ -142,12 +142,12 @@ export async function POST(req: NextRequest) {
                 depositSignedTx: body.signedTransaction,
                 userPubkey: body.wallet,
                 inputMint: body.inputMint,
-                inAmount: body.inAmount,
+                inputAmount: body.inAmount,
                 outputMint: body.outputMint,
                 triggerMint: body.outputMint,
                 expiresAt: Date.now() + expiryMs,
                 triggerCondition,
-                triggerPrice: body.triggerPriceUsd.toString(),
+                triggerPriceUsd: Number(body.triggerPriceUsd),
                 slippageBps: 100, // 1% default slippage
             };
 
