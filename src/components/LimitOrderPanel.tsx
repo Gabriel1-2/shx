@@ -152,14 +152,14 @@ export default function LimitOrderPanel() {
             setCurrentStep("sign");
             setStatusMessage("Please sign the deposit transaction in your wallet...");
             
-            const { Transaction } = await import('@solana/web3.js');
+            const { VersionedTransaction } = await import('@solana/web3.js');
             const txBuffer = Buffer.from(craftData.transaction, "base64");
-            const tx = Transaction.from(txBuffer);
+            const tx = VersionedTransaction.deserialize(txBuffer);
 
             // Using signTransaction to just sign without sending!
             // Note: Since this is standard Wallet Adapter, we need the wallet to sign it
             if (!signTransaction) throw new Error("Wallet does not support signTransaction");
-            const signedTxObj = await signTransaction(tx);
+            const signedTxObj = await signTransaction(tx as any);
             const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
 
             // --- SUBMIT FINAL ORDER ---
