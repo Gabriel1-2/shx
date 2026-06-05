@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import { z } from "zod";
-import { TRADING_ENABLED } from "@/lib/tradingConfig";
 
 async function safeJson(res: Response) {
     const text = await res.text();
@@ -32,15 +31,13 @@ const BodySchema = z.object({
     // For submit-order
     depositRequestId: z.string().optional(),
     signedTransaction: z.string().optional(),
-    triggerPriceUsd: z.number().optional()
+    triggerPriceUsd: z.number().optional(),
+    side: z.enum(["buy", "sell"]).optional(),
+    expirySeconds: z.number().nullable().optional(), // null = never
 });
 
 export async function POST(req: NextRequest) {
     try {
-        if (!TRADING_ENABLED) {
-            return NextResponse.json({ error: "Trading is temporarily paused for maintenance." }, { status: 503 });
-        }
-
         const rateLimitResult = rateLimit(req, 20, 60000);
         if (!rateLimitResult.success) {
             return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -129,26 +126,42 @@ export async function POST(req: NextRequest) {
 
         // 5. Submit Order
         if (body.action === "submit-order" && body.jwt && body.wallet && body.depositRequestId && body.signedTransaction && body.inputMint && body.outputMint && body.inAmount && body.triggerPriceUsd) {
-            const orderPayload = {
+            // Determine trigger condition based on order side
+            // Buy limit = trigger when price drops BELOW target
+            // Sell limit = trigger when price rises ABOVE target
+            const triggerCondition = body.side === "buy" ? "below" : "above";
+
+            // Calculate expiry from user's selection (null = never → 1 year max)
+            const expiryMs = body.expirySeconds != null
+                ? body.expirySeconds * 1000
+                : 365 * 24 * 60 * 60 * 1000; // Default 1 year if "Never"
+
+            const orderPayload: Record<string, any> = {
                 orderType: "single",
                 depositRequestId: body.depositRequestId,
                 depositSignedTx: body.signedTransaction,
                 userPubkey: body.wallet,
                 inputMint: body.inputMint,
-                inputAmount: body.inAmount,
+                inAmount: body.inAmount,
                 outputMint: body.outputMint,
-                triggerMint: body.outputMint, // Usually the output mint is the trigger target
-                expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000), // 30 days in milliseconds
-                triggerCondition: "above", // Or below, but we must pass a valid string
-                triggerPriceUsd: body.triggerPriceUsd
+                triggerMint: body.outputMint,
+                expiresAt: Date.now() + expiryMs,
+                triggerCondition,
+                triggerPrice: body.triggerPriceUsd.toString(),
+                slippageBps: 100, // 1% default slippage
             };
+
+            console.log("[Limit API] Submitting order:", JSON.stringify(orderPayload));
 
             const res = await fetch(`https://api.jup.ag/trigger/v2/orders/price`, {
                 method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` },
                 body: JSON.stringify(orderPayload)
             });
             const data = await safeJson(res);
-            if (!res.ok) return NextResponse.json({ error: data.error || data.message || "Failed submit", details: data }, { status: res.status });
+            if (!res.ok) {
+                console.error("[Limit API] Submit error:", JSON.stringify(data));
+                return NextResponse.json({ error: data.error || data.message || "Failed submit", details: data }, { status: res.status });
+            }
             return NextResponse.json(data);
         }
 

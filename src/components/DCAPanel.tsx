@@ -58,6 +58,14 @@ export default function DCAPanel() {
             return;
         }
 
+        // Jupiter requires minimum $50 per sub-order
+        const perOrderAmount = parsedAmount / parseInt(numberOfOrders);
+        if (perOrderAmount < 50 && spendToken.symbol === "USDC") {
+            setStatusType("error");
+            setStatus(`Each sub-order must be at least $50 USDC. Current: $${perOrderAmount.toFixed(2)}. Increase total or reduce number of orders.`);
+            return;
+        }
+
         setIsSubmitting(true);
         setStatus(null);
 
@@ -138,10 +146,8 @@ export default function DCAPanel() {
                 });
                 createData = await retryCreateRes.json();
                 if (!retryCreateRes.ok) throw new Error(createData.error || "Failed to create DCA order after vault registration");
-            }
-            // ---------------------------------------
-
-            if (!createRes.ok && (!createData.error || !createData.error.toLowerCase().includes("vault"))) {
+            } else if (!createRes.ok) {
+                // Non-vault error on the initial create call
                 throw new Error(createData.error || "Failed to create DCA order");
             }
 
@@ -174,7 +180,7 @@ export default function DCAPanel() {
 
             setCurrentStep("");
             setStatusType("success");
-            setStatus(`✅ DCA strategy activated! Buying ${perOrder} ${spendToken.symbol} of ${receiveToken.symbol} ${interval.label.toLowerCase()}.`);
+            setStatus(`✅ DCA strategy activated! Spending ${perOrder} ${spendToken.symbol} on ${receiveToken.symbol} ${interval.label.toLowerCase()}.`);
         } catch (e: any) {
             setStatusType("error");
             setStatus(`Error: ${e.message}`);

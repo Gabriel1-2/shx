@@ -11,9 +11,6 @@ import {
     DollarSign, ArrowDownUp, Droplets, PieChart,
     Target, RefreshCw
 } from "lucide-react";
-import { TRADING_ENABLED } from "@/lib/tradingConfig";
-
-const TradingPausedOverlay = dynamic(() => import("@/components/TradingPausedOverlay"), { ssr: false });
 
 const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
     ssr: false,
@@ -329,11 +326,11 @@ export default function ProPage() {
                                     </div>
                                     <span className="text-[10px] text-primary font-bold px-2 py-0.5 bg-primary/10 rounded-full">Jupiter Ultra</span>
                                 </div>
-                                {TRADING_ENABLED ? <JupiterTerminal /> : <TradingPausedOverlay />}
+                                <JupiterTerminal />
                             </>
                         )}
-                        {activeTab === "limit" && (TRADING_ENABLED ? <LimitOrderPanel /> : <TradingPausedOverlay />)}
-                        {activeTab === "dca" && (TRADING_ENABLED ? <DCAPanel /> : <TradingPausedOverlay />)}
+                        {activeTab === "limit" && <LimitOrderPanel />}
+                        {activeTab === "dca" && <DCAPanel />}
                     </div>
 
                     {/* Market Stats — 100% real data */}

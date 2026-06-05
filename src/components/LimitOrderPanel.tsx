@@ -166,6 +166,10 @@ export default function LimitOrderPanel() {
             setCurrentStep("send");
             setStatusMessage("Submitting Trigger parameters...");
 
+            // Look up the user's expiry selection
+            const selectedExpiry = EXPIRY_OPTIONS.find(o => o.value === expiry);
+            const expirySeconds = selectedExpiry ? selectedExpiry.seconds : null;
+
             const submitRes = await fetch("/api/limit/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -178,7 +182,9 @@ export default function LimitOrderPanel() {
                     inputMint: spendToken.address,
                     outputMint: receiveToken.address,
                     inAmount: rawInAmount.toString(),
-                    triggerPriceUsd: p // The price constraint!
+                    triggerPriceUsd: p, // The price constraint
+                    side: side,         // "buy" or "sell" → determines triggerCondition
+                    expirySeconds,      // seconds or null for "Never"
                 }),
             });
 
