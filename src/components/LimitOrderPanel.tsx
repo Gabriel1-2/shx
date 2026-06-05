@@ -201,7 +201,13 @@ export default function LimitOrderPanel() {
         } catch (error: any) {
             console.error("[LimitOrder]", error);
             setStatusType("error");
-            setStatusMessage(`Error: ${error.message}`);
+            
+            // Provide a user-friendly message for the most common Jupiter error
+            if (error.message.includes("Failed to execute deposit")) {
+                setStatusMessage("Error: Failed to execute deposit. Please ensure you have enough tokens for the order AND enough SOL (~0.003) for the network fee & account rent.");
+            } else {
+                setStatusMessage(`Error: ${error.message}`);
+            }
         } finally {
             setIsSubmitting(false);
             setTimeout(() => { setStatusMessage((prev) => prev?.includes("✅") ? null : prev); }, 8000);
