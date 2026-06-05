@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
                 inputMint: body.inputMint,
                 inputAmount: body.inAmount,
                 outputMint: body.outputMint,
-                triggerMint: body.outputMint,
+                triggerMint: body.side === "sell" ? body.inputMint : body.outputMint,
                 expiresAt: Date.now() + expiryMs,
                 triggerCondition,
                 triggerPriceUsd: Number(body.triggerPriceUsd),
