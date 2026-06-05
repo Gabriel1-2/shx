@@ -8,6 +8,9 @@ import { MarketWatch } from "@/components/MarketWatch";
 import { LiveFeed } from "@/components/LiveFeed";
 import dynamic from "next/dynamic";
 import { SHULEVITZ_MINT } from "@/lib/constants";
+import { TRADING_ENABLED } from "@/lib/tradingConfig";
+
+const TradingPausedOverlay = dynamic(() => import("@/components/TradingPausedOverlay"), { ssr: false });
 
 import { TradingViewWidget } from "@/components/TradingViewWidget";
 import { Zap, Shield, Globe, TrendingUp, BarChart2, Minimize2 } from "lucide-react";
@@ -103,7 +106,7 @@ function HomeContent() {
               </div>
 
               {/* Jupiter Terminal Widget */}
-              <JupiterTerminal />
+              {TRADING_ENABLED ? <JupiterTerminal /> : <TradingPausedOverlay />}
 
               {/* Mobile Sidebars Stack */}
               <div className="xl:hidden w-full mt-6 space-y-4">
