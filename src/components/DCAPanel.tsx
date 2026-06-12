@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { Connection, VersionedTransaction } from "@solana/web3.js";
+import { VersionedTransaction } from "@solana/web3.js";
 import { RefreshCw, Clock, TrendingUp, Loader2, Info, ShieldCheck } from "lucide-react";
 import { APP_TOKENS, TokenInfo } from "@/lib/constants";
 import TokenSelector from "./TokenSelector";
@@ -23,7 +23,7 @@ export default function DCAPanel() {
     const [receiveToken, setReceiveToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "SHX") || APP_TOKENS[0]);
     const [totalAmount, setTotalAmount] = useState("");
     const [numberOfOrders, setNumberOfOrders] = useState("7");
-    const [interval, setInterval] = useState(INTERVALS[2]); // Daily
+    const [selectedInterval, setSelectedInterval] = useState(INTERVALS[2]); // Daily
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [statusType, setStatusType] = useState<"info" | "success" | "error">("info");
@@ -34,7 +34,7 @@ export default function DCAPanel() {
         : "0";
 
     const totalDuration = numberOfOrders
-        ? parseInt(numberOfOrders) * interval.value
+        ? parseInt(numberOfOrders) * selectedInterval.value
         : 0;
 
     const formatDuration = (seconds: number) => {
@@ -60,9 +60,9 @@ export default function DCAPanel() {
 
         // Jupiter requires minimum $50 per sub-order
         const perOrderAmount = parsedAmount / parseInt(numberOfOrders);
-        if (perOrderAmount < 50 && spendToken.symbol === "USDC") {
+        if (perOrderAmount < 50 && (spendToken.symbol === "USDC" || spendToken.symbol === "USDT")) {
             setStatusType("error");
-            setStatus(`Each sub-order must be at least $50 USDC. Current: $${perOrderAmount.toFixed(2)}. Increase total or reduce number of orders.`);
+            setStatus(`Each sub-order must be at least $50 ${spendToken.symbol}. Current: $${perOrderAmount.toFixed(2)}. Increase total or reduce number of orders.`);
             return;
         }
 
@@ -87,7 +87,7 @@ export default function DCAPanel() {
                     outputMint: receiveToken.address,
                     inAmount: rawAmount.toString(),
                     numberOfOrders: numberOfOrders,
-                    interval: interval.value.toString(),
+                    interval: selectedInterval.value.toString(),
                 }),
             });
 
@@ -141,7 +141,7 @@ export default function DCAPanel() {
                         outputMint: receiveToken.address,
                         inAmount: rawAmount.toString(),
                         numberOfOrders: numberOfOrders,
-                        interval: interval.value.toString(),
+                            interval: selectedInterval.value.toString(),
                     }),
                 });
                 createData = await retryCreateRes.json();
@@ -182,7 +182,7 @@ export default function DCAPanel() {
 
             setCurrentStep("");
             setStatusType("success");
-            setStatus(`✅ DCA strategy activated! Spending ${perOrder} ${spendToken.symbol} on ${receiveToken.symbol} ${interval.label.toLowerCase()}.`);
+            setStatus(`✅ DCA strategy activated! Spending ${perOrder} ${spendToken.symbol} on ${receiveToken.symbol} ${selectedInterval.label.toLowerCase()}.`);
         } catch (e: any) {
             setStatusType("error");
             setStatus(`Error: ${e.message}`);
@@ -251,9 +251,9 @@ export default function DCAPanel() {
                         {INTERVALS.map(i => (
                             <button
                                 key={i.value}
-                                onClick={() => setInterval(i)}
+                                onClick={() => setSelectedInterval(i)}
                                 className={`px-3 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all ${
-                                    interval.value === i.value
+                                    selectedInterval.value === i.value
                                         ? "bg-blue-500/20 border border-blue-500/50 text-blue-400"
                                         : "bg-white/[0.04] border border-white/[0.08] text-muted-foreground hover:text-white hover:border-white/[0.15]"
                                 }`}
@@ -298,7 +298,7 @@ export default function DCAPanel() {
                     <div className="flex justify-between text-xs pt-2 border-t border-white/5">
                         <span className="text-muted-foreground">Strategy</span>
                         <span className="text-blue-400 font-bold text-[11px]">
-                            Buy {perOrder} {spendToken.symbol} of {receiveToken.symbol} {interval.label.toLowerCase()}
+                            Spend {perOrder} {spendToken.symbol} on {receiveToken.symbol} {selectedInterval.label.toLowerCase()}
                         </span>
                     </div>
                 </div>
