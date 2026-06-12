@@ -20,6 +20,7 @@ export interface LeaderboardEntry {
     weeklyVolume: number;
     tradeCount?: number;
     totalFeesPaid?: number;
+    weeklyFeesPaid?: number;
 }
 
 /**
@@ -37,22 +38,18 @@ function getCurrentWeekStart(): string {
 }
 
 /**
- * Get the weekly leaderboard — ranked by weekly USD volume.
+ * Get the weekly leaderboard — ranked by weekly fees generated.
  * 
- * ROBUST VERSION: Fetches all users ordered by volume, then filters 
- * client-side for the current week. This avoids the need for a composite
- * Firestore index on (weekStart, weeklyVolume).
- * 
- * No minimum volume requirement for display — we show everyone who traded.
+ * Includes traders who generated at least MIN_WEEKLY_FEES_USD in fees.
  */
 export async function getWeeklyLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
         const currentWeek = getCurrentWeekStart();
 
-        // Fetch all users ordered by volume desc (simple index)
+        // Fetch all users ordered by weeklyFeesPaid desc (simple index)
         const q = query(
             collection(db, "users"),
-            orderBy("weeklyVolume", "desc"),
+            orderBy("weeklyFeesPaid", "desc"),
             limit(50)
         );
         const snapshot = await getDocs(q);
@@ -60,24 +57,25 @@ export async function getWeeklyLeaderboard(): Promise<LeaderboardEntry[]> {
         const entries: LeaderboardEntry[] = [];
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            const weeklyVol = data.weeklyVolume || 0;
+            const weeklyFees = data.weeklyFeesPaid || 0;
             
-            // Only include users from the current week who actually traded
-            if (data.weekStart === currentWeek && weeklyVol > 0) {
+            // Only include users from the current week who generated >= $10 in fees
+            if (data.weekStart === currentWeek && weeklyFees >= 10) {
                 entries.push({
                     wallet: docSnap.id,
                     points: data.points || 0,
                     volume: data.volume || 0,
-                    weeklyVolume: weeklyVol,
+                    weeklyVolume: data.weeklyVolume || 0,
                     tradeCount: data.tradeCount || 0,
                     totalFeesPaid: data.totalFeesPaid || 0,
+                    weeklyFeesPaid: weeklyFees,
                     rank: 0,
                 });
             }
         });
 
-        // Sort by weekly volume (should already be sorted, but ensure it)
-        entries.sort((a, b) => b.weeklyVolume - a.weeklyVolume);
+        // Sort by weekly fees
+        entries.sort((a, b) => (b.weeklyFeesPaid || 0) - (a.weeklyFeesPaid || 0));
 
         // Assign ranks and limit to top 10
         return entries.slice(0, 10).map((e, i) => ({ ...e, rank: i + 1 }));
@@ -92,21 +90,22 @@ export async function getWeeklyLeaderboard(): Promise<LeaderboardEntry[]> {
 
             allUsersSnapshot.forEach((docSnap) => {
                 const data = docSnap.data();
-                const weeklyVol = data.weeklyVolume || 0;
-                if (data.weekStart === currentWeek && weeklyVol > 0) {
+                const weeklyFees = data.weeklyFeesPaid || 0;
+                if (data.weekStart === currentWeek && weeklyFees >= 10) {
                     entries.push({
                         wallet: docSnap.id,
                         points: data.points || 0,
                         volume: data.volume || 0,
-                        weeklyVolume: weeklyVol,
+                        weeklyVolume: data.weeklyVolume || 0,
                         tradeCount: data.tradeCount || 0,
                         totalFeesPaid: data.totalFeesPaid || 0,
+                        weeklyFeesPaid: weeklyFees,
                         rank: 0,
                     });
                 }
             });
 
-            entries.sort((a, b) => b.weeklyVolume - a.weeklyVolume);
+            entries.sort((a, b) => (b.weeklyFeesPaid || 0) - (a.weeklyFeesPaid || 0));
             return entries.slice(0, 10).map((e, i) => ({ ...e, rank: i + 1 }));
         } catch (fallbackError) {
             console.error("Fallback leaderboard also failed:", fallbackError);

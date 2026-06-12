@@ -170,26 +170,42 @@ export default function LimitOrderPanel() {
             const selectedExpiry = EXPIRY_OPTIONS.find(o => o.value === expiry);
             const expirySeconds = selectedExpiry ? selectedExpiry.seconds : null;
 
-            const submitRes = await fetch("/api/limit/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "submit-order",
-                    wallet: publicKey.toString(),
-                    jwt,
-                    depositRequestId: craftData.requestId,
-                    signedTransaction: signedTxBase64,
-                    inputMint: spendToken.address,
-                    outputMint: receiveToken.address,
-                    inAmount: rawInAmount.toString(),
-                    triggerPriceUsd: p, // The price constraint
-                    side: side,         // "buy" or "sell" → determines triggerCondition
-                    expirySeconds,      // seconds or null for "Never"
-                }),
-            });
+            // Retry logic for Jupiter 504 timeouts
+            let submitData;
+            let submitOk = false;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                const submitRes = await fetch("/api/limit/create", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "submit-order",
+                        wallet: publicKey.toString(),
+                        jwt,
+                        depositRequestId: craftData.requestId,
+                        signedTransaction: signedTxBase64,
+                        inputMint: spendToken.address,
+                        outputMint: receiveToken.address,
+                        inAmount: rawInAmount.toString(),
+                        triggerPriceUsd: p,
+                        side: side,
+                        expirySeconds,
+                    }),
+                });
 
-            const submitData = await submitRes.json();
-            if (!submitRes.ok) throw new Error(submitData.error || "Failed to submit limit order parameters");
+                submitData = await submitRes.json();
+                if (submitRes.ok) {
+                    submitOk = true;
+                    break;
+                }
+                // If 504 timeout on first attempt, retry once
+                if (submitRes.status === 504 && attempt < 2) {
+                    setStatusMessage("Jupiter timed out, retrying...");
+                    await new Promise(r => setTimeout(r, 2000));
+                    continue;
+                }
+                throw new Error(submitData.error || "Failed to submit limit order parameters");
+            }
+            if (!submitOk) throw new Error(submitData?.error || "Failed to submit limit order after retries");
 
             setCurrentStep("confirm");
             setStatusMessage(`Waiting for API confirmation...`);

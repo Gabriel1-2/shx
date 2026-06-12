@@ -81,23 +81,23 @@ export function getEffectiveFeeBps(shxBalance: number, outputMint: string): numb
 /**
  * Weekly leaderboard reward distribution
  */
-export const WEEKLY_REWARD_POOL_USD = 500;
-export const MIN_WEEKLY_VOLUME_USD = 1000;
+export const WEEKLY_REWARD_POOL_USD = 250;
+export const MIN_WEEKLY_FEES_USD = 10;
 
 export const REWARD_DISTRIBUTION = [
-    0.25,  // #1 → 25%
-    0.15,  // #2 → 15%
-    0.10,  // #3 → 10%
-    0.0714, // #4 → ~7.14%
-    0.0714, // #5
-    0.0714, // #6
-    0.0714, // #7
-    0.0714, // #8
-    0.0714, // #9
-    0.0714, // #10
+    75, // #1
+    50, // #2
+    35, // #3
+    25, // #4
+    20, // #5
+    15, // #6
+    10, // #7
+    8,  // #8
+    7,  // #9
+    5,  // #10
 ];
 
 export function getEstimatedReward(rank: number): number {
     if (rank < 1 || rank > 10) return 0;
-    return WEEKLY_REWARD_POOL_USD * REWARD_DISTRIBUTION[rank - 1];
+    return REWARD_DISTRIBUTION[rank - 1];
 }

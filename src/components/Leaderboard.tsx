@@ -138,8 +138,8 @@ export function Leaderboard() {
                 <div className="col-span-1">#</div>
                 <div className="col-span-4">Wallet</div>
                 <div className="col-span-2 text-right">Trades</div>
-                <div className="col-span-3 text-right">{mode === "weekly" ? "Weekly Vol" : "Total Vol"}</div>
-                <div className="col-span-2 text-right">{mode === "weekly" ? "Reward" : "Fees"}</div>
+                <div className="col-span-3 text-right">{mode === "weekly" ? "Fees Gen." : "Total Vol"}</div>
+                <div className="col-span-2 text-right">{mode === "weekly" ? "Reward" : "Total Fees"}</div>
             </div>
 
             {/* Entries */}
@@ -165,7 +165,8 @@ export function Leaderboard() {
                 ) : (
                     data.map((entry, index) => {
                         const reward = getEstimatedReward(entry.rank);
-                        const displayVolume = mode === "weekly" ? entry.weeklyVolume : entry.volume;
+                        const displayValue = mode === "weekly" ? (entry.weeklyFeesPaid || 0) : entry.volume;
+                        const formattedValue = mode === "weekly" ? `$${displayValue.toFixed(2)}` : formatVolume(displayValue);
                         return (
                             <div
                                 key={entry.wallet}
@@ -196,10 +197,10 @@ export function Leaderboard() {
                                     </span>
                                 </div>
 
-                                {/* Volume */}
+                                {/* Volume / Fees */}
                                 <div className="col-span-3 text-right">
                                     <span className={`text-sm font-bold ${entry.rank <= 3 ? "text-white" : "text-gray-300"}`}>
-                                        {formatVolume(displayVolume)}
+                                        {formattedValue}
                                     </span>
                                 </div>
 
@@ -207,7 +208,7 @@ export function Leaderboard() {
                                 <div className="col-span-2 text-right">
                                     {mode === "weekly" ? (
                                         <span className="text-sm font-bold text-green-400">
-                                            ${reward.toFixed(0)}
+                                            {reward > 0 ? `$${reward.toFixed(0)}` : "—"}
                                         </span>
                                     ) : (
                                         <span className="text-xs text-muted-foreground">
@@ -224,7 +225,7 @@ export function Leaderboard() {
             {/* Footer */}
             <div className="px-4 py-2 border-t border-white/5 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
                 <TrendingUp size={10} />
-                <span>Ranked by Weekly Volume • Top 10 earn SHX rewards</span>
+                <span>Ranked by Fees Generated • Top 10 earn SHX rewards (Min $10 Fees)</span>
             </div>
         </div>
     );

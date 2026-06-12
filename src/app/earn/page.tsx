@@ -99,7 +99,7 @@ function YieldCalculator({ apy, shxPrice }: { apy: number; shxPrice: number }) {
                         </p>
                         {shxPrice > 0 && (
                             <p className="text-[10px] text-muted-foreground">
-                                ≈ {(p.value / shxPrice).toLocaleString(undefined, { maximumFractionDigits: 0 })} SHX
+                                ≈ {(p.value / shxPrice).toLocaleString(undefined, { maximumFractionDigits: 0 })} SHULEVITZ
                             </p>
                         )}
                     </div>
@@ -113,11 +113,11 @@ function YieldCalculator({ apy, shxPrice }: { apy: number; shxPrice: number }) {
 const FAQ_ITEMS = [
     {
         q: "What is liquidity mining?",
-        a: "When you provide liquidity, you deposit equal values of two tokens (SHX + SOL) into a pool. Every time someone swaps between those tokens, you earn a percentage of the trading fee proportional to your share of the pool.",
+        a: "When you provide liquidity, you deposit equal values of two tokens (SHULEVITZ + SOL) into a pool. Every time someone swaps between those tokens, you earn a percentage of the trading fee proportional to your share of the pool.",
     },
     {
         q: "What are the risks?",
-        a: "The primary risk is Impermanent Loss (IL). If the price of SHX moves significantly relative to SOL, your position may be worth less than simply holding. However, trading fees can offset this loss over time.",
+        a: "The primary risk is Impermanent Loss (IL). If the price of SHULEVITZ moves significantly relative to SOL, your position may be worth less than simply holding. However, trading fees can offset this loss over time.",
     },
     {
         q: "How is the APY calculated?",
@@ -128,8 +128,8 @@ const FAQ_ITEMS = [
         a: "Yes. Your liquidity is fully non-custodial and can be withdrawn at any time through Raydium. There are no lock-up periods or withdrawal penalties.",
     },
     {
-        q: "Do I need both SHX and SOL?",
-        a: "Yes, you provide a 50/50 split by value. If you only have SOL, you can swap half to SHX on the main SHX Exchange page first, then provide liquidity with both.",
+        q: "Do I need both SHULEVITZ and SOL?",
+        a: "Yes, you provide a 50/50 split by value. If you only have SOL, you can swap half to SHULEVITZ on the main SHX Exchange page first, then provide liquidity with both.",
     },
 ];
 
@@ -198,7 +198,7 @@ export default function EarnPage() {
                         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80">
                             <div className="flex items-center gap-2">
                                 <Droplets size={16} className="text-primary" />
-                                <span className="text-sm font-bold text-white">Add Liquidity — SHX/USDC</span>
+                                <span className="text-sm font-bold text-white">Add Liquidity — SHULEVITZ/USDC</span>
                                 <span className="text-[10px] text-muted-foreground">via Raydium</span>
                             </div>
                             <button onClick={() => setShowLP(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
@@ -247,7 +247,7 @@ export default function EarnPage() {
                         </span>
                     </h1>
                     <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
-                        Deposit SHX + SOL into decentralized liquidity pools.
+                        Deposit SHULEVITZ + SOL into decentralized liquidity pools.
                         Earn trading fees on every swap — automatically.
                     </p>
                 </div>
@@ -277,7 +277,7 @@ export default function EarnPage() {
                             glow: "from-cyan-500/10 to-blue-500/10",
                         },
                         {
-                            label: "SHX Price",
+                            label: "SHULEVITZ Price",
                             value: loading
                                 ? "..."
                                 : pool?.priceUsd
@@ -318,13 +318,13 @@ export default function EarnPage() {
                 <div className="grid lg:grid-cols-3 gap-6">
                     {/* Left — Pool Card + CTA */}
                     <div className="lg:col-span-2 space-y-6">
-                        {/* SHX-USDC Raydium Pool */}
+                        {/* SHULEVITZ-USDC Raydium Pool */}
                         <div className="bg-black/60 border border-primary/30 rounded-2xl p-6 backdrop-blur-xl shadow-[0_0_40px_rgba(34,197,94,0.08)]">
                             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                                 <div className="flex items-center gap-4">
                                     <div className="flex -space-x-3">
                                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center border-2 border-black z-10 shadow-lg shadow-green-500/20">
-                                            <span className="text-xs font-black text-black">SHX</span>
+                                            <span className="text-xs font-black text-black">SHULEVITZ</span>
                                         </div>
                                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-2 border-black overflow-hidden">
                                             <span className="text-[8px] font-black text-white">USDC</span>
@@ -332,7 +332,7 @@ export default function EarnPage() {
                                     </div>
                                     <div>
                                         <h2 className="text-xl font-black text-white flex items-center gap-2">
-                                            SHX / USDC
+                                            SHULEVITZ / USDC
                                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/30">
                                                 Raydium
                                             </span>
@@ -360,7 +360,7 @@ export default function EarnPage() {
                             <div className="bg-green-500/5 border border-green-500/15 rounded-xl p-4 mb-5 flex items-start gap-3">
                                 <Zap className="text-green-400 shrink-0 mt-0.5" size={18} />
                                 <div className="text-sm text-muted-foreground">
-                                    <strong className="text-white">Earn fees on every trade.</strong> When anyone swaps SHX↔SOL on SHX Exchange or any Solana DEX, you earn a share proportional to your liquidity.
+                                    <strong className="text-white">Earn fees on every trade.</strong> When anyone swaps SHULEVITZ↔SOL on SHX Exchange or any Solana DEX, you earn a share proportional to your liquidity.
                                 </div>
                             </div>
 
@@ -376,7 +376,7 @@ export default function EarnPage() {
                                     href="/"
                                     className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white py-3.5 rounded-xl font-bold text-sm border border-white/10 transition-all hover:scale-[1.02]"
                                 >
-                                    <ArrowUpRight size={16} /> Buy SHX First
+                                    <ArrowUpRight size={16} /> Buy SHULEVITZ First
                                 </a>
                             </div>
                         </div>
@@ -390,12 +390,12 @@ export default function EarnPage() {
                                 <div className="flex items-center gap-4">
                                     <div className="flex -space-x-3 grayscale">
                                         <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border-2 border-black z-10">
-                                            <span className="text-[10px] font-black text-gray-500">SHX</span>
+                                            <span className="text-[10px] font-black text-gray-500">SHULEVITZ</span>
                                         </div>
                                         <div className="w-10 h-10 rounded-full bg-gray-900 border-2 border-black" />
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-bold text-gray-500">SHX-USDC • Orca Whirlpool</h3>
+                                        <h3 className="text-base font-bold text-gray-500">SHULEVITZ-USDC • Orca Whirlpool</h3>
                                         <p className="text-xs text-gray-600">Coming Soon</p>
                                     </div>
                                 </div>
@@ -418,7 +418,7 @@ export default function EarnPage() {
                             </h3>
                             <div className="space-y-5">
                                 {[
-                                    { step: "1", label: "Get SHX + SOL", desc: "Make sure you hold both tokens. Swap on the main exchange if needed.", color: "bg-primary/20 text-primary" },
+                                    { step: "1", label: "Get SHULEVITZ + SOL", desc: "Make sure you hold both tokens. Swap on the main exchange if needed.", color: "bg-primary/20 text-primary" },
                                     { step: "2", label: "Deposit into Pool", desc: "Click 'Add Liquidity' above to open Raydium and deposit.", color: "bg-cyan-500/20 text-cyan-400" },
                                     { step: "3", label: "Receive LP Tokens", desc: "Your LP tokens represent your share of the pool.", color: "bg-purple-500/20 text-purple-400" },
                                     { step: "4", label: "Earn Fees", desc: "Trading fees accrue automatically. No staking or claiming needed.", color: "bg-green-500/20 text-green-400" },
@@ -452,7 +452,7 @@ export default function EarnPage() {
                             <h4 className="text-sm font-bold text-white mb-3">Resources</h4>
                             <div className="space-y-2">
                                 {[
-                                    { label: "SHX on DexScreener", href: `https://dexscreener.com/solana/${SHULEVITZ_MINT}` },
+                                    { label: "SHULEVITZ on DexScreener", href: `https://dexscreener.com/solana/${SHULEVITZ_MINT}` },
                                     { label: "Raydium Docs", href: "https://docs.raydium.io/" },
                                     { label: "What is IL?", href: "https://academy.binance.com/en/articles/impermanent-loss-explained" },
                                 ].map((link) => (

@@ -163,12 +163,7 @@ export default function DCAPanel() {
             setCurrentStep("execute");
             setStatus("Executing DCA order on-chain...");
 
-            let signedTxBase64;
-            if ('version' in signedTx) {
-                signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
-            } else {
-                signedTxBase64 = Buffer.from(signedTx.serialize({ requireAllSignatures: false })).toString("base64");
-            }
+            const signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
 
             const executeRes = await fetch("/api/dca/create", {
                 method: "POST",

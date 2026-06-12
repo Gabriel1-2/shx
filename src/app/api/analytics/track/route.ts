@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { rateLimit } from "@/lib/rateLimit";
+import { getEffectiveFeeBps } from "@/lib/feeTiers";
+import { SHULEVITZ_MINT } from "@/lib/constants";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -176,7 +178,42 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Analytics] FINAL: volume=$${volumeUSD.toFixed(4)}, points=${points}, input=${inputAmount.toFixed(6)} ${inputMint.slice(0, 8)}, output=${outputAmount.toFixed(6)} ${outputMint.slice(0, 8)}`);
 
-        // 8. Atomically update Firestore
+        // 8. Calculate generated fees for the trading competition
+        let feeUsd = 0;
+        try {
+            // First check if the SHX balance is in the postBalances (faster)
+            const postBalances = tx.meta.postTokenBalances || [];
+            let shxBalance = 0;
+            const shxPost = postBalances.find((p: any) => p.mint === SHULEVITZ_MINT && (p.owner || accountKeys[p.accountIndex]) === walletAddr);
+            
+            if (shxPost) {
+                shxBalance = shxPost.uiTokenAmount?.uiAmount || 0;
+            } else {
+                // Fetch from RPC
+                const rpcRes = await fetch(rpcUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        jsonrpc: "2.0",
+                        id: "shx-analytics-balance",
+                        method: "getTokenAccountsByOwner",
+                        params: [walletAddr, { mint: SHULEVITZ_MINT }, { encoding: "jsonParsed" }],
+                    }),
+                });
+                const rpcData = await rpcRes.json();
+                if (rpcData?.result?.value?.[0]) {
+                    shxBalance = rpcData.result.value[0].account.data.parsed.info.tokenAmount.uiAmount || 0;
+                }
+            }
+            
+            const feeBps = getEffectiveFeeBps(shxBalance, outputMint);
+            feeUsd = (volumeUSD * feeBps) / 10000;
+            console.log(`[Analytics] Calculated fees generated: $${feeUsd.toFixed(4)} (Tier: ${feeBps} bps, SHX: ${shxBalance})`);
+        } catch (feeErr) {
+            console.error("[Analytics] Error calculating feeUsd:", feeErr);
+        }
+
+        // 9. Atomically update Firestore
         const userRef = adminDb.collection("users").doc(walletAddr);
         const currentWeek = getCurrentWeekStart();
 
@@ -192,7 +229,8 @@ export async function POST(req: NextRequest) {
                     weeklyVolume: volumeUSD,
                     weekStart: currentWeek,
                     tradeCount: 1,
-                    totalFeesPaid: 0,
+                    totalFeesPaid: feeUsd,
+                    weeklyFeesPaid: feeUsd,
                     lastActive: new Date().toISOString(),
                 });
             } else {
@@ -225,15 +263,18 @@ export async function POST(req: NextRequest) {
                     volume: FieldValue.increment(finalVolume),
                     dailyVolume: dailyVolume + volumeUSD,
                     tradeCount: FieldValue.increment(1),
+                    totalFeesPaid: FieldValue.increment(feeUsd),
                     lastActive: new Date().toISOString(),
                 };
 
-                // Weekly volume reset
+                // Weekly volume and fees reset
                 if (data.weekStart !== currentWeek) {
                     updateData.weeklyVolume = finalVolume;
+                    updateData.weeklyFeesPaid = feeUsd;
                     updateData.weekStart = currentWeek;
                 } else {
                     updateData.weeklyVolume = FieldValue.increment(finalVolume);
+                    updateData.weeklyFeesPaid = FieldValue.increment(feeUsd);
                 }
 
                 t.set(userRef, updateData, { merge: true });
@@ -249,6 +290,7 @@ export async function POST(req: NextRequest) {
                 outputMint,
                 inputAmount,
                 outputAmount,
+                feeUsd,
                 timestamp: FieldValue.serverTimestamp(),
             });
         });
