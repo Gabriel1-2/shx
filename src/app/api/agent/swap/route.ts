@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
 
 // ─── CORS ─────────────────────────────────────────────────────
 function corsHeaders() {
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
         }, { status: 400, headers: corsHeaders() });
     }
 
-    const { signedTransaction, requestId } = body;
+    const { signedTransaction, requestId, agentPubkey } = body;
 
     if (!signedTransaction || !requestId) {
         return NextResponse.json({
@@ -62,6 +64,21 @@ export async function POST(req: NextRequest) {
         const jupData = await jupRes.json();
 
         if (jupData.status === "Success") {
+            // Track agent revenue share in the background if agentPubkey is provided
+            if (agentPubkey && jupData.feeAmount > 0 && adminDb) {
+                adminDb.collection("agent_referrals").add({
+                    agentPubkey,
+                    feeMint: jupData.feeMint,
+                    feeAmount: jupData.feeAmount,
+                    signature: jupData.signature,
+                    inputMint: jupData.inputMint,
+                    outputMint: jupData.outputMint,
+                    inAmount: jupData.inAmount,
+                    outAmount: jupData.outAmount,
+                    timestamp: FieldValue.serverTimestamp(),
+                }).catch(err => console.error("Failed to log agent referral", err));
+            }
+
             return NextResponse.json({
                 status: "success",
                 signature: jupData.signature,

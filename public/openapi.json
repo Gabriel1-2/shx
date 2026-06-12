@@ -1,0 +1,127 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "SHX Exchange Agent API",
+    "description": "API for AI agents to get token quotes, execute swaps, and check fee tiers on the SHX Exchange natively on Solana.",
+    "version": "v1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://shx.exchange"
+    }
+  ],
+  "paths": {
+    "/api/agent/quote": {
+      "get": {
+        "operationId": "getQuote",
+        "summary": "Get a swap quote and an unsigned transaction",
+        "description": "Returns a quote and a base64-encoded transaction for the agent to sign.",
+        "parameters": [
+          { "name": "inputMint", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Token mint to sell" },
+          { "name": "outputMint", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Token mint to buy" },
+          { "name": "amount", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Amount in smallest unit (lamports)" },
+          { "name": "taker", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Agent wallet public key" },
+          { "name": "agentPubkey", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Agent's wallet to receive the 20% platform fee revenue share" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "transaction": { "type": "string", "description": "Base64 encoded unsigned transaction" },
+                    "requestId": { "type": "string" },
+                    "inAmount": { "type": "string" },
+                    "outAmount": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/swap": {
+      "post": {
+        "operationId": "executeSwap",
+        "summary": "Execute a signed swap transaction",
+        "description": "Submit a signed transaction (base64) along with the requestId from the quote endpoint.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["signedTransaction", "requestId"],
+                "properties": {
+                  "signedTransaction": { "type": "string" },
+                  "requestId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signature": { "type": "string" },
+                    "explorer": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/tier": {
+      "get": {
+        "operationId": "getTier",
+        "summary": "Get wallet tier and fee information",
+        "parameters": [
+          { "name": "wallet", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/agent/intent": {
+      "post": {
+        "operationId": "submitIntent",
+        "summary": "Submit a natural language trading intent",
+        "description": "Resolves natural language like 'Swap 50 USDC for SHX' into a fully formulated quote and unsigned transaction.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["intent", "taker"],
+                "properties": {
+                  "intent": { "type": "string", "description": "e.g., Swap 10 USDC to SOL" },
+                  "taker": { "type": "string", "description": "Agent wallet public key" },
+                  "agentPubkey": { "type": "string", "description": "Agent wallet for 20% fee revenue share" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}
