@@ -4,7 +4,6 @@ import "./globals.css";
 import { SolanaProvider } from "@/components/SolanaProvider";
 import { Header } from "@/components/Header";
 import { ToastProvider } from "@/components/Toast";
-import { ServiceWorkerRegistration } from "@/components/ServiceWorker";
 import { QueryProvider } from "@/components/QueryProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -71,7 +70,6 @@ export default function RootLayout({
                     </div>
                   </div>
                 </footer>
-                <ServiceWorkerRegistration />
               </ToastProvider>
             </SolanaProvider>
           </ErrorBoundary>

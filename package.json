@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "claim-fees": "ts-node scripts/claim-fees.ts",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
+    "@ducanh2912/next-pwa": "^10.2.9",
     "@jup-ag/api": "^6.0.47",
     "@jup-ag/limit-order-sdk": "^0.1.10",
     "@jup-ag/referral-sdk": "^0.3.0",

@@ -8,6 +8,7 @@ import { getUserStats } from "@/lib/points";
 import { getPlatformStats } from "@/lib/platformStats";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { TierBadge } from "@/components/TierBadge";
+import { InstallAppButton } from "@/components/InstallAppButton";
 
 const WalletMultiButton = dynamic(
     () => import("@solana/wallet-adapter-react-ui").then((mod) => mod.WalletMultiButton),
@@ -71,6 +72,9 @@ export function Header() {
                 {connected && (
                     <TierBadge tier={tierData.tier} size="sm" />
                 )}
+
+                {/* Install App Button (PWA) */}
+                <InstallAppButton />
 
                 {/* Platform Stats (desktop only) */}
                 <div className="hidden md:flex items-center gap-3 text-xs">
