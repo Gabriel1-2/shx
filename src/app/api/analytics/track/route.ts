@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { rateLimit } from "@/lib/rateLimit";
 import { getEffectiveFeeBps } from "@/lib/feeTiers";
 import { SHULEVITZ_MINT } from "@/lib/constants";
+import { recordFee } from "@/lib/feeLedger";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -295,8 +296,22 @@ export async function POST(req: NextRequest) {
             });
         });
 
+        // 10. Record to fee ledger (idempotent, won't double-count)
+        if (feeUsd > 0) {
+            await recordFee({
+                id: txid,
+                wallet: walletAddr,
+                feeUsd,
+                feeBps: getEffectiveFeeBps(0, outputMint), // re-derive; safe fallback
+                volumeUsd: volumeUSD,
+                source: "swap",
+                inputMint,
+                outputMint,
+            });
+        }
+
         console.log(`[Analytics] ✅ Saved successfully for ${walletAddr.slice(0, 8)}...`);
-        return NextResponse.json({ success: true, volumeUSD, points });
+        return NextResponse.json({ success: true, volumeUSD, points, feeUsd });
 
     } catch (error: any) {
         console.error("[Analytics] CRITICAL ERROR:", error?.message || error);

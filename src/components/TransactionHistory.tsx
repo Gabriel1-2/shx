@@ -11,16 +11,24 @@ export function TransactionHistory() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (publicKey) {
-            setLoading(true);
-            getWalletTransactions(publicKey.toString(), 15).then(txs => {
-                setTransactions(txs);
-                setLoading(false);
-            });
-        } else {
-            setTransactions([]);
-            setLoading(false);
-        }
+        let mounted = true;
+        const load = async () => {
+            if (publicKey) {
+                if (mounted) setLoading(true);
+                const txs = await getWalletTransactions(publicKey.toString(), 15);
+                if (mounted) {
+                    setTransactions(txs);
+                    setLoading(false);
+                }
+            } else {
+                if (mounted) {
+                    setTransactions([]);
+                    setLoading(false);
+                }
+            }
+        };
+        load();
+        return () => { mounted = false; };
     }, [publicKey]);
 
     const formatTime = (date: Date) => {

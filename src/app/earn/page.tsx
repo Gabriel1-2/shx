@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
@@ -372,12 +374,12 @@ export default function EarnPage() {
                                 >
                                     <Droplets size={16} /> Add Liquidity
                                 </button>
-                                <a
+                                <Link
                                     href="/"
                                     className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white py-3.5 rounded-xl font-bold text-sm border border-white/10 transition-all hover:scale-[1.02]"
                                 >
                                     <ArrowUpRight size={16} /> Buy SHULEVITZ First
-                                </a>
+                                </Link>
                             </div>
                         </div>
 

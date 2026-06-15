@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { addVolume, hasOrderBeenProcessed, markOrderProcessed } from "@/lib/points";
+import { recordFee } from "@/lib/feeLedger";
+import { getEffectiveFeeBps } from "@/lib/feeTiers";
 
 const apiKey = process.env.JUPITER_API_KEY || "jup_2a91a815fa117b802471d3fc8e3b3cd62ced910bbe2f6ca67560665ef7f87e37";
 
@@ -80,6 +82,24 @@ export async function POST(req: Request) {
                 // Award points/volume
                 await addVolume(wallet, volumeUsd);
                 await markOrderProcessed(orderId, wallet, volumeUsd);
+
+                // Calculate and record fee
+                const outputMint = order.outputMint || order.takerMint || "";
+                const feeBps = getEffectiveFeeBps(0, outputMint); // Default tier for limit orders
+                const feeUsd = (volumeUsd * feeBps) / 10000;
+
+                if (feeUsd > 0) {
+                    await recordFee({
+                        id: `limit-${orderId}`,
+                        wallet,
+                        feeUsd,
+                        feeBps,
+                        volumeUsd,
+                        source: "limit",
+                        inputMint: inputMint || undefined,
+                        outputMint: outputMint || undefined,
+                    });
+                }
                 
                 syncedVolume += volumeUsd;
                 syncedCount++;

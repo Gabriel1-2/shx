@@ -66,7 +66,7 @@ export async function getPlatformStats(): Promise<PlatformStats> {
                 const data = doc.data();
                 dailyVolume += data.volumeUSD || 0;
                 dailyTrades += 1;
-                dailyFees += data.feePaid || 0;
+                dailyFees += data.feeUsd || 0;
             });
         } catch (e) {
             // Index might not exist yet — fall back gracefully
@@ -85,7 +85,7 @@ export async function getPlatformStats(): Promise<PlatformStats> {
                     if (txTime && txTime >= todayStart) {
                         dailyVolume += data.volumeUSD || 0;
                         dailyTrades += 1;
-                        dailyFees += data.feePaid || 0;
+                        dailyFees += data.feeUsd || 0;
                     }
                 });
             } catch (e2) {

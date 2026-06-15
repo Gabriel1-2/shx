@@ -33,6 +33,7 @@ function DashboardContent() {
         tradeCount: 0,
         totalFeesPaid: 0,
         weeklyVolume: 0,
+        dailyVolume: 0,
     });
     const [platformStats, setPlatformStats] = useState({
         totalVolume: 0,
@@ -61,6 +62,7 @@ function DashboardContent() {
                     tradeCount: data.tradeCount || 0,
                     totalFeesPaid: data.totalFeesPaid || 0,
                     weeklyVolume: data.weeklyVolume || 0,
+                    dailyVolume: data.dailyVolume || 0,
                 });
 
                 getWeeklyLeaderboard().then(leaderboard => {

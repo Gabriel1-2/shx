@@ -175,9 +175,12 @@ export default function ProPage() {
     }, [activeToken.address]);
 
     useEffect(() => {
-        setLoading(true);
-        setChartLoading(true);
-        loadData();
+        const init = () => {
+            setLoading(true);
+            setChartLoading(true);
+            loadData();
+        };
+        init();
         const interval = setInterval(loadData, 10000);
         return () => clearInterval(interval);
     }, [loadData]);

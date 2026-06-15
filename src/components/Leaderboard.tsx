@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getWeeklyLeaderboard, getLeaderboard, type LeaderboardEntry } from "@/lib/points";
+import { getWeeklyLeaderboard, getDailyLeaderboard, type LeaderboardEntry } from "@/lib/points";
 import { getEstimatedReward, WEEKLY_REWARD_POOL_USD } from "@/lib/feeTiers";
 import { Trophy, TrendingUp, Medal, Crown, Users, Clock, DollarSign } from "lucide-react";
 
@@ -9,7 +9,7 @@ export function Leaderboard() {
     const [data, setData] = useState<LeaderboardEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [timeLeft, setTimeLeft] = useState("");
-    const [mode, setMode] = useState<"weekly" | "alltime">("weekly");
+    const [mode, setMode] = useState<"weekly" | "daily">("weekly");
 
     // Fetch leaderboard
     useEffect(() => {
@@ -20,18 +20,18 @@ export function Leaderboard() {
                 if (weekly.length > 0) {
                     setData(weekly);
                 } else {
-                    // Fall back to all-time if weekly is empty
-                    const allTime = await getLeaderboard();
-                    if (allTime.length > 0) {
-                        setData(allTime);
-                        setMode("alltime");
+                    // Fall back to daily if weekly is empty
+                    const daily = await getDailyLeaderboard();
+                    if (daily.length > 0) {
+                        setData(daily);
+                        setMode("daily");
                     } else {
                         setData([]);
                     }
                 }
             } else {
-                const allTime = await getLeaderboard();
-                setData(allTime);
+                const daily = await getDailyLeaderboard();
+                setData(daily);
             }
             setLoading(false);
         };
@@ -120,14 +120,14 @@ export function Leaderboard() {
                             Weekly
                         </button>
                         <button
-                            onClick={() => setMode("alltime")}
+                            onClick={() => setMode("daily")}
                             className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${
-                                mode === "alltime" 
+                                mode === "daily" 
                                     ? "bg-purple-500/20 text-purple-400 font-bold" 
                                     : "text-muted-foreground hover:text-white"
                             }`}
                         >
-                            All-Time
+                            Daily
                         </button>
                     </div>
                 </div>
@@ -138,8 +138,8 @@ export function Leaderboard() {
                 <div className="col-span-1">#</div>
                 <div className="col-span-4">Wallet</div>
                 <div className="col-span-2 text-right">Trades</div>
-                <div className="col-span-3 text-right">{mode === "weekly" ? "Fees Gen." : "Total Vol"}</div>
-                <div className="col-span-2 text-right">{mode === "weekly" ? "Reward" : "Total Fees"}</div>
+                <div className="col-span-3 text-right">{mode === "weekly" ? "Fees Gen." : "Daily Vol"}</div>
+                <div className="col-span-2 text-right">{mode === "weekly" ? "Reward" : "Daily Fees"}</div>
             </div>
 
             {/* Entries */}
@@ -165,7 +165,7 @@ export function Leaderboard() {
                 ) : (
                     data.map((entry, index) => {
                         const reward = getEstimatedReward(entry.rank);
-                        const displayValue = mode === "weekly" ? (entry.weeklyFeesPaid || 0) : entry.volume;
+                        const displayValue = mode === "weekly" ? (entry.weeklyFeesPaid || 0) : (entry.dailyVolume || 0);
                         const formattedValue = mode === "weekly" ? `$${displayValue.toFixed(2)}` : formatVolume(displayValue);
                         return (
                             <div
@@ -212,7 +212,7 @@ export function Leaderboard() {
                                         </span>
                                     ) : (
                                         <span className="text-xs text-muted-foreground">
-                                            ${(entry.totalFeesPaid || 0).toFixed(2)}
+                                            ${(entry.dailyFeesPaid || 0).toFixed(2)}
                                         </span>
                                     )}
                                 </div>

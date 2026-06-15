@@ -18,9 +18,11 @@ export interface LeaderboardEntry {
     rank: number;
     volume: number;
     weeklyVolume: number;
+    dailyVolume?: number;
     tradeCount?: number;
     totalFeesPaid?: number;
     weeklyFeesPaid?: number;
+    dailyFeesPaid?: number;
 }
 
 /**
@@ -35,6 +37,11 @@ function getCurrentWeekStart(): string {
     monday.setUTCDate(diff);
     monday.setUTCHours(0, 0, 0, 0);
     return monday.toISOString().split("T")[0]; // "2026-03-24"
+}
+
+function getCurrentDayStart(): string {
+    const now = new Date();
+    return now.toISOString().split("T")[0];
 }
 
 /**
@@ -115,33 +122,43 @@ export async function getWeeklyLeaderboard(): Promise<LeaderboardEntry[]> {
 }
 
 /**
- * Get the all-time leaderboard (fallback / dashboard use).
+ * Get the daily leaderboard — ranked by daily volume.
  */
-export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
+export async function getDailyLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
-        const q = query(collection(db, "users"), orderBy("volume", "desc"), limit(20));
+        const currentDay = getCurrentDayStart();
+        
+        // Fetch users ordered by volume (all-time) as a fallback since dailyVolume index might not exist
+        // or just fetch all and filter in memory.
+        const q = query(collection(db, "users"));
         const querySnapshot = await getDocs(q);
 
         const realUsers: LeaderboardEntry[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            if ((data.volume || 0) > 0) {
+            const dailyVol = data.dayStart === currentDay ? (data.dailyVolume || 0) : 0;
+            const dailyFees = data.dayStart === currentDay ? (data.dailyFeesPaid || 0) : 0;
+            
+            if (dailyVol > 0 || dailyFees > 0) {
                 realUsers.push({
                     wallet: doc.id,
                     points: data.points || 0,
                     volume: data.volume || 0,
                     weeklyVolume: data.weeklyVolume || 0,
+                    dailyVolume: dailyVol,
                     tradeCount: data.tradeCount || 0,
                     totalFeesPaid: data.totalFeesPaid || 0,
+                    weeklyFeesPaid: data.weeklyFeesPaid || 0,
+                    dailyFeesPaid: dailyFees,
                     rank: 0,
                 });
             }
         });
 
-        realUsers.sort((a, b) => b.volume - a.volume);
+        realUsers.sort((a, b) => (b.dailyVolume || 0) - (a.dailyVolume || 0));
         return realUsers.map((entry, index) => ({ ...entry, rank: index + 1 })).slice(0, 50);
     } catch (error) {
-        console.error("Error fetching leaderboard:", error);
+        console.error("Error fetching daily leaderboard:", error);
         return [];
     }
 }
@@ -176,32 +193,35 @@ export async function addVolume(wallet: string, volumeUSD: number) {
     try {
         const userRef = doc(db, "users", wallet);
         const currentWeek = getCurrentWeekStart();
+        const currentDay = getCurrentDayStart();
 
-        // Check if we need to reset weekly volume
         const snap = await getDoc(userRef);
-        const existingWeekStart = snap.exists() ? snap.data().weekStart : null;
+        const data = snap.exists() ? snap.data() : null;
+        const existingWeekStart = data ? data.weekStart : null;
+        const existingDayStart = data ? data.dayStart : null;
+
+        const updateData: any = {
+            volume: increment(volumeUSD),
+            tradeCount: increment(1),
+            wallet: wallet,
+            lastActive: new Date().toISOString()
+        };
 
         if (existingWeekStart !== currentWeek) {
-            // New week — reset weekly volume
-            await setDoc(userRef, {
-                volume: increment(volumeUSD),
-                weeklyVolume: volumeUSD, // Reset to this trade's volume
-                weekStart: currentWeek,
-                tradeCount: increment(1),
-                wallet: wallet,
-                lastActive: new Date().toISOString()
-            }, { merge: true });
+            updateData.weeklyVolume = volumeUSD;
+            updateData.weekStart = currentWeek;
         } else {
-            // Same week — increment
-            await setDoc(userRef, {
-                volume: increment(volumeUSD),
-                weeklyVolume: increment(volumeUSD),
-                weekStart: currentWeek,
-                tradeCount: increment(1),
-                wallet: wallet,
-                lastActive: new Date().toISOString()
-            }, { merge: true });
+            updateData.weeklyVolume = increment(volumeUSD);
         }
+
+        if (existingDayStart !== currentDay) {
+            updateData.dailyVolume = volumeUSD;
+            updateData.dayStart = currentDay;
+        } else {
+            updateData.dailyVolume = increment(volumeUSD);
+        }
+
+        await setDoc(userRef, updateData, { merge: true });
 
         return { success: true };
     } catch (error) {
@@ -240,12 +260,14 @@ export async function getUserStats(wallet: string) {
         if (docSnap.exists()) {
             const data = docSnap.data();
             const currentWeek = getCurrentWeekStart();
+            const currentDay = getCurrentDayStart();
 
             return {
                 points: data.points || 0,
                 rank: 0,
                 volume: data.volume || 0,
                 weeklyVolume: data.weekStart === currentWeek ? (data.weeklyVolume || 0) : 0,
+                dailyVolume: data.dayStart === currentDay ? (data.dailyVolume || 0) : 0,
                 tradeCount: data.tradeCount || 0,
                 totalFeesPaid: data.totalFeesPaid || 0,
             };

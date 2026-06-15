@@ -73,7 +73,14 @@ export async function OPTIONS() {
  *   - amount:     Amount in smallest unit / lamports (required)
  *   - taker:      Agent wallet public key (required)
  */
+import { rateLimit } from "@/lib/rateLimit";
+
 export async function GET(req: NextRequest) {
+    const rateLimitResult = rateLimit(req, 100, 60000); // 100 requests per minute
+    if (!rateLimitResult.success) {
+        return NextResponse.json({ error: "Too many requests. Agent rate limit exceeded." }, { status: 429, headers: corsHeaders() });
+    }
+
     const { searchParams } = new URL(req.url);
     const inputMint = searchParams.get("inputMint");
     const outputMint = searchParams.get("outputMint");

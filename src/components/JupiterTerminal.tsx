@@ -40,6 +40,7 @@ export default function JupiterTerminal() {
     const publicKeyRef = useRef(publicKey);
     publicKeyRef.current = publicKey;
     const feeBpsRef = useRef(0);
+    const initJupiterRef = useRef<((fee: number) => void) | null>(null);
 
     // SHX Tier — determines the dynamic fee
     const tierData = useSHXTier();
@@ -112,7 +113,7 @@ export default function JupiterTerminal() {
                             // Debounce re-init to avoid rapid re-renders
                             setTimeout(() => {
                                 lastInitFeeBps.current = null; // Force re-init
-                                initJupiter(newFee);
+                                if (initJupiterRef.current) initJupiterRef.current(newFee);
                             }, 300);
                         }
                     }
@@ -166,6 +167,7 @@ export default function JupiterTerminal() {
             console.error("[Jupiter] Init failed:", e);
         }
     }, [isLoaded, wallet, publicKey, tierData.feeBps]);
+    initJupiterRef.current = initJupiter;
 
     // Initialize Jupiter when script loads, wallet changes, or fee tier changes
     useEffect(() => {

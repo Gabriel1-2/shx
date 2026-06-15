@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { recordFee } from "@/lib/feeLedger";
 
 // ─── CORS ─────────────────────────────────────────────────────
 function corsHeaders() {
@@ -29,7 +30,14 @@ export async function OPTIONS() {
  *   - signedTransaction: base64-encoded signed transaction (required)
  *   - requestId:         from the quote response (required)
  */
+import { rateLimit } from "@/lib/rateLimit";
+
 export async function POST(req: NextRequest) {
+    const rateLimitResult = rateLimit(req, 100, 60000); // 100 requests per minute
+    if (!rateLimitResult.success) {
+        return NextResponse.json({ error: "Too many requests. Agent rate limit exceeded." }, { status: 429, headers: corsHeaders() });
+    }
+
     let body: any;
     try {
         body = await req.json();
@@ -77,6 +85,22 @@ export async function POST(req: NextRequest) {
                     outAmount: jupData.outAmount,
                     timestamp: FieldValue.serverTimestamp(),
                 }).catch(err => console.error("Failed to log agent referral", err));
+            }
+
+            // Record in the centralized fee ledger for dashboard/leaderboard
+            if (jupData.feeAmount > 0 && jupData.signature) {
+                // Estimate fee USD (feeAmount is in token units — approximate as volume fraction)
+                const feeUsdEstimate = jupData.feeAmount > 0 ? jupData.feeAmount / 1e6 : 0; // Rough for stablecoins
+                recordFee({
+                    id: `agent-${jupData.signature}`,
+                    wallet: agentPubkey || "unknown-agent",
+                    feeUsd: feeUsdEstimate,
+                    feeBps: 65, // Agent default tier
+                    volumeUsd: feeUsdEstimate * 10000 / 65, // Reverse-derive volume from fee
+                    source: "agent",
+                    inputMint: jupData.inputMint,
+                    outputMint: jupData.outputMint,
+                }).catch(err => console.error("[Agent] Fee ledger write failed:", err));
             }
 
             return NextResponse.json({
