@@ -23,6 +23,7 @@ const DCACreateSchema = z.object({
     inAmount: z.union([z.string(), z.number()]).optional(),
     numberOfOrders: z.union([z.string(), z.number()]).optional(),
     interval: z.union([z.string(), z.number()]).optional(),
+    slippageBps: z.union([z.string(), z.number()]).optional(),
     // For "execute"
     signedTransaction: z.string().optional(),
     requestId: z.string().optional(),
@@ -73,8 +74,9 @@ export async function POST(req: NextRequest) {
             }
             // ------------------------
 
-            const orderPayload = {
-                user: body.user,
+            const orderPayload: Record<string, any> = {
+                userAddress: body.wallet,
+                inAmount: body.inAmount,
                 inputMint: body.inputMint,
                 outputMint: body.outputMint,
                 params: {
@@ -84,10 +86,9 @@ export async function POST(req: NextRequest) {
                         interval: parseInt(body.interval.toString()),
                         minPrice: null,
                         maxPrice: null,
-                        startAt: null,
+                        slippageBps: body.slippageBps ? parseInt(body.slippageBps.toString()) : 100
                     }
-                },
-                referralAccount: "9rvZ5CC86oFWgwej21DMPR83LSMBoDehrNe6v6V7AAeg"
+                }
             };
 
             console.log("[DCA API] Creating recurring order:", JSON.stringify(orderPayload));

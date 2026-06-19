@@ -155,17 +155,22 @@ export default function DCAPanel() {
 
             // ── Step 2: Sign the transaction ──────────────
             setCurrentStep("sign");
-            setStatus("Please sign the transaction in your wallet...");
-
+            const { VersionedTransaction } = await import('@solana/web3.js');
             const txBuffer = Buffer.from(createData.transaction, "base64");
             const tx = VersionedTransaction.deserialize(txBuffer);
-            const signedTx = await signTransaction(tx);
+
+            if (!signTransaction) throw new Error("Wallet does not support signTransaction");
+            type SupportedTransaction = Parameters<typeof signTransaction>[0];
+            const signedTxObj = await signTransaction(tx as SupportedTransaction);
+            
+            // GRAFTING: Preserve original message bytes
+            const pristineTx = VersionedTransaction.deserialize(txBuffer);
+            pristineTx.signatures = signedTxObj.signatures as any;
+            const signedTxBase64 = Buffer.from(pristineTx.serialize()).toString("base64");
 
             // ── Step 3: Execute via Jupiter ───────────────
             setCurrentStep("execute");
             setStatus("Executing DCA order on-chain...");
-
-            const signedTxBase64 = Buffer.from(signedTx.serialize()).toString("base64");
 
             const executeRes = await fetch("/api/dca/create", {
                 method: "POST",

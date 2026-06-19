@@ -159,11 +159,14 @@ export default function LimitOrderPanel() {
             const tx = VersionedTransaction.deserialize(txBuffer);
 
             // Using signTransaction to just sign without sending!
-            // Note: Since this is standard Wallet Adapter, we need the wallet to sign it
             if (!signTransaction) throw new Error("Wallet does not support signTransaction");
             type SupportedTransaction = Parameters<typeof signTransaction>[0];
             const signedTxObj = await signTransaction(tx as SupportedTransaction);
-            const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
+            
+            // GRAFTING: Preserve original message bytes
+            const pristineTx = VersionedTransaction.deserialize(txBuffer);
+            pristineTx.signatures = signedTxObj.signatures as any;
+            const signedTxBase64 = Buffer.from(pristineTx.serialize()).toString("base64");
 
             // --- SUBMIT FINAL ORDER ---
             setCurrentStep("send");
