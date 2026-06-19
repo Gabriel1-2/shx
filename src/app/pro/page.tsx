@@ -9,7 +9,7 @@ import {
     TrendingUp, TrendingDown, Activity, Zap,
     ChevronDown, BarChart2, Loader2, ExternalLink,
     DollarSign, ArrowDownUp, Droplets, PieChart,
-    Target, RefreshCw
+    Target, RefreshCw, List
 } from "lucide-react";
 
 const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
@@ -23,6 +23,11 @@ const LimitOrderPanel = dynamic(() => import("@/components/LimitOrderPanel"), {
 });
 
 const DCAPanel = dynamic(() => import("@/components/DCAPanel"), {
+    ssr: false,
+    loading: () => <div className="w-full min-h-[420px] bg-white/5 animate-pulse rounded-2xl" />,
+});
+
+const OrdersPanel = dynamic(() => import("@/components/OrdersPanel"), {
     ssr: false,
     loading: () => <div className="w-full min-h-[420px] bg-white/5 animate-pulse rounded-2xl" />,
 });
@@ -166,7 +171,7 @@ export default function ProPage() {
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(true);
     const [showTokenList, setShowTokenList] = useState(false);
-    const [activeTab, setActiveTab] = useState<"swap" | "limit" | "dca">("swap");
+    const [activeTab, setActiveTab] = useState<"swap" | "limit" | "dca" | "orders">("swap");
 
     const loadData = useCallback(async () => {
         const pair = await fetchPairData(activeToken.address);
@@ -302,6 +307,7 @@ export default function ProPage() {
                             { id: "swap" as const, label: "Swap", icon: Zap, color: "text-green-400" },
                             { id: "limit" as const, label: "Limit", icon: Target, color: "text-amber-400" },
                             { id: "dca" as const, label: "DCA", icon: RefreshCw, color: "text-blue-400" },
+                            { id: "orders" as const, label: "Orders", icon: List, color: "text-purple-400" },
                         ]).map(tab => (
                             <button
                                 key={tab.id}
@@ -334,6 +340,7 @@ export default function ProPage() {
                         )}
                         {activeTab === "limit" && <LimitOrderPanel />}
                         {activeTab === "dca" && <DCAPanel />}
+                        {activeTab === "orders" && <OrdersPanel />}
                     </div>
 
                     {/* Market Stats — 100% real data */}
