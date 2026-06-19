@@ -3,7 +3,7 @@ import { addVolume, hasOrderBeenProcessed, markOrderProcessed } from "@/lib/poin
 import { recordFee } from "@/lib/feeLedger";
 import { getEffectiveFeeBps } from "@/lib/feeTiers";
 
-const apiKey = process.env.JUPITER_API_KEY || "jup_2a91a815fa117b802471d3fc8e3b3cd62ced910bbe2f6ca67560665ef7f87e37";
+const apiKey = process.env.JUPITER_API_KEY || "";
 
 /**
  * Sync past limit orders from Jupiter to track volume asynchronously.

@@ -20,7 +20,6 @@ export function Leaderboard() {
                 if (weekly.length > 0) {
                     setData(weekly);
                 } else {
-                    // Fall back to daily if weekly is empty
                     const daily = await getDailyLeaderboard();
                     if (daily.length > 0) {
                         setData(daily);
@@ -37,33 +36,41 @@ export function Leaderboard() {
         };
         fetchData();
 
-        // Poll every 30s
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }, [mode]);
 
-    // Countdown to next Monday
+    // Countdown to next reset
     useEffect(() => {
         const updateCountdown = () => {
             const now = new Date();
-            const day = now.getUTCDay();
-            const daysUntilMonday = day === 0 ? 1 : (8 - day);
-            const nextMonday = new Date(now);
-            nextMonday.setUTCDate(now.getUTCDate() + daysUntilMonday);
-            nextMonday.setUTCHours(0, 0, 0, 0);
-
-            const diff = nextMonday.getTime() - now.getTime();
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-            setTimeLeft(`${days}d ${hours}h ${mins}m`);
+            if (mode === "weekly") {
+                const day = now.getUTCDay();
+                const daysUntilMonday = day === 0 ? 1 : (8 - day);
+                const nextMonday = new Date(now);
+                nextMonday.setUTCDate(now.getUTCDate() + daysUntilMonday);
+                nextMonday.setUTCHours(0, 0, 0, 0);
+                const diff = nextMonday.getTime() - now.getTime();
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                setTimeLeft(`${days}d ${hours}h ${mins}m`);
+            } else {
+                // Countdown to midnight UTC
+                const tomorrow = new Date(now);
+                tomorrow.setUTCDate(now.getUTCDate() + 1);
+                tomorrow.setUTCHours(0, 0, 0, 0);
+                const diff = tomorrow.getTime() - now.getTime();
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                setTimeLeft(`${hours}h ${mins}m`);
+            }
         };
 
         updateCountdown();
         const timer = setInterval(updateCountdown, 60000);
         return () => clearInterval(timer);
-    }, []);
+    }, [mode]);
 
     const getRankIcon = (rank: number) => {
         if (rank === 1) return <Crown size={12} className="text-yellow-500" />;
@@ -85,13 +92,22 @@ export function Leaderboard() {
         return `$${vol.toFixed(0)}`;
     };
 
+    const formatFee = (fee: number) => {
+        if (fee >= 1000) return `$${(fee / 1000).toFixed(1)}K`;
+        if (fee >= 1) return `$${fee.toFixed(2)}`;
+        if (fee > 0) return `$${fee.toFixed(4)}`;
+        return "—";
+    };
+
     return (
         <div className="w-full rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl overflow-hidden">
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Trophy className="text-yellow-500" size={16} />
-                    <h3 className="text-sm font-bold text-white">WEEKLY LEADERBOARD</h3>
+                    <h3 className="text-sm font-bold text-white">
+                        {mode === "weekly" ? "WEEKLY LEADERBOARD" : "DAILY LEADERBOARD"}
+                    </h3>
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                     <Clock size={10} />
@@ -136,10 +152,10 @@ export function Leaderboard() {
             {/* Column Headers */}
             <div className="grid grid-cols-12 px-4 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-white/5">
                 <div className="col-span-1">#</div>
-                <div className="col-span-4">Wallet</div>
+                <div className="col-span-3">Wallet</div>
                 <div className="col-span-2 text-right">Trades</div>
-                <div className="col-span-3 text-right">{mode === "weekly" ? "Fees Gen." : "Daily Vol"}</div>
-                <div className="col-span-2 text-right">{mode === "weekly" ? "Reward" : "Daily Fees"}</div>
+                <div className="col-span-3 text-right">{mode === "weekly" ? "Wk Volume" : "Daily Vol"}</div>
+                <div className="col-span-3 text-right">{mode === "weekly" ? "Fees / Reward" : "Daily Fees"}</div>
             </div>
 
             {/* Entries */}
@@ -157,7 +173,9 @@ export function Leaderboard() {
                 ) : data.length === 0 ? (
                     <div className="py-8 text-center">
                         <Users size={32} className="text-muted-foreground mx-auto mb-3 opacity-50" />
-                        <p className="text-sm text-muted-foreground">No traders yet this week</p>
+                        <p className="text-sm text-muted-foreground">
+                            {mode === "weekly" ? "No traders yet this week" : "No trades today yet"}
+                        </p>
                         <p className="text-xs text-muted-foreground mt-1">
                             Make a swap to be the first on the leaderboard! 🚀
                         </p>
@@ -165,8 +183,9 @@ export function Leaderboard() {
                 ) : (
                     data.map((entry, index) => {
                         const reward = getEstimatedReward(entry.rank);
-                        const displayValue = mode === "weekly" ? (entry.weeklyFeesPaid || 0) : (entry.dailyVolume || 0);
-                        const formattedValue = mode === "weekly" ? `$${displayValue.toFixed(2)}` : formatVolume(displayValue);
+                        const volume = mode === "weekly" ? (entry.weeklyVolume || 0) : (entry.dailyVolume || 0);
+                        const fees = mode === "weekly" ? (entry.weeklyFeesPaid || 0) : (entry.dailyFeesPaid || 0);
+                        
                         return (
                             <div
                                 key={entry.wallet}
@@ -184,7 +203,7 @@ export function Leaderboard() {
                                 </div>
 
                                 {/* Wallet */}
-                                <div className="col-span-4">
+                                <div className="col-span-3">
                                     <span className="font-mono text-sm text-gray-300">
                                         {`${entry.wallet.slice(0, 4)}...${entry.wallet.slice(-4)}`}
                                     </span>
@@ -197,22 +216,29 @@ export function Leaderboard() {
                                     </span>
                                 </div>
 
-                                {/* Volume / Fees */}
+                                {/* Volume */}
                                 <div className="col-span-3 text-right">
                                     <span className={`text-sm font-bold ${entry.rank <= 3 ? "text-white" : "text-gray-300"}`}>
-                                        {formattedValue}
+                                        {formatVolume(volume)}
                                     </span>
                                 </div>
 
-                                {/* Reward / Fees */}
-                                <div className="col-span-2 text-right">
+                                {/* Fees + Reward */}
+                                <div className="col-span-3 text-right">
                                     {mode === "weekly" ? (
-                                        <span className="text-sm font-bold text-green-400">
-                                            {reward > 0 ? `$${reward.toFixed(0)}` : "—"}
-                                        </span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-xs text-muted-foreground">
+                                                {formatFee(fees)}
+                                            </span>
+                                            {reward > 0 && (
+                                                <span className="text-[10px] font-bold text-green-400">
+                                                    +${reward} reward
+                                                </span>
+                                            )}
+                                        </div>
                                     ) : (
-                                        <span className="text-xs text-muted-foreground">
-                                            ${(entry.dailyFeesPaid || 0).toFixed(2)}
+                                        <span className="text-sm font-bold text-emerald-400">
+                                            {formatFee(fees)}
                                         </span>
                                     )}
                                 </div>
@@ -225,7 +251,12 @@ export function Leaderboard() {
             {/* Footer */}
             <div className="px-4 py-2 border-t border-white/5 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
                 <TrendingUp size={10} />
-                <span>Ranked by Fees Generated • Top 10 earn SHX rewards (Min $10 Fees)</span>
+                <span>
+                    {mode === "weekly" 
+                        ? "Ranked by Fees Generated • Top 10 earn SHX rewards (Min $10 Fees)"
+                        : "Ranked by Daily Volume • Resets at 12:00 AM UTC"
+                    }
+                </span>
             </div>
         </div>
     );

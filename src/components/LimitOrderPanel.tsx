@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { VersionedTransaction } from "@solana/web3.js";
 import { ArrowDownUp, Clock, Loader2, ShieldCheck } from "lucide-react";
 import bs58 from "bs58";
 import { APP_TOKENS, TokenInfo } from "@/lib/constants";

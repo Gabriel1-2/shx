@@ -239,13 +239,10 @@ export async function POST(req: NextRequest) {
                 const data = userDoc.data()!;
                 
                 // --- WASHTRADING PREVENTION (Velocity Limit) ---
-                const lastActiveDate = new Date(data.lastActive || 0).toISOString().split("T")[0];
-                const today = new Date().toISOString().split("T")[0];
+                const currentDay = new Date().toISOString().split("T")[0];
+                const existingDayStart = data.dayStart || "";
                 
-                let dailyVolume = data.dailyVolume || 0;
-                if (lastActiveDate !== today) {
-                    dailyVolume = 0; // Reset daily volume counter
-                }
+                let dailyVolume = (existingDayStart === currentDay) ? (data.dailyVolume || 0) : 0;
                 
                 let finalPoints = points;
                 let finalVolume = volumeUSD;
@@ -258,15 +255,39 @@ export async function POST(req: NextRequest) {
                 }
                 // -----------------------------------------------
 
+                // Archive previous day's data before resetting
+                if (existingDayStart && existingDayStart !== currentDay && (data.dailyVolume > 0 || data.dailyFeesPaid > 0)) {
+                    const snapshotRef = adminDb!.collection("daily_snapshots").doc(`${walletAddr}_${existingDayStart}`);
+                    t.set(snapshotRef, {
+                        wallet: walletAddr,
+                        date: existingDayStart,
+                        volume: data.dailyVolume || 0,
+                        fees: data.dailyFeesPaid || 0,
+                        trades: data.dailyTradeCount || 0,
+                        archivedAt: FieldValue.serverTimestamp(),
+                    });
+                }
+
                 const updateData: any = {
                     wallet: walletAddr,
                     points: FieldValue.increment(finalPoints),
                     volume: FieldValue.increment(finalVolume),
-                    dailyVolume: dailyVolume + volumeUSD,
                     tradeCount: FieldValue.increment(1),
                     totalFeesPaid: FieldValue.increment(feeUsd),
                     lastActive: new Date().toISOString(),
                 };
+
+                // Daily volume reset
+                if (existingDayStart !== currentDay) {
+                    updateData.dailyVolume = volumeUSD;
+                    updateData.dailyFeesPaid = feeUsd;
+                    updateData.dailyTradeCount = 1;
+                    updateData.dayStart = currentDay;
+                } else {
+                    updateData.dailyVolume = FieldValue.increment(volumeUSD);
+                    updateData.dailyFeesPaid = FieldValue.increment(feeUsd);
+                    updateData.dailyTradeCount = FieldValue.increment(1);
+                }
 
                 // Weekly volume and fees reset
                 if (data.weekStart !== currentWeek) {

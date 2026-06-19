@@ -17,7 +17,7 @@ import { FEE_TIERS } from "@/lib/feeTiers";
 import {
     TrendingUp, Shield, Zap, Wallet, Trophy, Activity,
     ChevronRight, Target, Award, Coins, ArrowUp,
-    BarChart2, Layers
+    BarChart2, Layers, DollarSign
 } from "lucide-react";
 
 function DashboardContent() {
@@ -197,25 +197,19 @@ function DashboardContent() {
                             </div>
                         </div>
 
-                        {/* Weekly Volume */}
+                        {/* Daily Volume */}
                         <div className="group relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl p-5 hover:border-yellow-500/20 transition-all">
                             <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-orange-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <div className="relative">
                                 <div className="flex items-center gap-2 mb-3">
                                     <BarChart2 size={16} className="text-yellow-400" />
-                                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Weekly Volume</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Today&apos;s Volume</span>
                                 </div>
                                 <div className="text-2xl font-bold text-white mb-1">
-                                    {formatNumber(stats.weeklyVolume)}
+                                    {formatNumber(stats.dailyVolume)}
                                 </div>
                                 <div className="text-sm text-muted-foreground">
-                                    {userRank && userRank <= 10 ? (
-                                        <span className="text-yellow-400 font-bold">Ranked #{userRank} this week 🏆</span>
-                                    ) : stats.weeklyVolume >= 1000 ? (
-                                        <span className="text-green-400">Qualifying for rewards</span>
-                                    ) : (
-                                        <span>${(1000 - stats.weeklyVolume).toFixed(0)} more to qualify</span>
-                                    )}
+                                    Resets at 12:00 AM UTC
                                 </div>
                             </div>
                         </div>
@@ -226,8 +220,8 @@ function DashboardContent() {
                 <div className="mb-8 grid gap-3 grid-cols-2 lg:grid-cols-4">
                     {[
                         { label: "24h Volume", value: platformStats.dailyVolume, isCurrency: true, icon: Activity, gradient: "from-blue-500 to-cyan-500" },
-                        { label: "24h Trades", value: platformStats.dailyTrades, isCurrency: false, icon: Zap, gradient: "from-yellow-500 to-orange-500" },
-                        { label: "Active Traders", value: platformStats.totalUsers, isCurrency: false, icon: Wallet, gradient: "from-purple-500 to-pink-500" },
+                        { label: "24h Fees", value: platformStats.dailyFees, isCurrency: true, icon: DollarSign, gradient: "from-yellow-500 to-orange-500" },
+                        { label: "24h Trades", value: platformStats.dailyTrades, isCurrency: false, icon: Zap, gradient: "from-purple-500 to-pink-500" },
                         { label: "All-Time Volume", value: platformStats.totalVolume, isCurrency: true, icon: TrendingUp, gradient: "from-green-500 to-emerald-500" },
                     ].map((stat, i) => (
                         <div key={i} className="group relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl p-4 hover:border-white/10 transition-all duration-300 hover:scale-[1.02]">

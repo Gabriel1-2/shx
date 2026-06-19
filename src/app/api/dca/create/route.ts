@@ -147,6 +147,14 @@ export async function POST(req: NextRequest) {
 
         // ─── VAULT AUTH: REQUEST CHALLENGE ────────────────────────
         if (body.action === "request-challenge" && body.wallet) {
+            // Compliance check for vault auth
+            const { checkWalletRisk } = await import('@/lib/compliance');
+            const risk = await checkWalletRisk(body.wallet);
+            if (risk.isBlocked) {
+                console.warn(`[Compliance] Blocked high-risk wallet in DCA vault auth: ${body.wallet}`);
+                return NextResponse.json({ error: "Address restricted by compliance policy" }, { status: 403 });
+            }
+
             const res = await fetch(`https://api.jup.ag/trigger/v2/auth/challenge`, {
                 method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey },
                 body: JSON.stringify({ walletPubkey: body.wallet, type: "message" }),

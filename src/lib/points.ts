@@ -185,7 +185,8 @@ export async function addPoints(wallet: string, amount: number) {
 
 /**
  * Add trading volume to a wallet (called on every successful swap).
- * Also maintains weekly volume with automatic reset.
+ * Maintains weekly + daily volume with automatic reset.
+ * Daily snapshot archiving is handled server-side in analytics/track route.
  */
 export async function addVolume(wallet: string, volumeUSD: number) {
     console.log(`[ FIRESTORE ] Adding $${volumeUSD} volume to ${wallet}`);
@@ -216,9 +217,12 @@ export async function addVolume(wallet: string, volumeUSD: number) {
 
         if (existingDayStart !== currentDay) {
             updateData.dailyVolume = volumeUSD;
+            updateData.dailyFeesPaid = 0;
+            updateData.dailyTradeCount = 1;
             updateData.dayStart = currentDay;
         } else {
             updateData.dailyVolume = increment(volumeUSD);
+            updateData.dailyTradeCount = increment(1);
         }
 
         await setDoc(userRef, updateData, { merge: true });
@@ -272,11 +276,11 @@ export async function getUserStats(wallet: string) {
                 totalFeesPaid: data.totalFeesPaid || 0,
             };
         } else {
-            return { points: 0, rank: 0, volume: 0, weeklyVolume: 0, tradeCount: 0, totalFeesPaid: 0 };
+            return { points: 0, rank: 0, volume: 0, weeklyVolume: 0, dailyVolume: 0, tradeCount: 0, totalFeesPaid: 0 };
         }
     } catch (error) {
         console.error("Error fetching user stats:", error);
-        return { points: 0, rank: 0, volume: 0, weeklyVolume: 0, tradeCount: 0, totalFeesPaid: 0 };
+        return { points: 0, rank: 0, volume: 0, weeklyVolume: 0, dailyVolume: 0, tradeCount: 0, totalFeesPaid: 0 };
     }
 }
 
