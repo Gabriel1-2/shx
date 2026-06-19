@@ -9,7 +9,7 @@ import {
     query,
     orderBy,
     limit,
-    where
+    FieldValue
 } from "firebase/firestore";
 
 export interface LeaderboardEntry {
@@ -201,7 +201,7 @@ export async function addVolume(wallet: string, volumeUSD: number) {
         const existingWeekStart = data ? data.weekStart : null;
         const existingDayStart = data ? data.dayStart : null;
 
-        const updateData: any = {
+        const updateData: Record<string, number | string | FieldValue> = {
             volume: increment(volumeUSD),
             tradeCount: increment(1),
             wallet: wallet,

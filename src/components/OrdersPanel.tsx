@@ -3,11 +3,36 @@
 import { useState, useEffect, useCallback } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { Loader2, ShieldCheck, Trash2, ArrowRight, RefreshCw, XCircle } from "lucide-react";
+import { Loader2, ShieldCheck, ArrowRight, RefreshCw, XCircle } from "lucide-react";
 import bs58 from "bs58";
-import { APP_TOKENS, TokenInfo } from "@/lib/constants";
+import { APP_TOKENS } from "@/lib/constants";
 
 type OrderTab = "limit" | "dca";
+
+interface LimitOrder {
+    id?: string;
+    orderPubkey?: string;
+    inputMint: string;
+    outputMint: string;
+    triggerCondition: string;
+    triggerPriceUsd?: string;
+    triggerPrice?: string;
+    status: string;
+}
+
+interface DCAOrder {
+    publicKey?: string;
+    orderAccount?: string;
+    inputMint: string;
+    outputMint: string;
+    interval?: number;
+    remainingOrders?: number;
+    params?: {
+        time?: {
+            numberOfOrders?: number;
+        }
+    }
+}
 
 export default function OrdersPanel() {
     const { publicKey, connected, signMessage, signTransaction, sendTransaction } = useWallet();
@@ -21,8 +46,8 @@ export default function OrdersPanel() {
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     
     // Orders State
-    const [limitOrders, setLimitOrders] = useState<any[]>([]);
-    const [dcaOrders, setDcaOrders] = useState<any[]>([]);
+    const [limitOrders, setLimitOrders] = useState<LimitOrder[]>([]);
+    const [dcaOrders, setDcaOrders] = useState<DCAOrder[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     
     // UI State
@@ -75,11 +100,13 @@ export default function OrdersPanel() {
             if (!verifyRes.ok) throw new Error(verifyData.error || "Failed verify");
 
             setJwt(verifyData.token);
+            try { localStorage.setItem("shx_jupiter_jwt", verifyData.token); } catch (_e) {}
             showMessage("✅ Authenticated successfully", "success");
             fetchLimitOrders(verifyData.token);
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "Unknown error";
             console.error("[Auth]", error);
-            showMessage(`Authentication Failed: ${error.message}`, "error");
+            showMessage(`Authentication Failed: ${msg}`, "error");
         } finally {
             setIsAuthenticating(false);
         }
@@ -98,10 +125,11 @@ export default function OrdersPanel() {
             if (!res.ok) throw new Error(data.error || "Failed to fetch orders");
             
             // Filter out closed/past orders just in case
-            const openOrders = (data.orders || data.data || []).filter((o: any) => o.status === "open");
+            const openOrders = (data.orders || data.data || []).filter((o: LimitOrder) => o.status === "open");
             setLimitOrders(openOrders);
-        } catch (error: any) {
-            showMessage(error.message, "error");
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "Unknown error";
+            showMessage(msg, "error");
         } finally {
             setIsLoading(false);
         }
@@ -117,8 +145,9 @@ export default function OrdersPanel() {
             if (!res.ok) throw new Error(data.error || "Failed to fetch DCA orders");
             
             setDcaOrders(data.orders || data.data || []);
-        } catch (error: any) {
-            showMessage(error.message, "error");
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "Unknown error";
+            showMessage(msg, "error");
         } finally {
             setIsLoading(false);
         }
@@ -147,8 +176,9 @@ export default function OrdersPanel() {
 
             showMessage("✅ Limit order cancelled successfully", "success");
             fetchLimitOrders(jwt);
-        } catch (error: any) {
-            showMessage(error.message, "error");
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "Unknown error";
+            showMessage(msg, "error");
         } finally {
             setCancellingId(null);
         }
@@ -182,8 +212,9 @@ export default function OrdersPanel() {
 
             showMessage("✅ DCA strategy cancelled successfully", "success");
             fetchDcaOrders();
-        } catch (error: any) {
-            showMessage(error.message, "error");
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "Unknown error";
+            showMessage(msg, "error");
         } finally {
             setCancellingId(null);
         }
@@ -258,7 +289,6 @@ export default function OrdersPanel() {
                     ) : (
                         <div className="space-y-3">
                             {limitOrders.map(order => {
-                                const isSell = order.inputMint === APP_TOKENS.find(t=>t.symbol==="SHX")?.address; // Simplification
                                 return (
                                     <div key={order.id || order.orderPubkey} className="p-4 rounded-xl border border-white/10 bg-white/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                         <div>
@@ -275,7 +305,7 @@ export default function OrdersPanel() {
                                             </div>
                                         </div>
                                         <button 
-                                            onClick={() => cancelLimitOrder(order.id || order.orderPubkey)}
+                                            onClick={() => cancelLimitOrder(order.id || order.orderPubkey || "")}
                                             disabled={cancellingId === (order.id || order.orderPubkey)}
                                             className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all text-xs font-bold flex items-center gap-2 disabled:opacity-50"
                                         >
@@ -299,8 +329,8 @@ export default function OrdersPanel() {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {dcaOrders.map((dca: any) => {
-                                const account = dca.publicKey || dca.orderAccount;
+                            {dcaOrders.map((dca) => {
+                                const account = dca.publicKey || dca.orderAccount || "";
                                 return (
                                     <div key={account} className="p-4 rounded-xl border border-white/10 bg-white/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                         <div>

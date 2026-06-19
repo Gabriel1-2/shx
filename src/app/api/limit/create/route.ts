@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
+import { validateInternalOrigin } from "@/lib/security";
 import { z } from "zod";
 
 async function safeJson(res: Response) {
@@ -41,6 +42,11 @@ export async function POST(req: NextRequest) {
         const rateLimitResult = await rateLimit(req, 30, 60000);
         if (!rateLimitResult.success) {
             return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+        }
+
+        const csrfCheck = validateInternalOrigin(req);
+        if (!csrfCheck.success) {
+            return NextResponse.json({ error: csrfCheck.error }, { status: 403 });
         }
 
         const rawBody = await req.json();
@@ -116,7 +122,8 @@ export async function POST(req: NextRequest) {
                     outputMint: body.outputMint,
                     amount: body.inAmount,
                     orderType: "price",
-                    orderSubType: "single"
+                    orderSubType: "single",
+                    computeUnitPriceMicroLamports: "auto"
                 })
             });
             const data = await safeJson(res);
@@ -148,7 +155,7 @@ export async function POST(req: NextRequest) {
                 expiresAt: Date.now() + expiryMs,
                 triggerCondition,
                 triggerPriceUsd: Number(body.triggerPriceUsd),
-                slippageBps: 100, // 1% default slippage
+                slippageBps: 100 // 1% default slippage
             };
 
             console.log("[Limit API] Submitting order:", JSON.stringify(orderPayload));

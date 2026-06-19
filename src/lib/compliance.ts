@@ -54,7 +54,8 @@ export async function checkWalletRisk(wallet: string): Promise<RiskScreeningResu
                 const result = data[0]; // We only submitted one address
                 
                 // TRM returns risk indicators. If there are severe risks (e.g. Sanctions), block.
-                const hasSevereRisk = result.entities?.some((entity: any) => 
+                type TRMEntity = { riskScore: number; category: string };
+                const hasSevereRisk = result.entities?.some((entity: TRMEntity) => 
                     entity.riskScore >= 10 || entity.category === 'Sanctions' || entity.category === 'Terrorism Financing'
                 );
 

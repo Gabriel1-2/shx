@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
+import { validateInternalOrigin } from "@/lib/security";
 import { z } from "zod";
 
 const JUP_RECURRING_URL = "https://api.jup.ag/recurring/v1";
@@ -36,6 +37,11 @@ export async function POST(req: NextRequest) {
         const rateLimitResult = await rateLimit(req, 30, 60000);
         if (!rateLimitResult.success) {
             return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+        }
+
+        const csrfCheck = validateInternalOrigin(req);
+        if (!csrfCheck.success) {
+            return NextResponse.json({ error: csrfCheck.error }, { status: 403 });
         }
 
         const rawBody = await req.json();
@@ -80,7 +86,8 @@ export async function POST(req: NextRequest) {
                         maxPrice: null,
                         startAt: null,
                     }
-                }
+                },
+                referralAccount: "9rvZ5CC86oFWgwej21DMPR83LSMBoDehrNe6v6V7AAeg"
             };
 
             console.log("[DCA API] Creating recurring order:", JSON.stringify(orderPayload));

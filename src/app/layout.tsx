@@ -6,6 +6,7 @@ import { Header } from "@/components/Header";
 import { ToastProvider } from "@/components/Toast";
 import { QueryProvider } from "@/components/QueryProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { BackgroundSyncer } from "@/components/BackgroundSyncer";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
@@ -59,6 +60,7 @@ export default function RootLayout({
             <SolanaProvider>
               <ToastProvider>
                 <Header />
+                <BackgroundSyncer />
                 {children}
                 <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto">
                   <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-3">

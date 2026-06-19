@@ -35,8 +35,8 @@ async function getTopPool(tokenAddress: string): Promise<string | null> {
         const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
         if (dexRes.ok) {
             const dexData = await dexRes.json();
-            // Find best SOL pair
-            const bestPair = dexData.pairs?.find((p: any) => p.chainId === 'solana' && p.quoteToken.symbol === 'SOL');
+            type DexPair = { chainId: string; quoteToken: { symbol: string }; pairAddress: string };
+            const bestPair = dexData.pairs?.find((p: DexPair) => p.chainId === 'solana' && p.quoteToken.symbol === 'SOL');
             if (bestPair) return bestPair.pairAddress;
             if (dexData.pairs?.length > 0) return dexData.pairs[0].pairAddress;
         }
@@ -181,8 +181,8 @@ export async function fetchPoolTrades(tokenAddress: string): Promise<TradeData[]
 
         const json = await res.json();
         const trades = json.data;
-
-        return trades.map((t: any) => {
+        type TradeEntry = { attributes: { tx_hash: string; kind: string; price_to_in_usd: string; volume_in_usd: string; from_token_amount: string; block_timestamp: string } };
+        return trades.map((t: TradeEntry) => {
             const attributes = t.attributes;
             return {
                 txHash: attributes.tx_hash,

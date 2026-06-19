@@ -120,7 +120,7 @@ export default function JupiterTerminal() {
                 },
 
                 // ─── ANALYTICS CALLBACKS ──────────────────────
-                onSuccess: async (params: any) => {
+                onSuccess: async (params: { txid: string; swapResult?: unknown }) => {
                     const { txid } = params;
                     console.log("✅ Swap Successful!", txid);
                     setLastTx(txid);
@@ -157,7 +157,7 @@ export default function JupiterTerminal() {
                     }
                 },
 
-                onSwapError: ({ error }: any) => {
+                onSwapError: ({ error }: { error: unknown }) => {
                     console.error("❌ Swap Error:", error);
                 },
             });
@@ -167,7 +167,10 @@ export default function JupiterTerminal() {
             console.error("[Jupiter] Init failed:", e);
         }
     }, [isLoaded, wallet, publicKey, tierData.feeBps]);
-    initJupiterRef.current = initJupiter;
+    
+    useEffect(() => {
+        initJupiterRef.current = initJupiter;
+    }, [initJupiter]);
 
     // Initialize Jupiter when script loads, wallet changes, or fee tier changes
     useEffect(() => {
@@ -182,7 +185,7 @@ export default function JupiterTerminal() {
         }, 200);
 
         return () => clearTimeout(timer);
-    }, [isLoaded, wallet, publicKey, tierData.feeBps, isBuyingSHX, initJupiter]);
+    }, [isLoaded, wallet, publicKey, tierData.feeBps, isBuyingSHX, initJupiter, isInitialized]);
 
     // Compute savings message
     const baseFee = FEE_TIERS[0].feePercent;

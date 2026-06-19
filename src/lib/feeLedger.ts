@@ -67,7 +67,7 @@ export async function recordFee(event: FeeEvent): Promise<boolean> {
 
             if (userDoc.exists) {
                 const userData = userDoc.data()!;
-                const updateData: Record<string, any> = {
+                const updateData: Record<string, number | string | FieldValue> = {
                     totalFeesPaid: FieldValue.increment(event.feeUsd),
                 };
 

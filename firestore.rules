@@ -1,20 +1,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection: anyone can read, nobody can write from client (backend API only)
+    
+    // Explicitly DENY all access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users collection: Public Read, Admin Write Only
     match /users/{walletAddress} {
       allow read: if true;
       allow write: if false;
     }
-    // Transactions collection: anyone can read, nobody can write from client (backend API only)
+    
+    // Transactions collection: Public Read, Admin Write Only
     match /transactions/{txId} {
       allow read: if true;
       allow write: if false;
     }
-    // System collection: health checks
+    
+    // Explicitly secure private system collections
+    match /rate_limits/{limitId} {
+      allow read, write: if false; // Admin backend only
+    }
+    match /daily_snapshots/{dateId} {
+      allow read, write: if false; // Admin backend only
+    }
     match /system/{docId} {
-      allow read: if true;
-      allow write: if false;
+      allow read, write: if false; // Admin backend only
     }
   }
 }

@@ -20,11 +20,30 @@ export function Header() {
     const [platformVolume, setPlatformVolume] = useState(0);
     const tierData = useSHXTier();
 
-    // Fetch platform volume
+    // Fetch platform volume + refresh on swap events
     useEffect(() => {
-        getPlatformStats().then(stats => {
-            setPlatformVolume(stats.totalVolume);
-        });
+        const fetchVolume = () => {
+            getPlatformStats().then(stats => {
+                setPlatformVolume(stats.totalVolume);
+            });
+        };
+
+        fetchVolume();
+
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchVolume, 30000);
+
+        // Listen for swap events from JupiterTerminal
+        const handleSwap = () => {
+            setTimeout(fetchVolume, 8000);
+            setTimeout(fetchVolume, 20000);
+        };
+        window.addEventListener("shx-swap-success", handleSwap);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener("shx-swap-success", handleSwap);
+        };
     }, []);
 
     const formatVolume = (vol: number) => {

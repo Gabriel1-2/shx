@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export interface PortfolioItem {
@@ -77,7 +76,14 @@ export function usePortfolio() {
             // Actually, let's fetch the Strict List once to map mints to symbols/logos
             const tokenListRes = await fetch("https://token.jup.ag/strict");
             const tokenList = await tokenListRes.json();
-            const tokenMap = new Map<string, any>(tokenList.map((t: any) => [t.address, t]));
+            
+            interface JupiterToken {
+                address: string;
+                symbol: string;
+                logoURI: string;
+            }
+            
+            const tokenMap = new Map<string, JupiterToken>(tokenList.map((t: JupiterToken) => [t.address, t]));
 
             const finalPortfolio: PortfolioItem[] = items.map(item => {
                 const priceInfo = priceData?.data?.[item.mint];

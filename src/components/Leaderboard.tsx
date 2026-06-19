@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getWeeklyLeaderboard, getDailyLeaderboard, type LeaderboardEntry } from "@/lib/points";
+import { getPlatformStats } from "@/lib/platformStats";
 import { getEstimatedReward, WEEKLY_REWARD_POOL_USD } from "@/lib/feeTiers";
 import { Trophy, TrendingUp, Medal, Crown, Users, Clock, DollarSign } from "lucide-react";
 
@@ -10,6 +11,7 @@ export function Leaderboard() {
     const [loading, setLoading] = useState(true);
     const [timeLeft, setTimeLeft] = useState("");
     const [mode, setMode] = useState<"weekly" | "daily">("weekly");
+    const [globalFees, setGlobalFees] = useState({ daily: 0, total: 0 });
 
     // Fetch leaderboard
     useEffect(() => {
@@ -33,6 +35,14 @@ export function Leaderboard() {
                 setData(daily);
             }
             setLoading(false);
+            
+            // Fetch global fees for header
+            try {
+                const pStats = await getPlatformStats();
+                setGlobalFees({ daily: pStats.dailyFees, total: pStats.totalFees });
+            } catch (err) {
+                console.error("Error fetching platform stats:", err);
+            }
         };
         fetchData();
 
@@ -117,34 +127,44 @@ export function Leaderboard() {
 
             {/* Reward Pool Banner */}
             <div className="px-4 py-2 border-b border-white/5 bg-gradient-to-r from-yellow-500/5 to-amber-500/5">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                        <DollarSign size={12} className="text-yellow-400" />
-                        <span className="text-[11px] text-yellow-400 font-medium">
-                            Weekly Prize Pool: ${WEEKLY_REWARD_POOL_USD} in SHX
-                        </span>
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                            <DollarSign size={12} className="text-yellow-400" />
+                            <span className="text-[11px] text-yellow-400 font-medium">
+                                Weekly Prize Pool: ${WEEKLY_REWARD_POOL_USD} in SHX
+                            </span>
+                        </div>
+                        <div className="flex gap-1">
+                            <button
+                                onClick={() => setMode("weekly")}
+                                className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${
+                                    mode === "weekly" 
+                                        ? "bg-yellow-500/20 text-yellow-400 font-bold" 
+                                        : "text-muted-foreground hover:text-white"
+                                }`}
+                            >
+                                Weekly
+                            </button>
+                            <button
+                                onClick={() => setMode("daily")}
+                                className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${
+                                    mode === "daily" 
+                                        ? "bg-purple-500/20 text-purple-400 font-bold" 
+                                        : "text-muted-foreground hover:text-white"
+                                }`}
+                            >
+                                Daily
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex gap-1">
-                        <button
-                            onClick={() => setMode("weekly")}
-                            className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${
-                                mode === "weekly" 
-                                    ? "bg-yellow-500/20 text-yellow-400 font-bold" 
-                                    : "text-muted-foreground hover:text-white"
-                            }`}
-                        >
-                            Weekly
-                        </button>
-                        <button
-                            onClick={() => setMode("daily")}
-                            className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${
-                                mode === "daily" 
-                                    ? "bg-purple-500/20 text-purple-400 font-bold" 
-                                    : "text-muted-foreground hover:text-white"
-                            }`}
-                        >
-                            Daily
-                        </button>
+                    {/* Platform Global Fees Generated */}
+                    <div className="flex items-center justify-between bg-black/20 rounded px-2 py-1.5 border border-white/5">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Platform Fees Generated</span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-mono text-emerald-400">24h: {formatFee(globalFees.daily)}</span>
+                            <span className="text-[10px] font-mono text-emerald-400">All-Time: {formatFee(globalFees.total)}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -155,7 +175,7 @@ export function Leaderboard() {
                 <div className="col-span-3">Wallet</div>
                 <div className="col-span-2 text-right">Trades</div>
                 <div className="col-span-3 text-right">{mode === "weekly" ? "Wk Volume" : "Daily Vol"}</div>
-                <div className="col-span-3 text-right">{mode === "weekly" ? "Fees / Reward" : "Daily Fees"}</div>
+                <div className="col-span-3 text-right text-emerald-400/80">{mode === "weekly" ? "Fee Amount Generated / Reward" : "Fee Amount Generated"}</div>
             </div>
 
             {/* Entries */}
@@ -223,15 +243,15 @@ export function Leaderboard() {
                                     </span>
                                 </div>
 
-                                {/* Fees + Reward */}
+                                {/* Fees Collected + Reward */}
                                 <div className="col-span-3 text-right">
                                     {mode === "weekly" ? (
                                         <div className="flex flex-col items-end">
-                                            <span className="text-xs text-muted-foreground">
+                                            <span className="text-sm font-bold text-emerald-400">
                                                 {formatFee(fees)}
                                             </span>
                                             {reward > 0 && (
-                                                <span className="text-[10px] font-bold text-green-400">
+                                                <span className="text-[10px] font-bold text-yellow-400">
                                                     +${reward} reward
                                                 </span>
                                             )}

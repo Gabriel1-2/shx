@@ -110,6 +110,9 @@ export default function LimitOrderPanel() {
             const verifyData = await verifyRes.json();
             if (!verifyRes.ok) throw new Error(verifyData.error || "Failed verify");
             const jwt = verifyData.token;
+            
+            // Store for background sync
+            try { localStorage.setItem("shx_jupiter_jwt", jwt); } catch (_e) {}
 
             // 3.5 Sync Past Orders (Background, do not await so it doesn't slow down the flow)
             fetch("/api/limit/sync", {
@@ -158,7 +161,8 @@ export default function LimitOrderPanel() {
             // Using signTransaction to just sign without sending!
             // Note: Since this is standard Wallet Adapter, we need the wallet to sign it
             if (!signTransaction) throw new Error("Wallet does not support signTransaction");
-            const signedTxObj = await signTransaction(tx as any);
+            type SupportedTransaction = Parameters<typeof signTransaction>[0];
+            const signedTxObj = await signTransaction(tx as SupportedTransaction);
             const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
 
             // --- SUBMIT FINAL ORDER ---
@@ -213,15 +217,17 @@ export default function LimitOrderPanel() {
             setCurrentStep("");
             setStatusType("success");
             setStatusMessage("✅ Trigger Limit order placed successfully!");
-        } catch (error: any) {
+        } catch (_e) {
+            const error = _e;
+            const msg = error instanceof Error ? error.message : "Unknown error";
             console.error("[LimitOrder]", error);
             setStatusType("error");
             
             // Provide a user-friendly message for the most common Jupiter error
-            if (error.message.includes("Failed to execute deposit")) {
+            if (msg.includes("Failed to execute deposit")) {
                 setStatusMessage("Error: Failed to execute deposit. Please ensure you have enough tokens for the order AND enough SOL (~0.003) for the network fee & account rent.");
             } else {
-                setStatusMessage(`Error: ${error.message}`);
+                setStatusMessage(`Error: ${msg}`);
             }
         } finally {
             setIsSubmitting(false);

@@ -121,6 +121,8 @@ export default function DCAPanel() {
                 const verifyData = await verifyRes.json();
                 if (!verifyRes.ok) throw new Error(verifyData.error || "Failed verify");
                 const jwt = verifyData.token;
+                
+                try { localStorage.setItem("shx_jupiter_jwt", jwt); } catch (e) {}
 
                 // 4. Register Vault
                 setStatus("Registering vault on-chain...");

@@ -46,6 +46,12 @@ export async function POST(req: Request) {
             const orderId = order.id || order.pubkey || order.orderPubkey;
             if (!orderId) continue;
 
+            const maker = order.maker || order.userPubkey || order.owner;
+            if (maker && maker !== wallet) {
+                console.warn(`[Limit Sync] Wallet mismatch spoofing attempt! maker=${maker}, requested_wallet=${wallet}`);
+                continue;
+            }
+
             const isProcessed = await hasOrderBeenProcessed(orderId);
             if (isProcessed) continue;
 

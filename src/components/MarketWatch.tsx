@@ -60,6 +60,16 @@ const TOKEN_INFO: Record<string, { symbol: string; name: string; logoURI: string
 };
 
 const SHULEVITZ_MINT = "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q";
+
+// CoinGecko ID mapping for known tokens (accurate prices, free)
+const COINGECKO_IDS: Record<string, string> = {
+    "So11111111111111111111111111111111111111112": "solana",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": "usd-coin",
+    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": "bonk",
+    "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": "dogwifcoin",
+    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN": "jupiter-exchange-solana",
+};
+
 const UPDATE_INTERVAL = 5000; // 5 seconds for "real-time" feel
 
 export function MarketWatch() {
@@ -119,15 +129,6 @@ export function MarketWatch() {
         return () => clearTimeout(timer);
     }, [searchQuery, searchTokens]);
 
-    // CoinGecko ID mapping for known tokens (accurate prices, free)
-    const COINGECKO_IDS: Record<string, string> = {
-        "So11111111111111111111111111111111111111112": "solana",
-        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": "usd-coin",
-        "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": "bonk",
-        "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": "dogwifcoin",
-        "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN": "jupiter-exchange-solana",
-    };
-
     const fetchPricesForTokens = useCallback(async (addresses: string[]) => {
         const results: TokenData[] = [];
 
@@ -136,7 +137,7 @@ export function MarketWatch() {
             .map(a => COINGECKO_IDS[a])
             .filter(Boolean);
 
-        let cgPrices: Record<string, number> = {};
+        const cgPrices: Record<string, number> = {};
         if (cgIds.length > 0) {
             try {
                 const cgRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd&include_24hr_change=true`);
@@ -169,16 +170,17 @@ export function MarketWatch() {
                     const expectedSymbol = knownInfo?.symbol;
 
                     let correctPair;
+                    type DexPair = { baseToken?: { symbol?: string; name?: string; }; liquidity?: { usd?: number }; priceUsd: string; priceChange?: { h24?: number }; volume?: { h24?: number }; info?: { imageUrl?: string; }; };
                     if (expectedSymbol) {
                         // Match by symbol (most reliable for known tokens)
                         correctPair = data.pairs.find(
-                            (p: any) => p.baseToken?.symbol?.toUpperCase() === expectedSymbol.toUpperCase()
+                            (p: DexPair) => p.baseToken?.symbol?.toUpperCase() === expectedSymbol.toUpperCase()
                         );
                     }
                     if (!correctPair) {
                         // Fallback: pick the pair with highest USD liquidity
                         correctPair = [...data.pairs].sort(
-                            (a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
+                            (a: DexPair, b: DexPair) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
                         )[0];
                     }
 
@@ -385,6 +387,7 @@ export function MarketWatch() {
                         >
                             <div className="flex items-center gap-3">
                                 {token.logoURI ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                         src={token.logoURI}
                                         alt={token.symbol}

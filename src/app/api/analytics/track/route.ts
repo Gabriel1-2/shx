@@ -5,6 +5,13 @@ import { rateLimit } from "@/lib/rateLimit";
 import { getEffectiveFeeBps } from "@/lib/feeTiers";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 import { recordFee } from "@/lib/feeLedger";
+import { validateInternalOrigin } from "@/lib/security";
+import { z } from "zod";
+
+const TrackSchema = z.object({
+    txid: z.string().min(64).max(100),
+    walletAddr: z.string().min(32).max(44),
+});
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -20,6 +27,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
+    const csrfCheck = validateInternalOrigin(req);
+    if (!csrfCheck.success) {
+        return NextResponse.json({ error: csrfCheck.error }, { status: 403 });
+    }
+
     if (!adminDb) {
         console.error("[Analytics] Firebase Admin not configured — adminDb is null");
         return NextResponse.json({ error: "Firebase Admin not configured" }, { status: 500 });
@@ -27,11 +39,13 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { txid, walletAddr } = body;
-
-        if (!txid || !walletAddr) {
-            return NextResponse.json({ error: "Missing txid or walletAddr" }, { status: 400 });
+        
+        const parseResult = TrackSchema.safeParse(body);
+        if (!parseResult.success) {
+            return NextResponse.json({ error: "Invalid payload parameters" }, { status: 400 });
         }
+
+        const { txid, walletAddr } = parseResult.data;
 
         // --- COMPLIANCE CHECK ---
         const { checkWalletRisk } = await import('@/lib/compliance');

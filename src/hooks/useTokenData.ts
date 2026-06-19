@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 
@@ -32,7 +32,7 @@ export function useTokenBalance(tokenMint: string, decimals: number = 9) {
                 const response = await connection.getParsedAccountInfo(ata);
 
                 if (response.value) {
-                    const data = response.value.data as any;
+                    const data = response.value.data as { parsed: { info: { tokenAmount: { uiAmount: number } } } };
                     setBalance(data.parsed.info.tokenAmount.uiAmount || 0);
                 } else {
                     setBalance(0);
@@ -99,8 +99,9 @@ export function useTokenPrice(tokenMint: string) {
                 if (res?.ok) {
                     const apiData = await res.json();
                     if (apiData.pairs && apiData.pairs.length > 0) {
+                        type DexScreenerPair = { liquidity?: { usd?: number }, priceUsd: string, pairAddress: string };
                         const sortedPairs = [...apiData.pairs].sort(
-                            (a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
+                            (a: DexScreenerPair, b: DexScreenerPair) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
                         );
                         const bestPair = sortedPairs[0];
                         const price = parseFloat(bestPair.priceUsd) || 0;

@@ -17,8 +17,14 @@ import { FEE_TIERS } from "@/lib/feeTiers";
 import {
     TrendingUp, Shield, Zap, Wallet, Trophy, Activity,
     ChevronRight, Target, Award, Coins, ArrowUp,
-    BarChart2, Layers, DollarSign
+    BarChart2, Layers, DollarSign, ListOrdered
 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const OrdersPanel = dynamic(() => import("@/components/OrdersPanel"), {
+    ssr: false,
+    loading: () => <div className="w-full h-[300px] bg-white/5 animate-pulse rounded-2xl" />
+});
 
 function DashboardContent() {
     const { publicKey } = useWallet();
@@ -47,32 +53,71 @@ function DashboardContent() {
     const [userRank, setUserRank] = useState<number | null>(null);
 
     useEffect(() => {
-        getPlatformStats().then(setPlatformStats);
-    }, []);
+        let isMounted = true;
 
-    useEffect(() => {
-        if (publicKey) {
-            const walletAddr = publicKey.toString();
-
-            getUserStats(walletAddr).then(data => {
-                setStats({
-                    totalTrades: data.tradeCount || 0,
-                    totalVolume: data.volume || 0,
-                    totalPoints: data.points || 0,
-                    tradeCount: data.tradeCount || 0,
-                    totalFeesPaid: data.totalFeesPaid || 0,
-                    weeklyVolume: data.weeklyVolume || 0,
-                    dailyVolume: data.dailyVolume || 0,
-                });
-
-                getWeeklyLeaderboard().then(leaderboard => {
-                    const entry = leaderboard.find(e => e.wallet === walletAddr);
-                    if (entry) {
-                        setUserRank(entry.rank);
-                    }
-                });
+        const fetchStats = () => {
+            getPlatformStats().then(data => {
+                if (isMounted) setPlatformStats(data);
             });
-        }
+
+            if (publicKey) {
+                const walletAddr = publicKey.toString();
+                getUserStats(walletAddr).then(data => {
+                    if (!isMounted) return;
+                    
+                    // Daily Volume 24hr Reset Enforcer (Visual)
+                    // If the dayStart in data doesn't match current UTC day, visually force it to 0
+                    const now = new Date();
+                    const currentDay = now.toISOString().split("T")[0];
+                    let dailyVol = data.dailyVolume || 0;
+                    if ((data as any).dayStart && (data as any).dayStart !== currentDay) {
+                        dailyVol = 0; 
+                    }
+
+                    setStats({
+                        totalTrades: data.tradeCount || 0,
+                        totalVolume: data.volume || 0,
+                        totalPoints: data.points || 0,
+                        tradeCount: data.tradeCount || 0,
+                        totalFeesPaid: data.totalFeesPaid || 0,
+                        weeklyVolume: data.weeklyVolume || 0,
+                        dailyVolume: dailyVol,
+                    });
+
+                    getWeeklyLeaderboard().then(leaderboard => {
+                        if (!isMounted) return;
+                        const entry = leaderboard.find(e => e.wallet === walletAddr);
+                        if (entry) {
+                            setUserRank(entry.rank);
+                        }
+                    });
+                });
+            }
+        };
+
+        fetchStats(); // initial fetch
+
+        // Live refresh every 15 seconds
+        const interval = setInterval(fetchStats, 15000);
+
+        // Listen for swap success events and refresh after a delay
+        // (the backend takes ~4-20s to confirm the tx on-chain and write to Firestore)
+        const handleSwapSuccess = () => {
+            // First refresh after 5s (optimistic — backend may still be processing)
+            setTimeout(fetchStats, 5000);
+            // Second refresh after 15s (should definitely be written by now)
+            setTimeout(fetchStats, 15000);
+            // Third refresh after 25s (final catch-all for slow RPC confirmations)
+            setTimeout(fetchStats, 25000);
+        };
+
+        window.addEventListener("shx-swap-success", handleSwapSuccess);
+
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+            window.removeEventListener("shx-swap-success", handleSwapSuccess);
+        };
     }, [publicKey]);
 
     const formatNumber = (num: number) => {
@@ -217,12 +262,13 @@ function DashboardContent() {
                 )}
 
                 {/* Platform Stats */}
-                <div className="mb-8 grid gap-3 grid-cols-2 lg:grid-cols-4">
+                <div className="mb-8 grid gap-3 grid-cols-2 lg:grid-cols-5">
                     {[
                         { label: "24h Volume", value: platformStats.dailyVolume, isCurrency: true, icon: Activity, gradient: "from-blue-500 to-cyan-500" },
                         { label: "24h Fees", value: platformStats.dailyFees, isCurrency: true, icon: DollarSign, gradient: "from-yellow-500 to-orange-500" },
                         { label: "24h Trades", value: platformStats.dailyTrades, isCurrency: false, icon: Zap, gradient: "from-purple-500 to-pink-500" },
-                        { label: "All-Time Volume", value: platformStats.totalVolume, isCurrency: true, icon: TrendingUp, gradient: "from-green-500 to-emerald-500" },
+                        { label: "All-Time Vol", value: platformStats.totalVolume, isCurrency: true, icon: TrendingUp, gradient: "from-green-500 to-emerald-500" },
+                        { label: "All-Time Fees", value: platformStats.totalFees, isCurrency: true, icon: Coins, gradient: "from-amber-400 to-orange-500" },
                     ].map((stat, i) => (
                         <div key={i} className="group relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl p-4 hover:border-white/10 transition-all duration-300 hover:scale-[1.02]">
                             <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity`}></div>
@@ -270,8 +316,21 @@ function DashboardContent() {
                             </div>
                         </div>
 
+                        {/* Active Orders */}
+                        {publicKey && (
+                            <div>
+                                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2 mt-8">
+                                    <ListOrdered size={18} className="text-primary" />
+                                    Active Orders
+                                </h2>
+                                <OrdersPanel />
+                            </div>
+                        )}
+
                         {/* Transaction History */}
-                        <TransactionHistory />
+                        <div className="mt-8">
+                            <TransactionHistory />
+                        </div>
 
                         {/* Leaderboard */}
                         <div>

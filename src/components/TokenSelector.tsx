@@ -26,8 +26,15 @@ export default function TokenSelector({ value, onChange, label }: TokenSelectorP
                 const res = await fetch("https://token.jup.ag/strict");
                 const data = await res.json();
                 
+                interface JupTokenRaw {
+                    symbol: string;
+                    name: string;
+                    address: string;
+                    logoURI: string;
+                    decimals: number;
+                }
                 // Map Jupiter tokens to our TokenInfo structure
-                const jupTokens: TokenInfo[] = data.map((t: any) => ({
+                const jupTokens: TokenInfo[] = data.map((t: JupTokenRaw) => ({
                     symbol: t.symbol,
                     name: t.name,
                     address: t.address,
