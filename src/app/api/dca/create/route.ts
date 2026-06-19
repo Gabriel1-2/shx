@@ -33,7 +33,7 @@ const DCACreateSchema = z.object({
 
 export async function POST(req: NextRequest) {
     try {
-        const rateLimitResult = rateLimit(req, 30, 60000);
+        const rateLimitResult = await rateLimit(req, 30, 60000);
         if (!rateLimitResult.success) {
             return NextResponse.json({ error: "Too many requests" }, { status: 429 });
         }

@@ -15,7 +15,7 @@ const STABLECOINS = [
 ];
 
 export async function POST(req: NextRequest) {
-    const rateLimitResult = rateLimit(req, 10, 60000);
+    const rateLimitResult = await rateLimit(req, 10, 60000);
     if (!rateLimitResult.success) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
