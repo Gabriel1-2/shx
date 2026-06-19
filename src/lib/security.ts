@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 const ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "https://shx.exchange",
     "https://www.shx.exchange"
 ];
