@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Jupiter API key not configured" }, { status: 500 });
         }
 
-        const res = await fetch(`https://api.jup.ag/trigger/v2/orders/history?state=active&walletPubkey=${body.wallet}`, {
+        const res = await fetch(`https://api.jup.ag/trigger/v2/orders/history?state=active&limit=50`, {
             method: "GET",
             headers: {
                 "x-api-key": apiKey,
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
         if (!res.ok) {
             console.error("[Limit Orders API] Jupiter API Error:", data);
-            return NextResponse.json({ error: data.error || data.message || "Failed to fetch limit orders" }, { status: res.status });
+            return NextResponse.json({ error: data.error || data.message || "Failed to fetch limit orders", details: data.text }, { status: res.status });
         }
 
         return NextResponse.json(data);
