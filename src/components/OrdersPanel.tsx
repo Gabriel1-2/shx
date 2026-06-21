@@ -126,7 +126,7 @@ export default function OrdersPanel() {
             if (!res.ok) throw new Error(data.error || "Failed to fetch orders");
             
             // Filter out closed/past orders just in case
-            const openOrders = (data.orders || data.data || []).filter((o: LimitOrder) => o.status === "open" || o.status === "active" || o.orderState === "active");
+            const openOrders = (data.orders || data.data || []).filter((o: LimitOrder) => o.status === "open" || o.status === "active" || o.orderState === "active" || o.orderState === "failed");
             setLimitOrders(openOrders);
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : "Unknown error";
@@ -300,6 +300,11 @@ export default function OrdersPanel() {
                                                 <span className="text-sm font-bold text-white">
                                                     {getTokenSymbol(order.inputMint)} <ArrowRight size={12} className="inline mx-1 text-white/50" /> {getTokenSymbol(order.outputMint)}
                                                 </span>
+                                                {order.orderState === "failed" && (
+                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-red-500/20 text-red-500 uppercase tracking-wider ml-2">
+                                                        FAILED (No SOL for rent?)
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="text-xs text-muted-foreground">
                                                 Trigger at <span className="text-white font-medium">${order.triggerPriceUsd || order.triggerPrice}</span>
@@ -342,6 +347,11 @@ export default function OrdersPanel() {
                                                 <span className="text-sm font-bold text-white">
                                                     {getTokenSymbol(dca.inputMint)} <ArrowRight size={12} className="inline mx-1 text-white/50" /> {getTokenSymbol(dca.outputMint)}
                                                 </span>
+                                                {(dca.status === "failed" || dca.orderStatus === "failed") && (
+                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-red-500/20 text-red-500 uppercase tracking-wider ml-2">
+                                                        FAILED (No SOL for rent?)
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="text-xs text-muted-foreground">
                                                 Interval: <span className="text-white font-medium">{dca.interval || "Custom"}s</span> • Remaining: <span className="text-white font-medium">{dca.remainingOrders || dca.params?.time?.numberOfOrders || "?"} orders</span>
