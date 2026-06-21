@@ -163,25 +163,7 @@ export default function DCAPanel() {
             type SupportedTransaction = Parameters<typeof signTransaction>[0];
             const signedTxObj = await signTransaction(tx as SupportedTransaction);
             
-            // MANUAL BUFFER RECONSTRUCTION:
-            // @solana/web3.js VersionedTransaction.serialize() can sometimes alter message byte padding for ALTs.
-            // Jupiter strictly verifies the exact message bytes, rejecting it if even 1 byte is different.
-            // We manually splice the new signatures onto the original message bytes to guarantee a 100% match.
-            const rawTxBytes = Buffer.from(craftData.tx, "base64");
-            let offset = 0;
-            while (true) {
-                const b = rawTxBytes[offset];
-                offset++;
-                if ((b & 0x80) === 0) break;
-            }
-            const messageBytes = rawTxBytes.slice(offset + (signedTxObj.signatures.length * 64));
-            
-            const newTxBuffer = Buffer.concat([
-                rawTxBytes.slice(0, offset), // Compact-u16 signature count
-                ...signedTxObj.signatures.map((sig: Uint8Array) => Buffer.from(sig)), // New signatures
-                messageBytes // Exact pristine message bytes
-            ]);
-            const signedTxBase64 = newTxBuffer.toString("base64");
+            const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
 
             // ── Step 3: Execute via Jupiter ───────────────
             setCurrentStep("execute");
