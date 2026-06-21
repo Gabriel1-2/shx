@@ -163,10 +163,7 @@ export default function DCAPanel() {
             type SupportedTransaction = Parameters<typeof signTransaction>[0];
             const signedTxObj = await signTransaction(tx as SupportedTransaction);
             
-            // GRAFTING: Preserve original message bytes
-            const pristineTx = VersionedTransaction.deserialize(txBuffer);
-            pristineTx.signatures = signedTxObj.signatures as any;
-            const signedTxBase64 = Buffer.from(pristineTx.serialize()).toString("base64");
+            const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
 
             // ── Step 3: Execute via Jupiter ───────────────
             setCurrentStep("execute");
