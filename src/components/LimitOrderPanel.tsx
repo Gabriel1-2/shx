@@ -198,7 +198,14 @@ export default function LimitOrderPanel() {
                     }),
                 });
 
-                submitData = await submitRes.json();
+                let textData;
+                try {
+                    textData = await submitRes.text();
+                    submitData = JSON.parse(textData);
+                } catch(e) {
+                    submitData = { error: textData ? textData.slice(0, 100) : "Invalid non-JSON response from server" };
+                }
+
                 if (submitRes.ok) {
                     submitOk = true;
                     break;
