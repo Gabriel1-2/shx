@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Fetch recurring orders for user
-        const res = await fetch(`https://api.jup.ag/recurring/v1/getRecurringOrders?user=${user}`, {
+        const res = await fetch(`https://api.jup.ag/recurring/v1/getRecurringOrders?user=${user}&recurringType=all&orderStatus=active&includeFailedTx=true`, {
             method: "GET",
             headers: {
                 "x-api-key": apiKey,

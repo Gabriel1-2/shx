@@ -145,7 +145,7 @@ export default function OrdersPanel() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to fetch DCA orders");
             
-            setDcaOrders(data.orders || data.data || []);
+            setDcaOrders(data.orders || data.data || data.all || []);
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : "Unknown error";
             showMessage(msg, "error");
