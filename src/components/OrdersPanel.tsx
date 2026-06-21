@@ -33,6 +33,8 @@ interface DCAOrder {
             numberOfOrders?: number;
         }
     }
+    status?: string;
+    orderStatus?: string;
 }
 
 export default function OrdersPanel() {
