@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Jupiter API key not configured" }, { status: 500 });
         }
 
-        const res = await fetch(`https://api.jup.ag/trigger/v2/orders/history?state=active&limit=50`, {
+        const res = await fetch(`https://api.jup.ag/trigger/v2/orders/history?limit=50`, {
             method: "GET",
             headers: {
                 "x-api-key": apiKey,
