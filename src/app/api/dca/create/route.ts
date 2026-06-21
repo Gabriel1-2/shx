@@ -3,6 +3,8 @@ import { rateLimit } from "@/lib/rateLimit";
 import { validateInternalOrigin } from "@/lib/security";
 import { z } from "zod";
 
+export const maxDuration = 60;
+
 const JUP_RECURRING_URL = "https://api.jup.ag/recurring/v1";
 
 async function safeJson(res: Response) {
