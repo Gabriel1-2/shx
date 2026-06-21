@@ -1,0 +1,42 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body, html { 
+    width: 100vw; height: 100vh; 
+    background: #010302; overflow: hidden; 
+    font-family: 'Courier New', Courier, monospace; 
+}
+canvas { display: block; position: absolute; top: 0; left: 0; }
+#gl-canvas { z-index: 10; }
+#hud-canvas { z-index: 20; pointer-events: none; }
+
+#crt { position: absolute; inset: 0; z-index: 50; pointer-events: none; mix-blend-mode: overlay; opacity: 0.8; }
+#crt::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.5) 50%);
+    background-size: 100% 3px;
+}
+#crt::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.95) 100%);
+}
+
+#flash { 
+    position: absolute; inset: 0; z-index: 40; pointer-events: none; 
+    opacity: 0; mix-blend-mode: screen; transition: opacity 0.05s ease-out; 
+}
+
+#start {
+    position: absolute; inset: 0; z-index: 100;
+    background: #010302;
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+}
+.btn {
+    border: 1px solid #2FF36A; padding: 18px 50px; font-size: 20px; font-weight: bold;
+    font-family: inherit; color: #2FF36A; background: rgba(47,243,106,0.03);
+    text-transform: uppercase; cursor: pointer; letter-spacing: 5px; transition: all 0.4s;
+}
+.btn:hover {
+    background: #2FF36A; color: #010302;
+    box-shadow: 0 0 60px rgba(47,243,106,0.5), 0 0 120px rgba(47,243,106,0.2);
+    transform: scale(1.06);
+}
+.sub { margin-top: 18px; font-size: 11px; opacity: 0.4; color: #1CA478; letter-spacing: 4px; }

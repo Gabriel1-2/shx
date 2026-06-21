@@ -17,7 +17,8 @@ interface LimitOrder {
     triggerCondition: string;
     triggerPriceUsd?: string;
     triggerPrice?: string;
-    status: string;
+    status?: string;
+    orderState?: string;
 }
 
 interface DCAOrder {
@@ -125,7 +126,7 @@ export default function OrdersPanel() {
             if (!res.ok) throw new Error(data.error || "Failed to fetch orders");
             
             // Filter out closed/past orders just in case
-            const openOrders = (data.orders || data.data || []).filter((o: LimitOrder) => o.status === "open");
+            const openOrders = (data.orders || data.data || []).filter((o: LimitOrder) => o.status === "open" || o.status === "active" || o.orderState === "active");
             setLimitOrders(openOrders);
         } catch (error: unknown) {
             const msg = error instanceof Error ? error.message : "Unknown error";
