@@ -162,10 +162,17 @@ export async function POST(req: NextRequest) {
 
             console.log("[Limit API] Submitting order:", JSON.stringify(orderPayload));
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 55000);
+
             const res = await fetch(`https://api.jup.ag/trigger/v2/orders/price`, {
                 method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` },
-                body: JSON.stringify(orderPayload)
+                body: JSON.stringify(orderPayload),
+                signal: controller.signal
             });
+            
+            clearTimeout(timeoutId);
+
             const data = await safeJson(res);
             if (!res.ok) {
                 console.error("[Limit API] Submit error:", JSON.stringify(data));

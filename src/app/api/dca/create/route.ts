@@ -129,6 +129,9 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: "Missing signedTransaction or requestId" }, { status: 400 });
             }
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 55000);
+
             const response = await fetch(`${JUP_RECURRING_URL}/execute`, {
                 method: "POST",
                 headers: {
@@ -139,7 +142,10 @@ export async function POST(req: NextRequest) {
                     signedTransaction: body.signedTransaction,
                     requestId: body.requestId,
                 }),
+                signal: controller.signal
             });
+            
+            clearTimeout(timeoutId);
 
             const data = await safeJson(response);
 
