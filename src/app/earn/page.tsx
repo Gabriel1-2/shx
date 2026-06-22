@@ -186,10 +186,7 @@ export default function EarnPage() {
         return () => clearInterval(interval);
     }, []);
 
-    const apy = pool ? computeApy(pool.volume24h, pool.tvl) : 0;
-    const tradingApy = Math.max(apy, 15); // Floor at 15% for display
-    const FARM_APY = 15; // Set to 15% as requested by user
-    const displayApy = tradingApy + FARM_APY;
+    const displayApy = 15; // Fixed 15% as requested by user
 
     const openRaydiumPopup = () => {
         const width = 600;
@@ -250,7 +247,7 @@ export default function EarnPage() {
                             icon: Flame,
                             color: "text-green-400",
                             glow: "from-green-500/10 to-lime-500/10",
-                            sub: `${FARM_APY}% Farm + ${tradingApy.toFixed(1)}% Fees`,
+                            sub: `Yield Farm Rewards`,
                         },
                         {
                             label: "24h Volume",
@@ -343,7 +340,7 @@ export default function EarnPage() {
                             <div className="bg-green-500/5 border border-green-500/15 rounded-xl p-4 mb-5 flex items-start gap-3">
                                 <Pickaxe className="text-green-400 shrink-0 mt-0.5" size={18} />
                                 <div className="text-sm text-muted-foreground">
-                                    <strong className="text-white">Yield Farm is LIVE!</strong> Provide liquidity and stake your LP tokens in the Raydium Ecosystem Farm to earn a massive {FARM_APY}% bonus APY in SHX rewards.
+                                    <strong className="text-white">Yield Farm is LIVE!</strong> Provide liquidity and stake your LP tokens in the Raydium Ecosystem Farm to earn a massive 15% bonus APY in SHX rewards.
                                 </div>
                             </div>
 
