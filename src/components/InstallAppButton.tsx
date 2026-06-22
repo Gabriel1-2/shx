@@ -69,40 +69,44 @@ export function InstallAppButton() {
             </button>
 
             {showIosInstructions && (
-                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 pb-0">
-                    <div className="bg-[#111] border-t sm:border border-white/10 rounded-t-2xl sm:rounded-2xl p-5 w-full max-w-sm shadow-2xl relative max-h-[90vh] overflow-y-auto pb-safe">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4">
+                    <div className="bg-[#111] border border-white/10 rounded-2xl p-5 w-full max-w-sm shadow-2xl relative overflow-hidden">
                         <button 
                             onClick={() => setShowIosInstructions(false)}
-                            className="absolute right-4 top-4 text-muted-foreground hover:text-white bg-black/50 rounded-full p-1"
+                            className="absolute right-4 top-4 text-white/50 hover:text-white bg-white/5 rounded-full p-1 transition-colors"
                         >
                             <X className="w-5 h-5" />
                         </button>
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 rounded-xl bg-primary/20 text-primary">
+                        
+                        <div className="flex items-center gap-3 mb-4 mt-2">
+                            <div className="p-2 rounded-xl bg-green-500/20 text-green-500">
                                 <Download className="w-6 h-6" />
                             </div>
-                            <h3 className="text-lg font-bold text-white">Install on iOS</h3>
+                            <h3 className="text-xl font-black text-white tracking-tight">Install SHX</h3>
                         </div>
-                        <p className="text-muted-foreground text-sm mb-5">
-                            Apple strictly requires iOS users to install apps manually. Follow these steps:
+                        
+                        <p className="text-white/70 text-sm mb-6 leading-relaxed">
+                            Apple strictly requires iOS users to install apps manually. Follow these quick steps:
                         </p>
-                        <ol className="space-y-4 text-sm mb-6">
-                            <li className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-xs">1</span>
-                                <span className="text-white">Tap the <Share className="inline w-4 h-4 mx-1 text-blue-400" /> <span className="font-bold">Share</span> button below</span>
-                            </li>
-                            <li className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-xs">2</span>
-                                <span className="text-white">Scroll down and tap <span className="font-bold">Add to Home Screen</span></span>
-                            </li>
-                            <li className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-xs">3</span>
-                                <span className="text-white">Tap <span className="font-bold">Add</span> in the top right</span>
-                            </li>
-                        </ol>
+                        
+                        <div className="space-y-3 mb-8">
+                            <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-500/20 text-green-500 font-bold text-xs shrink-0">1</div>
+                                <div className="text-white/90 text-sm">Tap the <Share className="inline w-4 h-4 mx-1 text-blue-400" /> <span className="font-bold text-white">Share</span> button below</div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-500/20 text-green-500 font-bold text-xs shrink-0">2</div>
+                                <div className="text-white/90 text-sm">Scroll down and tap <span className="font-bold text-white">Add to Home Screen</span></div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-500/20 text-green-500 font-bold text-xs shrink-0">3</div>
+                                <div className="text-white/90 text-sm">Tap <span className="font-bold text-white">Add</span> in the top right</div>
+                            </div>
+                        </div>
+                        
                         <button 
                             onClick={() => setShowIosInstructions(false)}
-                            className="w-full py-3 bg-primary text-black rounded-xl font-bold hover:bg-primary/90 transition-colors"
+                            className="w-full py-3.5 bg-green-500 text-black rounded-xl font-bold hover:bg-green-400 transition-colors text-base"
                         >
                             I understand
                         </button>
