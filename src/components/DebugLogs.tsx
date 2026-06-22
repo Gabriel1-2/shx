@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Terminal, X, Trash2 } from "lucide-react";
+import { Terminal, X, Trash2, Bug } from "lucide-react";
 
 interface LogEntry {
     timestamp: number;
@@ -68,7 +68,17 @@ export default function DebugLogsViewer() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    if (!isOpen) return null;
+    if (!isOpen) {
+        return (
+            <button
+                onClick={() => setIsOpen(true)}
+                className="fixed bottom-4 right-4 z-[999999] p-2 rounded-full bg-black/50 border border-white/10 text-white/30 hover:text-white/80 hover:bg-black/80 backdrop-blur-md transition-all shadow-lg"
+                title="Open Developer Logs"
+            >
+                <Bug size={16} />
+            </button>
+        );
+    }
 
     return (
         <div className="fixed inset-0 z-[999999] flex flex-col justify-end sm:items-center sm:justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
