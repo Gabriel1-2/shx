@@ -53,7 +53,7 @@ export function Header() {
     };
 
     return (
-        <header className="flex h-14 md:h-16 w-full items-center justify-between border-b border-white/10 bg-black/80 px-3 md:px-6 backdrop-blur-xl sticky top-0 z-50">
+        <header className="flex h-14 md:h-16 w-full items-center justify-between border-b border-white/10 bg-black/80 px-3 md:px-6 backdrop-blur-xl sticky top-0 z-[100]">
             {/* Left: Logo + Nav */}
             <div className="flex items-center gap-1 md:gap-2 min-w-0 overflow-x-auto scrollbar-hide">
                 <Link href="/" className="text-xl md:text-2xl font-black tracking-tight shrink-0">
