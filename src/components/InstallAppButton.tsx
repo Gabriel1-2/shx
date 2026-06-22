@@ -69,37 +69,42 @@ export function InstallAppButton() {
             </button>
 
             {showIosInstructions && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-                    <div className="bg-card border border-border rounded-xl p-6 max-w-sm w-full shadow-2xl relative">
+                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 pb-0">
+                    <div className="bg-[#111] border-t sm:border border-white/10 rounded-t-2xl sm:rounded-2xl p-5 w-full max-w-sm shadow-2xl relative max-h-[90vh] overflow-y-auto pb-safe">
                         <button 
                             onClick={() => setShowIosInstructions(false)}
-                            className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
+                            className="absolute right-4 top-4 text-muted-foreground hover:text-white bg-black/50 rounded-full p-1"
                         >
                             <X className="w-5 h-5" />
                         </button>
-                        <h3 className="text-lg font-semibold mb-2">Install SHX Exchange</h3>
-                        <p className="text-muted-foreground text-sm mb-6">
-                            To install this app on your iOS device for the best experience:
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-xl bg-primary/20 text-primary">
+                                <Download className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-lg font-bold text-white">Install on iOS</h3>
+                        </div>
+                        <p className="text-muted-foreground text-sm mb-5">
+                            Apple strictly requires iOS users to install apps manually. Follow these steps:
                         </p>
-                        <ol className="space-y-4 text-sm">
-                            <li className="flex items-center gap-3">
-                                <span className="flex items-center justify-center w-8 h-8 min-w-[2rem] rounded-full bg-primary/10 text-primary font-bold">1</span>
-                                <span>Tap the <Share className="inline w-4 h-4 mx-1" /> Share button in your browser toolbar</span>
+                        <ol className="space-y-4 text-sm mb-6">
+                            <li className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-xs">1</span>
+                                <span className="text-white">Tap the <Share className="inline w-4 h-4 mx-1 text-blue-400" /> <span className="font-bold">Share</span> button below</span>
                             </li>
-                            <li className="flex items-center gap-3">
-                                <span className="flex items-center justify-center w-8 h-8 min-w-[2rem] rounded-full bg-primary/10 text-primary font-bold">2</span>
-                                <span>Scroll down and select <strong>"Add to Home Screen"</strong></span>
+                            <li className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-xs">2</span>
+                                <span className="text-white">Scroll down and tap <span className="font-bold">Add to Home Screen</span></span>
                             </li>
-                            <li className="flex items-center gap-3">
-                                <span className="flex items-center justify-center w-8 h-8 min-w-[2rem] rounded-full bg-primary/10 text-primary font-bold">3</span>
-                                <span>Tap <strong>Add</strong> in the top right</span>
+                            <li className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-xs">3</span>
+                                <span className="text-white">Tap <span className="font-bold">Add</span> in the top right</span>
                             </li>
                         </ol>
                         <button 
                             onClick={() => setShowIosInstructions(false)}
-                            className="mt-8 w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium"
+                            className="w-full py-3 bg-primary text-black rounded-xl font-bold hover:bg-primary/90 transition-colors"
                         >
-                            Got it
+                            I understand
                         </button>
                     </div>
                 </div>
