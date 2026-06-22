@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Download, X, Share } from "lucide-react";
 
 export function InstallAppButton() {
@@ -8,8 +9,10 @@ export function InstallAppButton() {
     const [isInstalled, setIsInstalled] = useState(false);
     const [isIos, setIsIos] = useState(false);
     const [showIosInstructions, setShowIosInstructions] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
+        setMounted(true);
         const checkInstalled = () => {
             if (typeof window !== 'undefined') {
                 if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true) {
@@ -68,8 +71,8 @@ export function InstallAppButton() {
                 <span className="hidden sm:inline">Install App</span>
             </button>
 
-            {showIosInstructions && (
-                <div className="fixed inset-0 z-[9999] flex flex-col justify-end bg-black/90 sm:items-center sm:justify-center sm:p-4">
+            {mounted && showIosInstructions && createPortal(
+                <div className="fixed inset-0 z-[99999] flex flex-col justify-end bg-black/90 sm:items-center sm:justify-center sm:p-4">
                     <div className="bg-[#111] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 w-full max-w-sm shadow-2xl relative max-h-[85vh] overflow-y-auto pb-safe animate-in slide-in-from-bottom-8">
                         <button 
                             onClick={() => setShowIosInstructions(false)}
@@ -111,7 +114,8 @@ export function InstallAppButton() {
                             I understand
                         </button>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );
