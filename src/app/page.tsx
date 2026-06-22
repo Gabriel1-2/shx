@@ -11,6 +11,7 @@ import { SHULEVITZ_MINT } from "@/lib/constants";
 
 import { TradingViewWidget } from "@/components/TradingViewWidget";
 import { Zap, Shield, Globe, TrendingUp, BarChart2, Minimize2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 // Dynamically import Jupiter Terminal (needs window/document)
 const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
@@ -22,6 +23,10 @@ import { useStore } from "@/store";
 
 function HomeContent() {
   const { isChartVisible, chartToken, toggleChartVisible } = useStore();
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab");
+
+  const isMarketsMobile = tab === "markets";
 
   return (
     <main className="min-h-screen bg-background relative overflow-hidden">
@@ -36,7 +41,7 @@ function HomeContent() {
       <div className={`relative z-10 container mx-auto px-4 py-6 md:py-12 flex flex-col lg:block transition-all duration-500 ${isChartVisible ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
 
         {/* Hero Section */}
-        <div className="text-center mb-4 md:mb-10 mt-4 lg:mt-0 transition-all duration-500">
+        <div className={`text-center mb-4 md:mb-10 mt-4 lg:mt-0 transition-all duration-500 ${isMarketsMobile ? 'hidden md:block' : ''}`}>
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-3">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
             <span className="text-[10px] md:text-xs font-medium text-primary">Jupiter Ultra • Best Routes</span>
@@ -54,7 +59,7 @@ function HomeContent() {
         </div>
 
         {/* Feature Pills */}
-        <div className="flex flex-wrap justify-center gap-2 md:gap-3 mb-6 md:mb-10">
+        <div className={`flex flex-wrap justify-center gap-2 md:gap-3 mb-6 md:mb-10 ${isMarketsMobile ? 'hidden md:flex' : ''}`}>
           {[
             { icon: Shield, label: "Non-Custodial", color: "text-green-400" },
             { icon: Globe, label: "No Geo-Blocks", color: "text-blue-400" },
@@ -87,12 +92,12 @@ function HomeContent() {
             </div>
           )}
 
-          {/* CENTER COLUMN — Jupiter Terminal */}
+          {/* CENTER COLUMN — Jupiter Terminal & Mobile Content */}
           <div className={`${isChartVisible ? 'lg:col-span-4' : 'lg:col-span-12 xl:col-span-6 flex flex-col items-center'} transition-all duration-500`}>
             <div className={`w-full ${isChartVisible ? '' : 'max-w-md mx-auto'} transition-all`}>
 
               {/* Chart Toggle */}
-              <div className="flex justify-end mb-3">
+              <div className={`flex justify-end mb-3 ${isMarketsMobile ? 'hidden md:flex' : ''}`}>
                 <button
                   onClick={toggleChartVisible}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${isChartVisible ? 'bg-primary/20 border-primary text-primary' : 'hover:bg-white/10 border-white/10 text-muted-foreground'}`}
@@ -103,16 +108,31 @@ function HomeContent() {
               </div>
 
               {/* Jupiter Terminal Widget */}
-              <JupiterTerminal />
+              <div className={`${isMarketsMobile ? 'hidden md:block' : ''}`}>
+                <JupiterTerminal />
+              </div>
 
-              {/* Mobile Sidebars Stack */}
-              <div className="xl:hidden w-full mt-6 space-y-4">
-                {!isChartVisible && (
+              {/* Mobile Sidebars Stack - Only visible on specific tabs */}
+              <div className="xl:hidden w-full mt-6 space-y-4 pb-20">
+                {isMarketsMobile ? (
                   <>
+                    <TradingViewWidget tokenAddress={chartToken.address} symbol={chartToken.symbol} />
                     <MarketWatch />
-                    <Leaderboard />
-                    <FeeTransparency />
                     <LiveFeed tokenAddress={chartToken.address} />
+                  </>
+                ) : (
+                  <>
+                    {/* On Swap tab, we only show terminal on mobile. Desktop keeps showing everything. */}
+                    <div className="hidden md:block space-y-4">
+                      {!isChartVisible && (
+                        <>
+                          <MarketWatch />
+                          <Leaderboard />
+                          <FeeTransparency />
+                          <LiveFeed tokenAddress={chartToken.address} />
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
               </div>

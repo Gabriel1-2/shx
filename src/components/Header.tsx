@@ -59,7 +59,7 @@ export function Header() {
                 <Link href="/" className="text-xl md:text-2xl font-black tracking-tight shrink-0">
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-lime-400">SHX</span>
                 </Link>
-                <nav className="flex items-center gap-0.5 md:gap-1 ml-2 md:ml-4">
+                <nav className="hidden md:flex items-center gap-1 ml-4">
                     <Link href="/pro" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors shrink-0 border border-white/10">
                         Pro
                     </Link>

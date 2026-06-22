@@ -13,7 +13,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
     "@ducanh2912/next-pwa": "^10.2.9",
-    "@jup-ag/api": "^6.0.47",
+    "@jup-ag/api": "^6.0.48",
     "@jup-ag/limit-order-sdk": "^0.1.10",
     "@jup-ag/referral-sdk": "^0.3.0",
     "@radix-ui/react-slot": "^1.2.4",
@@ -38,6 +38,7 @@
     "next": "^16.1.6",
     "puppeteer": "^25.1.0",
     "react": "19.2.3",
+    "react-device-detect": "^2.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.4.0",
     "ts-node": "^10.9.2",

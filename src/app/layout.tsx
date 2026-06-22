@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -7,6 +8,7 @@ import { ToastProvider } from "@/components/Toast";
 import { QueryProvider } from "@/components/QueryProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BackgroundSyncer } from "@/components/BackgroundSyncer";
+import { MobileNav } from "@/components/MobileNav";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
@@ -60,6 +62,9 @@ export default function RootLayout({
             <SolanaProvider>
               <ToastProvider>
                 <Header />
+                <Suspense fallback={null}>
+                  <MobileNav />
+                </Suspense>
                 <BackgroundSyncer />
                 {children}
                 <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto">
