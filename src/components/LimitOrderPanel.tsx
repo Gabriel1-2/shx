@@ -7,6 +7,7 @@ import { ArrowDownUp, Clock, Loader2, ShieldCheck } from "lucide-react";
 import bs58 from "bs58";
 import { APP_TOKENS, TokenInfo } from "@/lib/constants";
 import TokenSelector from "./TokenSelector";
+import { useDebugLogs } from "./DebugLogs";
 
 type OrderSide = "buy" | "sell";
 
@@ -28,6 +29,7 @@ const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.main
 export default function LimitOrderPanel() {
     const { publicKey, connected, sendTransaction, signMessage, signTransaction } = useWallet();
     const { setVisible } = useWalletModal();
+    const { addLog } = useDebugLogs();
 
     // ─── Form state ──────────────────────────────────────
     const [side, setSide] = useState<OrderSide>("buy");
@@ -258,15 +260,22 @@ export default function LimitOrderPanel() {
             setCurrentStep("");
             setStatusType("success");
             setStatusMessage("✅ Trigger Limit order placed successfully!");
+            addLog("success" as any, "Limit order successfully placed and confirmed", { txid });
         } catch (_e) {
             const error = _e;
             const msg = error instanceof Error ? error.message : "Unknown error";
             console.error("[LimitOrder]", error);
+            
+            // LOG EXACT ERROR
+            addLog("error", msg, error);
+            
             setStatusType("error");
             
             // Provide a user-friendly message for the most common Jupiter error
             if (msg.includes("Failed to execute deposit")) {
                 setStatusMessage("Error: Failed to execute deposit. Please ensure you have enough tokens for the order AND enough SOL (~0.003) for the network fee & account rent.");
+            } else if (msg.includes("Transaction accounts modified")) {
+                setStatusMessage("Error: Phantom modified the transaction (likely priority fees). Do not manually edit the gas fee in the wallet pop-up.");
             } else {
                 setStatusMessage(`Error: ${msg}`);
             }

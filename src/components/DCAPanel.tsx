@@ -7,6 +7,7 @@ import { VersionedTransaction } from "@solana/web3.js";
 import { RefreshCw, Clock, TrendingUp, Loader2, Info, ShieldCheck } from "lucide-react";
 import { APP_TOKENS, TokenInfo } from "@/lib/constants";
 import TokenSelector from "./TokenSelector";
+import { useDebugLogs } from "./DebugLogs";
 
 const INTERVALS = [
     { label: "Every Minute", value: 60 },
@@ -18,6 +19,7 @@ const INTERVALS = [
 export default function DCAPanel() {
     const { connected, publicKey, signTransaction, signMessage } = useWallet();
     const { setVisible } = useWalletModal();
+    const { addLog } = useDebugLogs();
     const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 
     const [spendToken, setSpendToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "USDC") || APP_TOKENS[1]);
@@ -225,9 +227,11 @@ export default function DCAPanel() {
             setCurrentStep("");
             setStatusType("success");
             setStatus(`✅ DCA strategy activated! Spending ${perOrder} ${spendToken.symbol} on ${receiveToken.symbol} ${selectedInterval.label.toLowerCase()}.`);
+            addLog("success" as any, "DCA successfully placed", { txid });
         } catch (e: any) {
             setStatusType("error");
             setStatus(`Error: ${e.message}`);
+            addLog("error", e.message || "Unknown error", e);
         } finally {
             setIsSubmitting(false);
             setTimeout(() => { setStatus((prev) => prev?.includes("✅") ? null : prev); }, 8000);

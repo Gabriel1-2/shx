@@ -9,6 +9,7 @@ import { QueryProvider } from "@/components/QueryProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BackgroundSyncer } from "@/components/BackgroundSyncer";
 import { MobileNav } from "@/components/MobileNav";
+import DebugLogsViewer from "@/components/DebugLogs";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
@@ -66,6 +67,7 @@ export default function RootLayout({
                   <MobileNav />
                 </Suspense>
                 <BackgroundSyncer />
+                <DebugLogsViewer />
                 {children}
                 <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto">
                   <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
