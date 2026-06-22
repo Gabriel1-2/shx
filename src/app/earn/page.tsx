@@ -221,7 +221,6 @@ export default function EarnPage() {
                             onLoad={() => setLpLoading(false)}
                             title="Raydium Add Liquidity"
                             allow="clipboard-write"
-                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-top-navigation"
                         />
                         <div className="shrink-0 p-3 bg-black/80 border-t border-white/10 text-center">
                             <p className="text-xs text-muted-foreground">
