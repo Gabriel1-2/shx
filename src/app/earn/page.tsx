@@ -188,7 +188,7 @@ export default function EarnPage() {
 
     const apy = pool ? computeApy(pool.volume24h, pool.tvl) : 0;
     const tradingApy = Math.max(apy, 15); // Floor at 15% for display
-    const FARM_APY = 327; // Live Farm APY from 10M SHX over 30 days
+    const FARM_APY = 15; // Set to 15% as requested by user
     const displayApy = tradingApy + FARM_APY;
 
     const openRaydiumPopup = () => {
