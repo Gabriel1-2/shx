@@ -8,7 +8,6 @@ import { ToastProvider } from "@/components/Toast";
 import { QueryProvider } from "@/components/QueryProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BackgroundSyncer } from "@/components/BackgroundSyncer";
-import { MobileNav } from "@/components/MobileNav";
 import DebugLogsViewer from "@/components/DebugLogs";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
@@ -62,10 +61,11 @@ export default function RootLayout({
           <ErrorBoundary>
             <SolanaProvider>
               <ToastProvider>
+                <div className="fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
+                    <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[40%] bg-primary/20 blur-[100px] rounded-full mix-blend-screen animate-pulse" />
+                    <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[50%] bg-purple-500/10 blur-[120px] rounded-full mix-blend-screen animate-pulse" style={{ animationDelay: '2s' }} />
+                </div>
                 <Header />
-                <Suspense fallback={null}>
-                  <MobileNav />
-                </Suspense>
                 <BackgroundSyncer />
                 <DebugLogsViewer />
                 {children}
