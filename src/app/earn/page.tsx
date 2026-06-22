@@ -174,8 +174,6 @@ export default function EarnPage() {
     const { connected, publicKey } = useWallet();
     const [pool, setPool] = useState<PoolData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [showLP, setShowLP] = useState(false);
-    const [lpLoading, setLpLoading] = useState(true);
 
     useEffect(() => {
         fetchPoolData().then((d) => {
@@ -191,45 +189,21 @@ export default function EarnPage() {
     const apy = pool ? computeApy(pool.volume24h, pool.tvl) : 0;
     const displayApy = Math.max(apy, 15); // Floor at 15% for display
 
+    const openRaydiumPopup = () => {
+        const width = 600;
+        const height = 800;
+        const left = (window.innerWidth - width) / 2;
+        const top = (window.innerHeight - height) / 2;
+        window.open(
+            `https://raydium.io/liquidity/increase/?mode=add&pool_id=${RAYDIUM_POOL_ID}`,
+            "Raydium",
+            `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+    };
+
     return (
         <main className="min-h-screen bg-background relative overflow-hidden pb-20">
-            {/* ─── Embedded Raydium LP Overlay ─── */}
-            {showLP && (
-                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="relative w-full max-w-2xl h-[750px] bg-black/90 border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80 shrink-0">
-                            <div className="flex items-center gap-2">
-                                <Droplets size={16} className="text-primary" />
-                                <span className="text-sm font-bold text-white">Add Liquidity — SHULEVITZ/USDC</span>
-                                <span className="text-[10px] text-muted-foreground">via Raydium</span>
-                            </div>
-                            <button onClick={() => setShowLP(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
-                                <X size={16} className="text-muted-foreground" />
-                            </button>
-                        </div>
-                        {lpLoading && (
-                            <div className="absolute inset-0 mt-12 flex items-center justify-center bg-black/90 z-10 pointer-events-none">
-                                <div className="flex flex-col items-center gap-3">
-                                    <Loader2 className="animate-spin text-primary" size={32} />
-                                    <span className="text-sm text-muted-foreground">Loading Raydium...</span>
-                                </div>
-                            </div>
-                        )}
-                        <iframe
-                            src={`https://raydium.io/liquidity/increase/?mode=add&pool_id=${RAYDIUM_POOL_ID}`}
-                            className="w-full flex-1 border-0"
-                            onLoad={() => setLpLoading(false)}
-                            title="Raydium Add Liquidity"
-                            allow="clipboard-write"
-                        />
-                        <div className="shrink-0 p-3 bg-black/80 border-t border-white/10 text-center">
-                            <p className="text-xs text-muted-foreground">
-                                If the popup is blocked by your browser, <a href={`https://raydium.io/liquidity/increase/?mode=add&pool_id=${RAYDIUM_POOL_ID}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">click here to open Raydium in a new tab</a>.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Background effects */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-green-500/15 blur-[150px] rounded-full pointer-events-none" />
@@ -372,7 +346,7 @@ export default function EarnPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <button
-                                    onClick={() => { setLpLoading(true); setShowLP(true); }}
+                                    onClick={openRaydiumPopup}
                                     className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-black py-3.5 rounded-xl font-black text-sm transition-all shadow-[0_0_25px_rgba(34,197,94,0.3)] hover:shadow-[0_0_40px_rgba(34,197,94,0.5)] hover:scale-[1.02]"
                                 >
                                     <Droplets size={16} /> Add Liquidity
