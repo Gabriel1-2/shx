@@ -17,7 +17,7 @@ const INTERVALS = [
 ];
 
 export default function DCAPanel() {
-    const { connected, publicKey, signTransaction, signMessage } = useWallet();
+    const { connected, publicKey, sendTransaction, signMessage } = useWallet();
     const { setVisible } = useWalletModal();
     const { addLog } = useDebugLogs();
     const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
@@ -52,7 +52,7 @@ export default function DCAPanel() {
     };
 
     const handleSubmit = async () => {
-        if (!connected || !publicKey || !signTransaction) return;
+        if (!connected || !publicKey || !sendTransaction) return;
 
         let connection: import("@solana/web3.js").Connection;
         try {
@@ -167,42 +167,20 @@ export default function DCAPanel() {
                 throw new Error(createData.error || "Failed to create DCA order");
             }
 
-            // ── Step 2: Sign the transaction ──────────────
+            // ── Step 2: Send the transaction ──────────────
             setCurrentStep("sign");
             const { VersionedTransaction } = await import('@solana/web3.js');
             const txBuffer = Buffer.from(createData.transaction, "base64");
             const tx = VersionedTransaction.deserialize(txBuffer);
 
-            if (!signTransaction) throw new Error("Wallet does not support signTransaction");
-            type SupportedTransaction = Parameters<typeof signTransaction>[0];
-            const signedTxObj = await signTransaction(tx as SupportedTransaction);
+            setStatus("Waiting for wallet approval...");
             
-            const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
-            const bs58 = (await import("bs58")).default;
-            const sig = signedTxObj.signatures[0];
-            const sigBytes = sig instanceof Uint8Array ? sig : (sig as any).signature;
-            const txid = bs58.encode(sigBytes);
-            console.log("[DCA API] Signed transaction ID:", txid);
+            // By using sendTransaction directly, we let the wallet handle priority fees
+            // and we send it straight to the RPC, bypassing Jupiter's strict execute validation
+            const txid = await sendTransaction(tx, connection);
+            console.log("[DCA API] Transaction sent:", txid);
 
-            // ── Step 3: Execute via Jupiter ───────────────
             setCurrentStep("execute");
-            setStatus("Executing DCA order on-chain...");
-
-            const executeRes = await fetch("/api/dca/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "execute",
-                    signedTransaction: signedTxBase64,
-                    requestId: createData.requestId,
-                }),
-            });
-
-            const executeData = await executeRes.json();
-            if (!executeRes.ok) {
-                throw new Error(executeData.error || "Failed to execute DCA order");
-            }
-
             setStatus(`Waiting for on-chain confirmation... (may take up to 30s)`);
             
             // Poll for transaction confirmation using RPC

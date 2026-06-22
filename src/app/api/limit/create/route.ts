@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
                     amount: body.inAmount,
                     orderType: "price",
                     orderSubType: "single",
-                    prioritizationFeeLamports: "auto"
+                    prioritizationFeeLamports: 100000
                 })
             });
             const data = await safeJson(res);
