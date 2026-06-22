@@ -61,6 +61,17 @@ export default function LimitOrderPanel() {
     // ─── SUBMIT: Jupiter Trigger V2 Flow ────────────
     const handlePlaceOrder = useCallback(async () => {
         if (!connected || !publicKey || !sendTransaction) return;
+        
+        let connection: import("@solana/web3.js").Connection;
+        try {
+            const { Connection } = await import('@solana/web3.js');
+            connection = new Connection(RPC_ENDPOINT, "confirmed");
+        } catch (e) {
+            console.error("Failed to init connection", e);
+            setStatusType("error");
+            setStatusMessage("RPC connection error");
+            return;
+        }
 
         const p = parseFloat(price);
         const a = parseFloat(amount);
@@ -164,6 +175,9 @@ export default function LimitOrderPanel() {
             const signedTxObj = await signTransaction(tx as SupportedTransaction);
             
             const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
+            const bs58 = (await import("bs58")).default;
+            const txid = bs58.encode(signedTxObj.signatures[0]);
+            console.log("[Limit API] Signed transaction ID:", txid);
 
             // --- SUBMIT FINAL ORDER ---
             setCurrentStep("send");
@@ -218,8 +232,28 @@ export default function LimitOrderPanel() {
             if (!submitOk) throw new Error(submitData?.error || "Failed to submit limit order after retries");
 
             setCurrentStep("confirm");
-            setStatusMessage(`Waiting for API confirmation...`);
-            await new Promise(r => setTimeout(r, 1000)); // Simulate wait for API
+            setStatusMessage(`Waiting for API confirmation... (may take up to 30s)`);
+            
+            // Poll for transaction confirmation using RPC
+            try {
+                let isConfirmed = false;
+                for (let i = 0; i < 15; i++) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    const status = await connection.getSignatureStatus(txid);
+                    if (status && status.value && (status.value.confirmationStatus === 'confirmed' || status.value.confirmationStatus === 'finalized')) {
+                        isConfirmed = true;
+                        break;
+                    }
+                    if (status && status.value && status.value.err) {
+                        throw new Error(`Deposit transaction failed on-chain: ${JSON.stringify(status.value.err)}`);
+                    }
+                }
+                if (!isConfirmed) {
+                    console.warn(`[Limit API] Transaction ${txid} not confirmed within polling window, but API accepted order. It may still confirm.`);
+                }
+            } catch (e) {
+                console.warn("[Limit API] Error polling tx confirmation", e);
+            }
 
             setCurrentStep("");
             setStatusType("success");

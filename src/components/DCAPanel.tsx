@@ -18,6 +18,7 @@ const INTERVALS = [
 export default function DCAPanel() {
     const { connected, publicKey, signTransaction, signMessage } = useWallet();
     const { setVisible } = useWalletModal();
+    const RPC_ENDPOINT = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 
     const [spendToken, setSpendToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "USDC") || APP_TOKENS[1]);
     const [receiveToken, setReceiveToken] = useState<TokenInfo>(APP_TOKENS.find(t => t.symbol === "SHX") || APP_TOKENS[0]);
@@ -50,6 +51,17 @@ export default function DCAPanel() {
 
     const handleSubmit = async () => {
         if (!connected || !publicKey || !signTransaction) return;
+
+        let connection: import("@solana/web3.js").Connection;
+        try {
+            const { Connection } = await import('@solana/web3.js');
+            connection = new Connection(RPC_ENDPOINT, "confirmed");
+        } catch (e) {
+            console.error("Failed to init connection", e);
+            setStatusType("error");
+            setStatus("RPC connection error");
+            return;
+        }
 
         const parsedAmount = parseFloat(totalAmount);
         if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -164,6 +176,9 @@ export default function DCAPanel() {
             const signedTxObj = await signTransaction(tx as SupportedTransaction);
             
             const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
+            const bs58 = (await import("bs58")).default;
+            const txid = bs58.encode(signedTxObj.signatures[0]);
+            console.log("[DCA API] Signed transaction ID:", txid);
 
             // ── Step 3: Execute via Jupiter ───────────────
             setCurrentStep("execute");
@@ -182,6 +197,29 @@ export default function DCAPanel() {
             const executeData = await executeRes.json();
             if (!executeRes.ok) {
                 throw new Error(executeData.error || "Failed to execute DCA order");
+            }
+
+            setStatus(`Waiting for on-chain confirmation... (may take up to 30s)`);
+            
+            // Poll for transaction confirmation using RPC
+            try {
+                let isConfirmed = false;
+                for (let i = 0; i < 15; i++) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    const status = await connection.getSignatureStatus(txid);
+                    if (status && status.value && (status.value.confirmationStatus === 'confirmed' || status.value.confirmationStatus === 'finalized')) {
+                        isConfirmed = true;
+                        break;
+                    }
+                    if (status && status.value && status.value.err) {
+                        throw new Error(`Deposit transaction failed on-chain: ${JSON.stringify(status.value.err)}`);
+                    }
+                }
+                if (!isConfirmed) {
+                    console.warn(`[DCA API] Transaction ${txid} not confirmed within polling window, but API accepted order. It may still confirm.`);
+                }
+            } catch (e) {
+                console.warn("[DCA API] Error polling tx confirmation", e);
             }
 
             setCurrentStep("");
