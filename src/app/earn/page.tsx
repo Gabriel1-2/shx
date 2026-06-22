@@ -7,7 +7,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import {
     Coins, Droplets, ExternalLink, TrendingUp, ShieldCheck,
     Zap, Lock, Clock, ChevronDown, ChevronUp, Wallet,
-    BarChart2, Gift, ArrowUpRight, Flame, Info, Loader2, X
+    BarChart2, Gift, ArrowUpRight, Flame, Info, Loader2, X, Pickaxe
 } from "lucide-react";
 
 const RAYDIUM_POOL_ID = "65aXZcQAdqqHnbrABPnnSH8eTGXszLBk4UXRZqpceDAE";
@@ -187,7 +187,9 @@ export default function EarnPage() {
     }, []);
 
     const apy = pool ? computeApy(pool.volume24h, pool.tvl) : 0;
-    const displayApy = Math.max(apy, 15); // Floor at 15% for display
+    const tradingApy = Math.max(apy, 15); // Floor at 15% for display
+    const FARM_APY = 327; // Live Farm APY from 10M SHX over 30 days
+    const displayApy = tradingApy + FARM_APY;
 
     const openRaydiumPopup = () => {
         const width = 600;
@@ -243,11 +245,12 @@ export default function EarnPage() {
                             glow: "from-primary/10 to-emerald-500/10",
                         },
                         {
-                            label: "APY (Live)",
+                            label: "Total APY",
                             value: loading ? "..." : `${displayApy.toFixed(1)}%`,
                             icon: Flame,
                             color: "text-green-400",
                             glow: "from-green-500/10 to-lime-500/10",
+                            sub: `${FARM_APY}% Farm + ${tradingApy.toFixed(1)}% Fees`,
                         },
                         {
                             label: "24h Volume",
@@ -338,25 +341,27 @@ export default function EarnPage() {
 
                             {/* Info Banner */}
                             <div className="bg-green-500/5 border border-green-500/15 rounded-xl p-4 mb-5 flex items-start gap-3">
-                                <Zap className="text-green-400 shrink-0 mt-0.5" size={18} />
+                                <Pickaxe className="text-green-400 shrink-0 mt-0.5" size={18} />
                                 <div className="text-sm text-muted-foreground">
-                                    <strong className="text-white">Earn fees on every trade.</strong> When anyone swaps SHULEVITZ↔SOL on SHX Exchange or any Solana DEX, you earn a share proportional to your liquidity.
+                                    <strong className="text-white">Yield Farm is LIVE!</strong> Provide liquidity and stake your LP tokens in the Raydium Ecosystem Farm to earn a massive {FARM_APY}% bonus APY in SHX rewards.
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <button
                                     onClick={openRaydiumPopup}
+                                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-400 hover:to-cyan-500 text-black py-3.5 rounded-xl font-black text-sm transition-all shadow-[0_0_25px_rgba(59,130,246,0.3)] hover:shadow-[0_0_40px_rgba(59,130,246,0.5)] hover:scale-[1.02]"
+                                >
+                                    <Droplets size={16} /> 1. Add Liquidity
+                                </button>
+                                <a
+                                    href="https://raydium.io/farms/?tab=Ecosystem"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-black py-3.5 rounded-xl font-black text-sm transition-all shadow-[0_0_25px_rgba(34,197,94,0.3)] hover:shadow-[0_0_40px_rgba(34,197,94,0.5)] hover:scale-[1.02]"
                                 >
-                                    <Droplets size={16} /> Add Liquidity
-                                </button>
-                                <Link
-                                    href="/"
-                                    className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white py-3.5 rounded-xl font-bold text-sm border border-white/10 transition-all hover:scale-[1.02]"
-                                >
-                                    <ArrowUpRight size={16} /> Buy SHULEVITZ First
-                                </Link>
+                                    <Pickaxe size={16} /> 2. Stake to Farm
+                                </a>
                             </div>
                         </div>
 
@@ -400,7 +405,7 @@ export default function EarnPage() {
                                     { step: "1", label: "Get SHULEVITZ + SOL", desc: "Make sure you hold both tokens. Swap on the main exchange if needed.", color: "bg-primary/20 text-primary" },
                                     { step: "2", label: "Deposit into Pool", desc: "Click 'Add Liquidity' above to open Raydium and deposit.", color: "bg-cyan-500/20 text-cyan-400" },
                                     { step: "3", label: "Receive LP Tokens", desc: "Your LP tokens represent your share of the pool.", color: "bg-purple-500/20 text-purple-400" },
-                                    { step: "4", label: "Earn Fees", desc: "Trading fees accrue automatically. No staking or claiming needed.", color: "bg-green-500/20 text-green-400" },
+                                    { step: "4", label: "Stake in Farm", desc: "Click 'Stake to Farm' and deposit your LP tokens in Raydium's Ecosystem farm to earn the bonus SHX APY!", color: "bg-green-500/20 text-green-400" },
                                 ].map((item) => (
                                     <div key={item.step} className="flex items-start gap-3">
                                         <div className={`w-7 h-7 rounded-full ${item.color} flex items-center justify-center text-xs font-black shrink-0`}>

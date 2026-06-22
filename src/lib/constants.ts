@@ -6,6 +6,7 @@ export const ADMIN_WALLET_SOL = new PublicKey("JDrrSGeaeW7AR2GbVLybBjGyC2aZg942W
 
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
 export const SHULEVITZ_MINT = "336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q";
+export const RAYDIUM_FARM_ID = "B9mGz3CiqaU8stRXMiaj2wLH8dyfCszLg76BHAGnuEqY";
 
 export interface TokenInfo {
     symbol: string;
