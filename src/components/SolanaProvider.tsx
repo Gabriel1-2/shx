@@ -26,10 +26,6 @@ export function SolanaProvider({ children }: { children: React.ReactNode }) {
     );
     const onError = useCallback((error: WalletError) => {
         console.error("Wallet error:", error);
-        if (typeof window !== "undefined") {
-            // Clear the saved wallet to prevent broken auto-connect loops
-            window.localStorage.removeItem("walletName");
-        }
     }, []);
 
     return (
