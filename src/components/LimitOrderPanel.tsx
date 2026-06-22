@@ -177,7 +177,6 @@ export default function LimitOrderPanel() {
             const signedTxObj = await signTransaction(tx as SupportedTransaction);
             
             const signedTxBase64 = Buffer.from(signedTxObj.serialize()).toString("base64");
-            const bs58 = (await import("bs58")).default;
             const sig = signedTxObj.signatures[0];
             const sigBytes = sig instanceof Uint8Array ? sig : (sig as any).signature;
             const txid = bs58.encode(sigBytes);
