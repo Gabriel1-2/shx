@@ -295,152 +295,17 @@ export default function LimitOrderPanel() {
     ];
 
     return (
-        <div className="w-full rounded-2xl border border-white/10 bg-[#0A0A0A] shadow-2xl shadow-black/50 overflow-hidden">
-            {/* ── Header ───────────────────────────────────── */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06] bg-black/60 backdrop-blur-xl">
-                <div className="flex items-center gap-2.5">
-                    <div className="relative flex items-center justify-center">
-                        <div className={`absolute w-5 h-5 blur-sm opacity-50 animate-pulse rounded-full ${isBuy ? "bg-green-500" : "bg-red-500"}`} />
-                        <ArrowDownUp className={`relative z-10 ${isBuy ? "text-green-400" : "text-red-400"}`} size={16} />
-                    </div>
-                    <span className={`font-bold text-sm tracking-wide text-transparent bg-clip-text bg-gradient-to-r ${isBuy ? "from-green-400 to-emerald-500" : "from-red-400 to-rose-500"}`}>
-                        LIMIT ORDER
-                    </span>
-                </div>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-                    Jupiter Trigger v2
-                </span>
+        <div className="w-full min-h-[420px] rounded-2xl border border-white/10 bg-[#0A0A0A] shadow-2xl flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6">
+                <ArrowDownUp size={28} className="text-amber-400" />
             </div>
-
-            {/* ── Body ─────────────────────────────────────── */}
-            <div className="p-4 md:p-5 space-y-4">
-                {/* ── Buy / Sell Toggle ────────────────────── */}
-                <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                    <button
-                        onClick={() => setSide("buy")}
-                        className={`relative py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 ${isBuy ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 shadow-[inset_0_1px_0_rgba(34,197,94,0.2)]" : "text-muted-foreground hover:text-white/70"}`}
-                    >
-                        {isBuy && <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-green-500 to-transparent" />}
-                        Buy
-                    </button>
-                    <button
-                        onClick={() => setSide("sell")}
-                        className={`relative py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 ${!isBuy ? "bg-gradient-to-r from-red-500/20 to-rose-500/20 text-red-400 shadow-[inset_0_1px_0_rgba(239,68,68,0.2)]" : "text-muted-foreground hover:text-white/70"}`}
-                    >
-                        {!isBuy && <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-red-500 to-transparent" />}
-                        Sell
-                    </button>
-                </div>
-
-                {/* ── Token Pair ───────────────────────────── */}
-                <div className="space-y-1.5 relative">
-                    <div className="flex flex-col gap-2 relative">
-                        <TokenSelector label="Base Token" value={baseToken} onChange={setBaseToken} />
-                        
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-                            <button onClick={handleSwapTokens} className="p-2 rounded-lg bg-[#111] border border-white/[0.12] hover:bg-white/[0.08] hover:border-white/[0.2] transition-all group shadow-xl" title="Swap pair">
-                                <ArrowDownUp size={14} className="text-white transition-colors" />
-                            </button>
-                        </div>
-                        
-                        <TokenSelector label="Quote Token" value={quoteToken} onChange={setQuoteToken} />
-                    </div>
-                </div>
-
-                {/* ── Trigger Price ────────────────────────── */}
-                <div className="space-y-1.5">
-                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Trigger Price (USD)</label>
-                    <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono">$</span>
-                        <input type="text" inputMode="decimal" value={price} onChange={(e) => handleNumericInput(e.target.value, setPrice)}
-                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-7 pr-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all" placeholder="0.00" />
-                    </div>
-                </div>
-
-                {/* ── Amount ───────────────────────────────── */}
-                <div className="space-y-1.5">
-                    <label className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Amount</label>
-                    <div className="relative">
-                        <input type="text" inputMode="decimal" value={amount} onChange={(e) => handleNumericInput(e.target.value, setAmount)}
-                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm font-mono font-bold text-white placeholder-white/20 focus:outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10 transition-all pr-16" placeholder="0.00" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono font-medium">{baseToken.symbol}</span>
-                    </div>
-                </div>
-
-                {/* ── Total Display ────────────────────────── */}
-                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                    <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Total</span>
-                    <span className={`text-base font-mono font-bold ${total > 0 ? (isBuy ? "text-green-400" : "text-red-400") : "text-white/30"}`}>
-                        ${total > 0 ? total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : "0.00"}
-                    </span>
-                </div>
-
-                {/* ── Expiry ───────────────────────────────── */}
-                <div className="space-y-1.5">
-                    <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
-                        <Clock size={11} />Expiry
-                    </label>
-                    <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                        {EXPIRY_OPTIONS.map((opt) => (
-                            <button key={opt.value} onClick={() => setExpiry(opt.value)}
-                                className={`py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200 ${expiry === opt.value ? "bg-white/[0.08] text-white border border-white/[0.12] shadow-sm" : "text-muted-foreground hover:text-white/60 border border-transparent"}`}>
-                                {opt.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* ── Step Progress (during submission) ───── */}
-                {isSubmitting && (
-                    <div className="flex items-center justify-between px-2">
-                        {steps.map((s, i) => (
-                            <div key={s.id} className="flex items-center gap-1">
-                                <div className={`w-2 h-2 rounded-full transition-all ${currentStep === s.id ? "bg-amber-400 animate-pulse" : (steps.findIndex(st => st.id === currentStep) > i ? "bg-green-500" : "bg-white/10")}`} />
-                                <span className={`text-[9px] uppercase tracking-wider ${currentStep === s.id ? "text-amber-400" : "text-muted-foreground"}`}>{s.label}</span>
-                                {i < steps.length - 1 && <div className="w-6 h-px bg-white/10 mx-1" />}
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* ── Status Message ───────────────────────── */}
-                {statusMessage && (
-                    <div className={`px-4 py-3 rounded-xl border text-[12px] font-medium transition-all animate-in fade-in slide-in-from-bottom-2 duration-300 ${statusType === "error" ? "bg-red-500/10 border-red-500/20 text-red-400" : statusType === "success" ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-white/[0.04] border-white/[0.08] text-muted-foreground"}`}>
-                        {statusMessage}
-                    </div>
-                )}
-
-                {/* ── Submit Button ─────────────────────────── */}
-                {connected ? (
-                    <button onClick={handlePlaceOrder} disabled={isSubmitting}
-                        className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${isBuy ? "bg-gradient-to-r from-green-500 to-emerald-500 text-black hover:from-green-400 hover:to-emerald-400 shadow-[0_0_20px_rgba(34,197,94,0.25)] hover:shadow-[0_0_30px_rgba(34,197,94,0.35)]" : "bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 shadow-[0_0_20px_rgba(239,68,68,0.25)] hover:shadow-[0_0_30px_rgba(239,68,68,0.35)]"}`}>
-                        {isSubmitting ? (
-                            <span className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" />Placing Order...</span>
-                        ) : (
-                            `Place Limit ${isBuy ? "Buy" : "Sell"} Order`
-                        )}
-                    </button>
-                ) : (
-                    <button onClick={() => setVisible(true)}
-                        className="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide bg-gradient-to-r from-primary to-lime-400 text-black hover:opacity-90 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
-                        Connect Wallet
-                    </button>
-                )}
-            </div>
-
-            {/* ── Footer Trust Info ─────────────────────────── */}
-            <div className="flex items-center justify-center gap-4 px-5 py-3 border-t border-white/[0.06] bg-black/40">
-                <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">On-Chain</span>
-                </div>
-                <div className="h-3 w-px bg-white/10" />
-                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Non-Custodial</span>
-                <div className="h-3 w-px bg-white/10" />
-                <div className="flex items-center gap-1">
-                    <ShieldCheck size={9} className="text-green-500" />
-                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Jupiter Powered</span>
-                </div>
+            <h3 className="text-xl font-black text-white mb-2 tracking-wide">Limit Orders</h3>
+            <p className="text-muted-foreground text-sm max-w-sm mb-6">
+                Advanced trigger-based limit orders are currently undergoing security audits and optimization.
+            </p>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                Coming Soon
             </div>
         </div>
     );
