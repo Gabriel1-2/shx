@@ -232,6 +232,13 @@ export async function POST(req: NextRequest) {
         const userRef = adminDb.collection("users").doc(walletAddr);
         const currentWeek = getCurrentWeekStart();
 
+        // Pre-read for first-time trader flag (stable outside multi-run tx)
+        const preUser = await userRef.get();
+        const preData = preUser.exists ? preUser.data()! : null;
+        const isNewTrader =
+            !preUser.exists ||
+            !(Number(preData?.volume || 0) > 0 || Number(preData?.tradeCount || 0) > 0);
+
         await adminDb.runTransaction(async (t) => {
             const userDoc = await t.get(userRef);
 
@@ -362,8 +369,28 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // 12. Live trader / volume counters
+        try {
+            const { bumpLiveStatsOnTrade } = await import("@/lib/liveStats");
+            await bumpLiveStatsOnTrade({
+                wallet: walletAddr,
+                volumeUsd: volumeUSD,
+                feeUsd,
+                isNewTrader,
+            });
+        } catch (statsErr) {
+            console.error("[Analytics] live stats bump failed:", statsErr);
+        }
+
         console.log(`[Analytics] ✅ Saved successfully for ${walletAddr.slice(0, 8)}...`);
-        return NextResponse.json({ success: true, volumeUSD, points, feeUsd, referral });
+        return NextResponse.json({
+            success: true,
+            volumeUSD,
+            points,
+            feeUsd,
+            referral,
+            isNewTrader,
+        });
 
     } catch (error: any) {
         console.error("[Analytics] CRITICAL ERROR:", error?.message || error);

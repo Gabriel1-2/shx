@@ -6,6 +6,7 @@ import { FeeTransparency } from "@/components/FeeTransparency";
 import { SystemStatus } from "@/components/SystemStatus";
 import { MarketWatch } from "@/components/MarketWatch";
 import { LiveFeed } from "@/components/LiveFeed";
+import { LiveTradersTracker } from "@/components/LiveTradersTracker";
 import dynamic from "next/dynamic";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 
@@ -56,6 +57,11 @@ function HomeContent() {
           <p className="text-muted-foreground max-w-xl mx-auto text-xs md:text-base px-4">
             Best routes, best prices. Zero KYC. Self-custody.
           </p>
+        </div>
+
+        {/* Live trader counter */}
+        <div className={`mb-6 md:mb-8 ${isMarketsMobile ? "hidden md:block" : ""}`}>
+          <LiveTradersTracker variant="hero" />
         </div>
 
         {/* Feature Pills */}
@@ -142,6 +148,7 @@ function HomeContent() {
           {/* RIGHT COLUMN (Simple Mode Only) */}
           {!isChartVisible && (
             <div className="hidden xl:block xl:col-span-3 space-y-4 animate-in fade-in slide-in-from-right duration-500">
+              <LiveTradersTracker />
               <Leaderboard />
               <FeeTransparency />
               <SystemStatus />

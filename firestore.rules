@@ -45,8 +45,14 @@ service cloud.firestore {
     match /daily_snapshots/{dateId} {
       allow read, write: if false;
     }
+    // Platform live stats cache — public read for trader counters
     match /system/{docId} {
-      allow read, write: if false;
+      allow read: if true;
+      allow write: if false;
+    }
+    match /system/{docId}/{sub=**} {
+      allow read: if true;
+      allow write: if false;
     }
     match /agent_referrals/{docId} {
       allow read, write: if false;

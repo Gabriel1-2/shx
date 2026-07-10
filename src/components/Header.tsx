@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { getUserStats } from "@/lib/points";
-import { getPlatformStats } from "@/lib/platformStats";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { TierBadge } from "@/components/TierBadge";
 import { InstallAppButton } from "@/components/InstallAppButton";
+import { LiveTradersTracker } from "@/components/LiveTradersTracker";
 
 const WalletMultiButton = dynamic(
     () => import("@solana/wallet-adapter-react-ui").then((mod) => mod.WalletMultiButton),
@@ -16,41 +14,8 @@ const WalletMultiButton = dynamic(
 );
 
 export function Header() {
-    const { publicKey, connected } = useWallet();
-    const [platformVolume, setPlatformVolume] = useState(0);
+    const { connected } = useWallet();
     const tierData = useSHXTier();
-
-    // Fetch platform volume + refresh on swap events
-    useEffect(() => {
-        const fetchVolume = () => {
-            getPlatformStats().then(stats => {
-                setPlatformVolume(stats.totalVolume);
-            });
-        };
-
-        fetchVolume();
-
-        // Refresh every 30 seconds
-        const interval = setInterval(fetchVolume, 30000);
-
-        // Listen for swap events from JupiterTerminal
-        const handleSwap = () => {
-            setTimeout(fetchVolume, 8000);
-            setTimeout(fetchVolume, 20000);
-        };
-        window.addEventListener("shx-swap-success", handleSwap);
-
-        return () => {
-            clearInterval(interval);
-            window.removeEventListener("shx-swap-success", handleSwap);
-        };
-    }, []);
-
-    const formatVolume = (vol: number) => {
-        if (vol >= 1_000_000) return `$${(vol / 1_000_000).toFixed(1)}M`;
-        if (vol >= 1_000) return `$${(vol / 1_000).toFixed(1)}K`;
-        return `$${vol.toFixed(0)}`;
-    };
 
     return (
         <header className="flex h-14 md:h-16 w-full items-center justify-between border-b border-white/10 bg-black/80 px-3 md:px-6 backdrop-blur-xl sticky top-0 z-[100]">
@@ -98,13 +63,11 @@ export function Header() {
                 {/* Install App Button (PWA) */}
                 <InstallAppButton />
 
-                {/* Platform Stats (desktop only) */}
-                <div className="hidden md:flex items-center gap-3 text-xs">
-                    <div className="font-mono text-muted-foreground">
-                        VOL: <span className="text-white font-bold">{formatVolume(platformVolume)}</span>
-                    </div>
+                {/* Live unique traders + fee tier */}
+                <div className="hidden sm:flex items-center gap-2 text-xs">
+                    <LiveTradersTracker variant="compact" />
                     {connected && (
-                        <div className="font-mono text-muted-foreground">
+                        <div className="font-mono text-muted-foreground hidden md:block">
                             FEE: <span className="text-primary font-bold">{tierData.feePercent}%</span>
                         </div>
                     )}

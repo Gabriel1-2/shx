@@ -12,6 +12,7 @@ import { TransactionHistory } from "@/components/TransactionHistory";
 import { AnimatedCurrency, AnimatedCounter } from "@/components/AnimatedCounter";
 import { TierBadge } from "@/components/TierBadge";
 import { ReferralCard } from "@/components/ReferralCard";
+import { LiveTradersTracker } from "@/components/LiveTradersTracker";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { FEE_TIERS } from "@/lib/feeTiers";
 
@@ -345,6 +346,8 @@ function DashboardContent() {
 
                     {/* Right Column - Sidebar */}
                     <div className="space-y-4">
+                        <LiveTradersTracker />
+
                         <MarketWatch />
 
                         <ReferralCard />
