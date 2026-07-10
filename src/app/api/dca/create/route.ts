@@ -11,28 +11,32 @@ async function safeJson(res: Response) {
     const text = await res.text();
     try {
         return JSON.parse(text);
-    } catch (e) {
-        return { error: "Non-JSON response", text };
+    } catch {
+        return { error: "Non-JSON response", text: text.slice(0, 500) };
     }
 }
 
+function jupHeaders(apiKey: string, extra?: Record<string, string>) {
+    return {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        ...extra,
+    };
+}
+
 const DCACreateSchema = z.object({
-    action: z.enum(["create", "execute", "request-challenge", "verify-challenge", "register-vault"]),
-    // For "create"
+    action: z.enum(["create", "execute"]),
     user: z.string().optional(),
     inputMint: z.string().optional(),
     outputMint: z.string().optional(),
     inAmount: z.union([z.string(), z.number()]).optional(),
     numberOfOrders: z.union([z.string(), z.number()]).optional(),
     interval: z.union([z.string(), z.number()]).optional(),
-    slippageBps: z.union([z.string(), z.number()]).optional(),
-    // For "execute"
+    minPrice: z.number().nullable().optional(),
+    maxPrice: z.number().nullable().optional(),
+    startAt: z.number().nullable().optional(),
     signedTransaction: z.string().optional(),
     requestId: z.string().optional(),
-    // For Vault Auth
-    wallet: z.string().optional(),
-    signature: z.string().optional(),
-    jwt: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -49,167 +53,146 @@ export async function POST(req: NextRequest) {
 
         const rawBody = await req.json();
         const parsedBody = DCACreateSchema.safeParse(rawBody);
-
         if (!parsedBody.success) {
-            return NextResponse.json({ error: "Invalid request body", details: parsedBody.error.format() }, { status: 400 });
+            return NextResponse.json(
+                { error: "Invalid request body", details: parsedBody.error.format() },
+                { status: 400 }
+            );
         }
 
         const body = parsedBody.data;
         const apiKey = process.env.JUPITER_API_KEY || "";
         if (!apiKey) {
-            return NextResponse.json({ error: "Jupiter API key not configured" }, { status: 500 });
+            return NextResponse.json(
+                { error: "Jupiter API key not configured. Set JUPITER_API_KEY in env." },
+                { status: 500 }
+            );
         }
 
-        // ─── ACTION: CREATE ───────────────────────────────────
-        // Creates a DCA order and returns an unsigned transaction for the client to sign
+        // ─── CREATE: craft unsigned DCA tx ────────────────────
         if (body.action === "create") {
-            if (!body.user || !body.inputMint || !body.outputMint || !body.inAmount || !body.numberOfOrders || !body.interval) {
-                return NextResponse.json({ error: "Missing required fields for DCA creation" }, { status: 400 });
+            if (
+                !body.user ||
+                !body.inputMint ||
+                !body.outputMint ||
+                body.inAmount == null ||
+                body.numberOfOrders == null ||
+                body.interval == null
+            ) {
+                return NextResponse.json(
+                    {
+                        error: "Missing required fields",
+                        required: [
+                            "user",
+                            "inputMint",
+                            "outputMint",
+                            "inAmount",
+                            "numberOfOrders",
+                            "interval",
+                        ],
+                    },
+                    { status: 400 }
+                );
             }
 
-            // --- COMPLIANCE CHECK ---
-            const { checkWalletRisk } = await import('@/lib/compliance');
+            const { checkWalletRisk } = await import("@/lib/compliance");
             const risk = await checkWalletRisk(body.user);
             if (risk.isBlocked) {
-                console.warn(`[Compliance] Blocked high-risk wallet in DCA API: ${body.user}`);
-                return NextResponse.json({ error: "Address restricted by compliance policy" }, { status: 403 });
+                return NextResponse.json(
+                    { error: "Address restricted by compliance policy" },
+                    { status: 403 }
+                );
             }
-            // ------------------------
 
-            const orderPayload: Record<string, any> = {
-                userAddress: body.wallet,
-                inAmount: body.inAmount,
+            // Jupiter Recurring createOrder shape (official docs)
+            const orderPayload = {
+                user: body.user,
                 inputMint: body.inputMint,
                 outputMint: body.outputMint,
                 params: {
                     time: {
-                        inAmount: parseInt(body.inAmount.toString()),
-                        numberOfOrders: parseInt(body.numberOfOrders.toString()),
-                        interval: parseInt(body.interval.toString()),
-                        minPrice: null,
-                        maxPrice: null,
-                        slippageBps: body.slippageBps ? parseInt(body.slippageBps.toString()) : 100
-                    }
-                }
+                        inAmount: parseInt(String(body.inAmount), 10),
+                        numberOfOrders: parseInt(String(body.numberOfOrders), 10),
+                        interval: parseInt(String(body.interval), 10),
+                        minPrice: body.minPrice ?? null,
+                        maxPrice: body.maxPrice ?? null,
+                        startAt: body.startAt ?? null,
+                    },
+                },
             };
 
-            console.log("[DCA API] Creating recurring order:", JSON.stringify(orderPayload));
+            console.log("[DCA API] createOrder:", JSON.stringify(orderPayload));
 
             const response = await fetch(`${JUP_RECURRING_URL}/createOrder`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                },
+                headers: jupHeaders(apiKey),
                 body: JSON.stringify(orderPayload),
             });
 
             const data = await safeJson(response);
-
             if (!response.ok) {
-                console.error("[DCA API] Jupiter error:", data);
+                console.error("[DCA API] Jupiter create error:", data);
                 return NextResponse.json(
-                    { error: data.error || data.message || "Jupiter API error", details: data },
+                    {
+                        error: data.error || data.message || "Jupiter createOrder failed",
+                        details: data,
+                    },
                     { status: response.status }
                 );
             }
 
-            // Jupiter returns { requestId, transaction (base64 unsigned) }
-            console.log("[DCA API] Order crafted successfully, returning unsigned tx to client");
+            // { requestId, transaction }
             return NextResponse.json({
                 requestId: data.requestId,
                 transaction: data.transaction,
             });
         }
 
-        // ─── ACTION: EXECUTE ──────────────────────────────────
-        // After the client signs the transaction, send it via Jupiter's execute endpoint
+        // ─── EXECUTE: submit signed tx via Jupiter ────────────
         if (body.action === "execute") {
             if (!body.signedTransaction || !body.requestId) {
-                return NextResponse.json({ error: "Missing signedTransaction or requestId" }, { status: 400 });
+                return NextResponse.json(
+                    { error: "Missing signedTransaction or requestId" },
+                    { status: 400 }
+                );
             }
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 55000);
 
-            const response = await fetch(`${JUP_RECURRING_URL}/execute`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                },
-                body: JSON.stringify({
-                    signedTransaction: body.signedTransaction,
-                    requestId: body.requestId,
-                }),
-                signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
+            try {
+                const response = await fetch(`${JUP_RECURRING_URL}/execute`, {
+                    method: "POST",
+                    headers: jupHeaders(apiKey),
+                    body: JSON.stringify({
+                        signedTransaction: body.signedTransaction,
+                        requestId: body.requestId,
+                    }),
+                    signal: controller.signal,
+                });
 
-            const data = await safeJson(response);
-
-            if (!response.ok) {
-                console.error("[DCA API] Execute error:", data);
-                return NextResponse.json(
-                    { error: data.error || data.message || "Execution failed", details: data },
-                    { status: response.status }
-                );
-            }
-
-            console.log("[DCA API] Order executed successfully");
-            return NextResponse.json(data);
-        }
-
-        // ─── VAULT AUTH: REQUEST CHALLENGE ────────────────────────
-        if (body.action === "request-challenge" && body.wallet) {
-            // Compliance check for vault auth
-            const { checkWalletRisk } = await import('@/lib/compliance');
-            const risk = await checkWalletRisk(body.wallet);
-            if (risk.isBlocked) {
-                console.warn(`[Compliance] Blocked high-risk wallet in DCA vault auth: ${body.wallet}`);
-                return NextResponse.json({ error: "Address restricted by compliance policy" }, { status: 403 });
-            }
-
-            const res = await fetch(`https://api.jup.ag/trigger/v2/auth/challenge`, {
-                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey },
-                body: JSON.stringify({ walletPubkey: body.wallet, type: "message" }),
-            });
-            const data = await safeJson(res);
-            if (!res.ok) return NextResponse.json({ error: data.error || "Failed challenge" }, { status: res.status });
-            return NextResponse.json(data);
-        }
-
-        // ─── VAULT AUTH: VERIFY CHALLENGE ─────────────────────────
-        if (body.action === "verify-challenge" && body.wallet && body.signature) {
-            const res = await fetch(`https://api.jup.ag/trigger/v2/auth/verify`, {
-                method: "POST", headers: { "Content-Type": "application/json", "x-api-key": apiKey },
-                body: JSON.stringify({ type: "message", walletPubkey: body.wallet, signature: body.signature }),
-            });
-            const data = await safeJson(res);
-            if (!res.ok) return NextResponse.json({ error: data.error || "Failed verify" }, { status: res.status });
-            return NextResponse.json(data);
-        }
-
-        // ─── VAULT AUTH: REGISTER VAULT ─────────────────────────
-        if (body.action === "register-vault" && body.jwt) {
-            const res = await fetch(`https://api.jup.ag/trigger/v2/vault/register`, {
-                method: "GET", headers: { "x-api-key": apiKey, "Authorization": `Bearer ${body.jwt}` }
-            });
-            const data = await safeJson(res);
-            if (!res.ok) {
-                // If it's 409 Vault already registered, that's actually a success state for us!
-                if (res.status === 409 && data.error === "Vault already registered") {
-                    return NextResponse.json({ success: true, vault: data.details });
+                const data = await safeJson(response);
+                if (!response.ok) {
+                    console.error("[DCA API] Execute error:", data);
+                    return NextResponse.json(
+                        {
+                            error: data.error || data.message || "Execution failed",
+                            details: data,
+                        },
+                        { status: response.status }
+                    );
                 }
-                return NextResponse.json({ error: data.error || data.message || "Failed register", details: data }, { status: res.status });
+
+                return NextResponse.json(data);
+            } finally {
+                clearTimeout(timeoutId);
             }
-            return NextResponse.json({ success: true, vault: data });
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : "Server error";
         console.error("[DCA API] Server error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: msg }, { status: 500 });
     }
 }

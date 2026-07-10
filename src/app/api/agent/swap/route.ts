@@ -91,20 +91,59 @@ export async function POST(req: NextRequest) {
                 }).catch(err => console.error("Failed to log agent referral", err));
             }
 
-            // Record in the centralized fee ledger for dashboard/leaderboard
+            // Record fee ledger using mint-aware pricing when possible
             if (jupData.feeAmount > 0 && jupData.signature) {
-                // Estimate fee USD (feeAmount is in token units — approximate as volume fraction)
-                const feeUsdEstimate = jupData.feeAmount > 0 ? jupData.feeAmount / 1e6 : 0; // Rough for stablecoins
-                recordFee({
-                    id: `agent-${jupData.signature}`,
-                    wallet: agentPubkey || "unknown-agent",
-                    feeUsd: feeUsdEstimate,
-                    feeBps: 65, // Agent default tier
-                    volumeUsd: feeUsdEstimate * 10000 / 65, // Reverse-derive volume from fee
-                    source: "agent",
-                    inputMint: jupData.inputMint,
-                    outputMint: jupData.outputMint,
-                }).catch(err => console.error("[Agent] Fee ledger write failed:", err));
+                (async () => {
+                    try {
+                        const { decimalsForMint, estimateVolumeUsd, adminAddVolume } = await import(
+                            "@/lib/adminUsers"
+                        );
+                        const feeMint = jupData.feeMint || jupData.inputMint || "";
+                        const decimals = decimalsForMint(feeMint);
+                        let feeUsd = await estimateVolumeUsd(
+                            feeMint,
+                            jupData.feeAmount,
+                            decimals
+                        );
+                        // Fallback: fee as fraction of notional if price missing
+                        if (feeUsd <= 0 && jupData.inAmount && jupData.inputMint) {
+                            const vol = await estimateVolumeUsd(
+                                jupData.inputMint,
+                                jupData.inAmount,
+                                decimalsForMint(jupData.inputMint)
+                            );
+                            feeUsd = vol * 0.0065; // base tier approx
+                        }
+                        const volumeUsd =
+                            jupData.inAmount && jupData.inputMint
+                                ? await estimateVolumeUsd(
+                                      jupData.inputMint,
+                                      jupData.inAmount,
+                                      decimalsForMint(jupData.inputMint)
+                                  )
+                                : feeUsd > 0
+                                  ? (feeUsd * 10000) / 65
+                                  : 0;
+
+                        if (feeUsd > 0) {
+                            await recordFee({
+                                id: `agent-${jupData.signature}`,
+                                wallet: agentPubkey || "unknown-agent",
+                                feeUsd,
+                                feeBps: 65,
+                                volumeUsd,
+                                source: "agent",
+                                inputMint: jupData.inputMint,
+                                outputMint: jupData.outputMint,
+                            });
+                        }
+                        if (agentPubkey && volumeUsd > 0) {
+                            await adminAddVolume(agentPubkey, volumeUsd);
+                        }
+                    } catch (err) {
+                        console.error("[Agent] Fee ledger write failed:", err);
+                    }
+                })();
             }
 
             return NextResponse.json({

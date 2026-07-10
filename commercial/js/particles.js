@@ -2,13 +2,24 @@ export class ParticleSystem {
     constructor(glEngine, vsSource, fsSource, postVs, postFs) {
         this.glEngine = glEngine;
         this.gl = glEngine.gl;
-        this.count = 250000;
+        this.count = 500000;
         
         this.program = glEngine.createProgram(vsSource, fsSource);
         this.postProgram = glEngine.createProgram(postVs, postFs);
         
         this.initBuffers();
         this.initPostProcessing();
+        this.hudTexture = this.gl.createTexture();
+    }
+    
+    updateHudTexture(canvas) {
+        const gl = this.gl;
+        gl.bindTexture(gl.TEXTURE_2D, this.hudTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     }
 
     initBuffers() {
@@ -98,6 +109,8 @@ export class ParticleSystem {
         gl.uniform1f(gl.getUniformLocation(this.program, "u_transition"), transition);
         gl.uniform1f(gl.getUniformLocation(this.program, "u_particleCount"), this.count);
         gl.uniform1f(gl.getUniformLocation(this.program, "u_seed"), window.solanaSeed || 0.5);
+        gl.uniform1f(gl.getUniformLocation(this.program, "u_shake"), window.shakeIntensity || 0.0);
+        gl.uniform1f(gl.getUniformLocation(this.program, "u_audioReact"), window.audioReact || 0.0);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.indexBuffer);
         gl.enableVertexAttribArray(this.aIndexLoc);
@@ -122,8 +135,14 @@ export class ParticleSystem {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.glEngine.fboTexture);
         gl.uniform1i(gl.getUniformLocation(this.postProgram, "u_texture"), 0);
+        
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.hudTexture);
+        gl.uniform1i(gl.getUniformLocation(this.postProgram, "u_hudTexture"), 1);
+        
         gl.uniform1f(gl.getUniformLocation(this.postProgram, "u_time"), time);
         gl.uniform1f(gl.getUniformLocation(this.postProgram, "u_shake"), window.shakeIntensity || 0.0);
+        gl.uniform1f(gl.getUniformLocation(this.postProgram, "u_audioReact"), window.audioReact || 0.0);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
         gl.enableVertexAttribArray(this.aPosLoc);

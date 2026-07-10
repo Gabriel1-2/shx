@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { getReferralStats, initializeReferralCode } from "@/lib/referrals";
 import { Users, Copy, Check, Gift } from "lucide-react";
 
 export function ReferralCard() {
@@ -15,12 +14,30 @@ export function ReferralCard() {
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
-        if (publicKey) {
-            // Initialize code if needed and fetch stats
-            initializeReferralCode(publicKey.toString()).then(() => {
-                getReferralStats(publicKey.toString()).then(setStats);
-            });
-        }
+        if (!publicKey) return;
+        const wallet = publicKey.toString();
+        // Server-side init + stats (Firestore client writes are denied)
+        fetch("/api/referral", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "init", wallet }),
+        })
+            .then(() =>
+                fetch("/api/referral", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "stats", wallet }),
+                })
+            )
+            .then((r) => r.json())
+            .then((data) => {
+                setStats({
+                    referralCode: data.referralCode || "",
+                    referralCount: data.referralCount || 0,
+                    referralEarnings: data.referralEarnings || 0,
+                });
+            })
+            .catch(() => {});
     }, [publicKey]);
 
     const copyReferralLink = () => {

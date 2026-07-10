@@ -4,10 +4,8 @@ import { useEffect, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 /**
- * A hidden global component that quietly syncs Limit and DCA trades
- * in the background using the user's stored JWT. This ensures fees
- * and volumes are pushed to the database even if the user never
- * visits the dashboard or places a new order.
+ * Quietly syncs Limit and DCA fills so volume/leaderboard stay current
+ * even if the user never opens the Orders panel.
  */
 export function BackgroundSyncer() {
     const { publicKey } = useWallet();
@@ -16,50 +14,43 @@ export function BackgroundSyncer() {
     useEffect(() => {
         if (!publicKey) return;
 
-        // Run sync loop every 60 seconds
-        const syncInterval = setInterval(() => {
-            const jwt = localStorage.getItem("shx_jupiter_jwt");
-            if (!jwt) return; // Need vault auth to sync order history
+        const wallet = publicKey.toString();
 
-            const wallet = publicKey.toString();
+        const sync = () => {
+            let jwt: string | null = null;
+            try {
+                const storedWallet = localStorage.getItem("shx_jupiter_jwt_wallet");
+                if (!storedWallet || storedWallet === wallet) {
+                    jwt = localStorage.getItem("shx_jupiter_jwt");
+                }
+            } catch {
+                /* ignore */
+            }
 
-            // 1. Sync Limits
-            fetch("/api/limit/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ wallet, jwt })
-            }).catch(e => console.error("[BackgroundSyncer] Limit sync failed", e));
-
-            // 2. Sync DCAs
-            fetch("/api/dca/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ wallet, jwt })
-            }).catch(e => console.error("[BackgroundSyncer] DCA sync failed", e));
-
-        }, 60000);
-
-        // Run immediately on mount (once)
-        if (!hasRun.current) {
-            hasRun.current = true;
-            const jwt = localStorage.getItem("shx_jupiter_jwt");
             if (jwt) {
-                const wallet = publicKey.toString();
                 fetch("/api/limit/sync", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ wallet, jwt })
-                }).catch(() => {});
-                fetch("/api/dca/sync", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ wallet, jwt })
-                }).catch(() => {});
+                    body: JSON.stringify({ wallet, jwt }),
+                }).catch((e) => console.error("[BackgroundSyncer] Limit sync failed", e));
             }
+
+            fetch("/api/dca/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ wallet }),
+            }).catch((e) => console.error("[BackgroundSyncer] DCA sync failed", e));
+        };
+
+        const syncInterval = setInterval(sync, 60_000);
+
+        if (!hasRun.current) {
+            hasRun.current = true;
+            sync();
         }
 
         return () => clearInterval(syncInterval);
     }, [publicKey]);
 
-    return null; // Hidden component
+    return null;
 }

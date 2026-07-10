@@ -10,27 +10,29 @@ SHX Exchange is a high-performance, non-custodial trading terminal built for spe
 
 ### 1. Pro Terminal
 
-* **Integrated Jupiter V2:** Access the deepest liquidity on Solana.
-* **"Ape Mode" 🦍:** One-click toggle for **High Slippage (1%)** and **Priority Fees** to snipe launches instantly.
-* **0% Fee Promo:** Buy $SHULEVITZ with 0% trading fees.
+* **Jupiter Ultra swaps** with best-route aggregation.
+* **Limit orders** via Jupiter Trigger V2 (vault deposit + price triggers).
+* **DCA** via Jupiter Recurring (time-based auto-buys).
+* **0% platform fee** when buying $SHULEVITZ (SHX).
 
 ### 2. Tiered Fee System 📉
 
 Trade cheaper by holding **$SHULEVITZ**. Fees are calculated dynamically on every swap.
 
-| $SHULEVITZ Holdings | Fee Rate | Discount |
-|---------------------|----------|----------|
-| $0                  | 0.50%    | —        |
-| $7,500+             | 0.25%    | 50% OFF  |
-| $300,000+           | 0.06%    | 88% OFF  |
-| **$750,000+**       | **0.05%**| **MAX**  |
+| $SHULEVITZ Holdings | Fee Rate | Discount vs Base |
+|---------------------|----------|------------------|
+| $0                  | 0.65%    | —                |
+| 10,000+             | 0.60%    | ~7.7% OFF        |
+| 50,000+             | 0.55%    | ~15.4% OFF       |
+| 100,000+            | 0.52%    | ~20% OFF         |
+| **500,000+**        | **0.50%**| **~23% OFF**     |
 
 ### 3. Volume Rewards & Leaderboard 🏆
 
 * **XP System:** Earn XP for every dollar traded.
-* **Live Leaderboard:** Track the top volume traders in real-time.
-* **Daily Rewards:** Top 10 traders unlock cash rewards and reduced fees for the next day.
-* **Transparency:** Verify Global Volume and Fees Paid directly on the dashboard.
+* **Weekly leaderboard:** Top 10 by fees paid (min $10 weekly fees), **$250** pool.
+* **Transparency:** Verify global volume and fees on the dashboard.
+* **Referrals:** Share `?ref=CODE` — earn 10% of referred traders' fees.
 
 ---
 

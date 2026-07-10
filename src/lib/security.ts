@@ -20,9 +20,13 @@ export function validateInternalOrigin(req: NextRequest): { success: boolean; er
     const origin = req.headers.get("origin");
     const referer = req.headers.get("referer");
 
-    // If no origin and no referer, it might be a server-to-server or cURL call.
-    // Since this is meant to be called by browsers for internal actions, we demand at least one.
+    // Same-origin navigations / some GETs may omit Origin; require Origin or Referer.
+    // In production on Vercel, also allow requests that only carry the host header
+    // when both are missing only in development for local tooling.
     if (!origin && !referer) {
+        if (process.env.NODE_ENV === "development") {
+            return { success: true };
+        }
         return { success: false, error: "Missing Origin and Referer headers" };
     }
 

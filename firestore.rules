@@ -7,27 +7,40 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Users collection: Public Read, Admin Write Only
+    // Users: public leaderboard/stats read; writes only via Admin SDK
     match /users/{walletAddress} {
       allow read: if true;
       allow write: if false;
     }
     
-    // Transactions collection: Public Read, Admin Write Only
+    // Transactions: public activity feed; writes only via Admin SDK
     match /transactions/{txId} {
       allow read: if true;
       allow write: if false;
     }
+
+    // Fee ledger: platform transparency (read), Admin write
+    match /fee_ledger/{eventId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Processed async orders (limit/DCA) — Admin only
+    match /processed_orders/{orderId} {
+      allow read, write: if false;
+    }
     
-    // Explicitly secure private system collections
     match /rate_limits/{limitId} {
-      allow read, write: if false; // Admin backend only
+      allow read, write: if false;
     }
     match /daily_snapshots/{dateId} {
-      allow read, write: if false; // Admin backend only
+      allow read, write: if false;
     }
     match /system/{docId} {
-      allow read, write: if false; // Admin backend only
+      allow read, write: if false;
+    }
+    match /agent_referrals/{docId} {
+      allow read, write: if false;
     }
   }
 }

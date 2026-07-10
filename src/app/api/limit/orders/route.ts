@@ -6,16 +6,28 @@ import { z } from "zod";
 const BodySchema = z.object({
     wallet: z.string(),
     jwt: z.string(),
+    /** open | past | all — maps to Jupiter history filters */
+    state: z.enum(["open", "past", "all"]).optional().default("open"),
 });
 
 async function safeJson(res: Response) {
     const text = await res.text();
     try {
         return JSON.parse(text);
-    } catch (e) {
-        return { error: "Non-JSON response", text };
+    } catch {
+        return { error: "Non-JSON response", text: text.slice(0, 500) };
     }
 }
+
+const OPEN_STATES = new Set([
+    "open",
+    "active",
+    "pending",
+    "executing",
+    "pending_withdraw",
+    "ready_to_cancel",
+    "failed",
+]);
 
 export async function POST(req: NextRequest) {
     try {
@@ -29,11 +41,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: csrfCheck.error }, { status: 403 });
         }
 
-        const rawBody = await req.json();
-        const parsedBody = BodySchema.safeParse(rawBody);
-
+        const parsedBody = BodySchema.safeParse(await req.json());
         if (!parsedBody.success) {
-            return NextResponse.json({ error: "Invalid request body", details: parsedBody.error.format() }, { status: 400 });
+            return NextResponse.json(
+                { error: "Invalid request body", details: parsedBody.error.format() },
+                { status: 400 }
+            );
         }
 
         const body = parsedBody.data;
@@ -42,24 +55,41 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Jupiter API key not configured" }, { status: 500 });
         }
 
-        const res = await fetch(`https://api.jup.ag/trigger/v2/orders/history?limit=50`, {
+        const url = new URL("https://api.jup.ag/trigger/v2/orders/history");
+        url.searchParams.set("limit", "50");
+        if (body.state === "past") {
+            url.searchParams.set("state", "past");
+        }
+
+        const res = await fetch(url.toString(), {
             method: "GET",
             headers: {
                 "x-api-key": apiKey,
-                "Authorization": `Bearer ${body.jwt}`
-            }
+                Authorization: `Bearer ${body.jwt}`,
+            },
         });
 
         const data = await safeJson(res);
-
         if (!res.ok) {
-            console.error("[Limit Orders API] Jupiter API Error:", data);
-            return NextResponse.json({ error: data.error || data.message || "Failed to fetch limit orders", details: data.text }, { status: res.status });
+            console.error("[Limit Orders API] Jupiter error:", data);
+            return NextResponse.json(
+                { error: data.error || data.message || "Failed to fetch limit orders", details: data },
+                { status: res.status }
+            );
         }
 
-        return NextResponse.json(data);
-    } catch (error: any) {
+        let orders = data.orders || data.data || [];
+        if (body.state === "open") {
+            orders = orders.filter((o: Record<string, string>) => {
+                const s = (o.orderState || o.status || o.rawState || "").toLowerCase();
+                return OPEN_STATES.has(s) || s === "";
+            });
+        }
+
+        return NextResponse.json({ orders });
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : "Server error";
         console.error("[Limit Orders API] Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: msg }, { status: 500 });
     }
 }

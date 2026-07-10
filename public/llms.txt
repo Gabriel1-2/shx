@@ -360,16 +360,22 @@ Use `/api/agent/resolve?symbol=TOKEN_SYMBOL` if you need the mint address for an
 Every swap through SHX Exchange earns XP and counts toward the weekly leaderboard.
 AI agents that trade through SHX are eligible for rewards.
 
-- **XP per swap:** `max(100, floor(volumeUSD * 10))`
-- **Weekly pool:** $500 split among top 10 traders by volume
-- **Minimum volume:** $1,000/week to qualify
+- **XP per swap:** `max(1, floor(volumeUSD))`
+- **Weekly pool:** $250 split among top 10 traders by **fees paid**
+- **Minimum weekly fees:** $10 to qualify
 
 | Rank | Reward |
 |------|--------|
-| #1 | $125 (25%) |
-| #2 | $75 (15%) |
-| #3 | $50 (10%) |
-| #4–#10 | ~$35.70 each |
+| #1 | $75 |
+| #2 | $50 |
+| #3 | $35 |
+| #4 | $25 |
+| #5 | $20 |
+| #6 | $15 |
+| #7 | $10 |
+| #8 | $8 |
+| #9 | $7 |
+| #10 | $5 |
 
 ---
 

@@ -9,6 +9,7 @@ import { QueryProvider } from "@/components/QueryProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BackgroundSyncer } from "@/components/BackgroundSyncer";
 import DebugLogsViewer from "@/components/DebugLogs";
+import { ReferralCapture } from "@/components/ReferralCapture";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
@@ -67,6 +68,9 @@ export default function RootLayout({
                 </div>
                 <Header />
                 <BackgroundSyncer />
+                <Suspense fallback={null}>
+                  <ReferralCapture />
+                </Suspense>
                 <DebugLogsViewer />
                 {children}
                 <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto">

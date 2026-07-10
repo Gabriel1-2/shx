@@ -1,34 +1,62 @@
-import { NextResponse } from "next/server";
-import { addVolume, hasOrderBeenProcessed, markOrderProcessed } from "@/lib/points";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rateLimit";
+import { validateInternalOrigin } from "@/lib/security";
 import { recordFee } from "@/lib/feeLedger";
 import { getEffectiveFeeBps } from "@/lib/feeTiers";
+import {
+    adminAddVolume,
+    adminHasOrderBeenProcessed,
+    adminMarkOrderProcessed,
+    decimalsForMint,
+    estimateVolumeUsd,
+} from "@/lib/adminUsers";
 
 const apiKey = process.env.JUPITER_API_KEY || "";
 
 /**
- * Sync past limit orders from Jupiter to track volume asynchronously.
+ * Sync filled limit orders into volume/fee ledger (Admin SDK).
+ * Body: { wallet, jwt }
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        const rl = await rateLimit(req, 10, 60000);
+        if (!rl.success) {
+            return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+        }
+
+        const csrf = validateInternalOrigin(req);
+        if (!csrf.success) {
+            return NextResponse.json({ error: csrf.error }, { status: 403 });
+        }
+
         const body = await req.json();
-        const { wallet, jwt } = body;
+        const { wallet, jwt } = body as { wallet?: string; jwt?: string };
 
         if (!wallet || !jwt) {
             return NextResponse.json({ error: "Wallet and JWT required" }, { status: 400 });
         }
 
-        // Fetch past orders from Jupiter
-        const res = await fetch(`https://api.jup.ag/trigger/v2/orders/history?state=past&limit=20`, {
-            method: "GET",
-            headers: {
-                "x-api-key": apiKey,
-                "Authorization": `Bearer ${jwt}`
+        if (!apiKey) {
+            return NextResponse.json({ error: "Jupiter API key not configured" }, { status: 500 });
+        }
+
+        const res = await fetch(
+            "https://api.jup.ag/trigger/v2/orders/history?state=past&limit=50",
+            {
+                method: "GET",
+                headers: {
+                    "x-api-key": apiKey,
+                    Authorization: `Bearer ${jwt}`,
+                },
             }
-        });
+        );
 
         if (!res.ok) {
-            console.error("[Limit Sync] Jupiter API Error:", await res.text());
-            return NextResponse.json({ error: "Failed to fetch order history from Jupiter" }, { status: 502 });
+            console.error("[Limit Sync] Jupiter error:", await res.text());
+            return NextResponse.json(
+                { error: "Failed to fetch order history from Jupiter" },
+                { status: 502 }
+            );
         }
 
         const data = await res.json();
@@ -38,83 +66,69 @@ export async function POST(req: Request) {
         let syncedCount = 0;
 
         for (const order of orders) {
-            // We only care about successfully executed/filled orders
-            if (order.status !== "filled" && order.status !== "executed" && order.status !== "succeeded") {
+            const state = (
+                order.orderState ||
+                order.status ||
+                order.rawState ||
+                ""
+            ).toLowerCase();
+            if (!["filled", "executed", "succeeded", "completed"].includes(state)) {
                 continue;
             }
 
-            const orderId = order.id || order.pubkey || order.orderPubkey;
+            const orderId = order.id || order.pubkey || order.orderPubkey || order.ocoId;
             if (!orderId) continue;
 
-            const maker = order.maker || order.userPubkey || order.owner;
+            const maker = order.maker || order.userPubkey || order.owner || order.user;
             if (maker && maker !== wallet) {
-                console.warn(`[Limit Sync] Wallet mismatch spoofing attempt! maker=${maker}, requested_wallet=${wallet}`);
+                console.warn(
+                    `[Limit Sync] Wallet mismatch maker=${maker}, requested=${wallet}`
+                );
                 continue;
             }
 
-            const isProcessed = await hasOrderBeenProcessed(orderId);
-            if (isProcessed) continue;
+            if (await adminHasOrderBeenProcessed(orderId)) continue;
 
-            // Calculate Volume USD
-            // Note: Trigger V2 orders usually have inAmount and outAmount. 
-            // We need a USD estimate. For MVP, if triggerPrice is available, use it, or fallback.
-            // A more robust way is querying Jupiter price API, but for speed we'll estimate based on inAmount if it's USDC, etc.
-            
-            let volumeUsd = 0;
-            
-            // Try to extract volume. Jupiter might provide `inAmount` and `inputMint`.
-            const inputMint = order.inputMint || order.makerMint;
-            const inAmount = order.inAmount || order.makerAmount || "0";
-            
-            // Temporary simple volume estimation:
-            // Since we know USDC is EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-            // This can be expanded to dynamically price assets via Jupiter Price API.
-            if (inputMint === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" || inputMint === "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB") {
-                volumeUsd = Number(inAmount) / 1e6;
-            } else if (order.usdValue) {
-                volumeUsd = Number(order.usdValue);
-            } else if (order.triggerPrice) {
-                 // rough estimate if we know the token is SOL
-                 if (inputMint === "So11111111111111111111111111111111111111112") {
-                     volumeUsd = (Number(inAmount) / 1e9) * Number(order.triggerPrice);
-                 } else {
-                     volumeUsd = 10; // Fallback minimum volume
-                 }
-            } else {
-                volumeUsd = 10; // Fallback
+            const inputMint = order.inputMint || order.makerMint || "";
+            const inAmount = order.inAmount || order.inputAmount || order.makerAmount || "0";
+            const decimals = decimalsForMint(inputMint);
+
+            let volumeUsd = await estimateVolumeUsd(inputMint, inAmount, decimals);
+            if (volumeUsd <= 0 && order.usdValue) volumeUsd = Number(order.usdValue);
+            if (volumeUsd <= 0 && order.triggerPriceUsd && inputMint.includes("So1111")) {
+                volumeUsd = (Number(inAmount) / 1e9) * Number(order.triggerPriceUsd);
+            }
+            if (volumeUsd <= 0) continue;
+
+            await adminAddVolume(wallet, volumeUsd);
+            await adminMarkOrderProcessed(orderId, wallet, volumeUsd);
+
+            const outputMint = order.outputMint || order.takerMint || "";
+            // Limit/trigger path does not currently attach SHX Jupiter referral fees
+            const feeBps = getEffectiveFeeBps(0, outputMint);
+            const feeUsd = 0;
+
+            if (feeUsd > 0) {
+                await recordFee({
+                    id: `limit-${orderId}`,
+                    wallet,
+                    feeUsd,
+                    feeBps,
+                    volumeUsd,
+                    source: "limit",
+                    inputMint: inputMint || undefined,
+                    outputMint: outputMint || undefined,
+                });
             }
 
-            if (volumeUsd > 0) {
-                // Award points/volume
-                await addVolume(wallet, volumeUsd);
-                await markOrderProcessed(orderId, wallet, volumeUsd);
-
-                // Calculate and record fee
-                const outputMint = order.outputMint || order.takerMint || "";
-                const feeBps = getEffectiveFeeBps(0, outputMint); // Default tier for limit orders
-                const feeUsd = (volumeUsd * feeBps) / 10000;
-
-                if (feeUsd > 0) {
-                    await recordFee({
-                        id: `limit-${orderId}`,
-                        wallet,
-                        feeUsd,
-                        feeBps,
-                        volumeUsd,
-                        source: "limit",
-                        inputMint: inputMint || undefined,
-                        outputMint: outputMint || undefined,
-                    });
-                }
-                
-                syncedVolume += volumeUsd;
-                syncedCount++;
-            }
+            syncedVolume += volumeUsd;
+            syncedCount++;
         }
 
         return NextResponse.json({ success: true, syncedCount, syncedVolume });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : "Server error";
         console.error("[Limit Sync] Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: msg }, { status: 500 });
     }
 }

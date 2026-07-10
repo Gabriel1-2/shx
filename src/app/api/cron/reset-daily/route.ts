@@ -1,81 +1,84 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, writeBatch, doc } from "firebase/firestore";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
 
-export const maxDuration = 300; // Allow Vercel up to 5 minutes to run this (if on pro plan)
+export const maxDuration = 300;
 
+/**
+ * Daily reset via Firebase Admin (client SDK cannot write under current rules).
+ * Schedule: 0 0 * * * (vercel.json)
+ */
 export async function GET(req: Request) {
     try {
         const authHeader = req.headers.get("authorization");
         const cronSecret = process.env.CRON_SECRET;
 
-        // Vercel cron uses a Bearer token we define in CRON_SECRET, or we can just skip it if not configured,
-        // but it's best to secure it. If CRON_SECRET is set, we must match it.
         if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        const usersRef = collection(db, "users");
-        const snapshot = await getDocs(usersRef);
+        if (!adminDb) {
+            return NextResponse.json(
+                { error: "Firebase Admin not configured" },
+                { status: 500 }
+            );
+        }
 
-        const batchSize = 400; // Firestore batch limit is 500
-        let batch = writeBatch(db);
-        let count = 0;
+        const snapshot = await adminDb.collection("users").get();
+        const currentDay = new Date().toISOString().split("T")[0];
         let totalReset = 0;
-
-        const now = new Date();
-        const startOfToday = new Date(now);
-        startOfToday.setUTCHours(0, 0, 0, 0);
-        const dayId = startOfToday.getTime(); // Used for archiving
+        let batch = adminDb.batch();
+        let ops = 0;
 
         for (const userDoc of snapshot.docs) {
             const data = userDoc.data();
-            const lastDayStart = data.dayStart || 0;
+            const lastDayStart = data.dayStart;
 
-            // Only reset if they haven't already been reset today
-            if (lastDayStart < dayId) {
-                // If they had volume/fees yesterday, archive it first
-                if (data.dailyVolume > 0 || data.dailyFeesPaid > 0) {
-                    const archiveRef = doc(db, "daily_snapshots", `${userDoc.id}_${lastDayStart}`);
-                    batch.set(archiveRef, {
-                        wallet: userDoc.id,
-                        date: lastDayStart,
-                        volume: data.dailyVolume || 0,
-                        feesPaid: data.dailyFeesPaid || 0,
-                        tradeCount: data.dailyTradeCount || 0,
-                        archivedAt: Date.now()
-                    });
-                    count++;
-                }
+            // Skip if already on today's dayStart (string YYYY-MM-DD)
+            if (lastDayStart === currentDay) continue;
 
-                // Reset the user's daily stats
-                batch.update(userDoc.ref, {
+            if ((data.dailyVolume > 0 || data.dailyFeesPaid > 0) && lastDayStart) {
+                const archiveRef = adminDb
+                    .collection("daily_snapshots")
+                    .doc(`${userDoc.id}_${lastDayStart}`);
+                batch.set(archiveRef, {
+                    wallet: userDoc.id,
+                    date: lastDayStart,
+                    volume: data.dailyVolume || 0,
+                    feesPaid: data.dailyFeesPaid || 0,
+                    tradeCount: data.dailyTradeCount || 0,
+                    archivedAt: FieldValue.serverTimestamp(),
+                });
+                ops++;
+            }
+
+            batch.set(
+                userDoc.ref,
+                {
                     dailyVolume: 0,
                     dailyFeesPaid: 0,
                     dailyTradeCount: 0,
-                    dayStart: dayId
-                });
-                count++;
-                totalReset++;
+                    dayStart: currentDay,
+                },
+                { merge: true }
+            );
+            ops++;
+            totalReset++;
 
-                // Commit the batch if we reach the limit
-                if (count >= batchSize) {
-                    await batch.commit();
-                    batch = writeBatch(db);
-                    count = 0;
-                }
+            if (ops >= 400) {
+                await batch.commit();
+                batch = adminDb.batch();
+                ops = 0;
             }
         }
 
-        // Commit remaining
-        if (count > 0) {
-            await batch.commit();
-        }
+        if (ops > 0) await batch.commit();
 
         console.log(`[Cron] Reset daily stats for ${totalReset} users.`);
         return NextResponse.json({ success: true, resetCount: totalReset });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : "Cron error";
         console.error("[Cron] Error resetting daily volume:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
