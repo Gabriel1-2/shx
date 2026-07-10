@@ -345,34 +345,25 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // 11. Referral share (10% of fees + XP bonus) via Admin SDK
+        // 11. Aggressive lifetime referral rev-share (Firestore Admin)
+        let referral: unknown = null;
         if (feeUsd > 0 || volumeUSD > 0) {
             try {
-                const userSnap = await adminDb.collection("users").doc(walletAddr).get();
-                const referredBy = userSnap.data()?.referredBy as string | undefined;
-                if (referredBy) {
-                    const referralEarning = feeUsd * 0.10;
-                    const referralPoints = Math.floor(volumeUSD * 0.20);
-                    await adminDb.collection("users").doc(referredBy).set(
-                        {
-                            referralEarnings: FieldValue.increment(referralEarning),
-                            points: FieldValue.increment(referralPoints),
-                            wallet: referredBy,
-                            lastReferralEarning: new Date().toISOString(),
-                        },
-                        { merge: true }
-                    );
-                    console.log(
-                        `[Analytics] Referral: $${referralEarning.toFixed(4)} + ${referralPoints} XP → ${referredBy.slice(0, 8)}...`
-                    );
-                }
+                const { adminCreditTradeReferral } = await import("@/lib/referralEngine");
+                referral = await adminCreditTradeReferral({
+                    eventId: txid,
+                    traderWallet: walletAddr,
+                    feeUsd,
+                    volumeUsd: volumeUSD,
+                    source: "swap",
+                });
             } catch (refErr) {
                 console.error("[Analytics] Referral credit failed:", refErr);
             }
         }
 
         console.log(`[Analytics] ✅ Saved successfully for ${walletAddr.slice(0, 8)}...`);
-        return NextResponse.json({ success: true, volumeUSD, points, feeUsd });
+        return NextResponse.json({ success: true, volumeUSD, points, feeUsd, referral });
 
     } catch (error: any) {
         console.error("[Analytics] CRITICAL ERROR:", error?.message || error);

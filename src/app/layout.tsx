@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BackgroundSyncer } from "@/components/BackgroundSyncer";
 import DebugLogsViewer from "@/components/DebugLogs";
 import { ReferralCapture } from "@/components/ReferralCapture";
+import { ReferralBanner } from "@/components/ReferralBanner";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
@@ -70,6 +71,7 @@ export default function RootLayout({
                 <BackgroundSyncer />
                 <Suspense fallback={null}>
                   <ReferralCapture />
+                  <ReferralBanner />
                 </Suspense>
                 <DebugLogsViewer />
                 {children}

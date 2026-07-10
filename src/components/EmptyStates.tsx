@@ -49,7 +49,7 @@ export function NoReferralsState() {
         <EmptyState
             icon={<Users size={28} className="text-muted-foreground" />}
             title="No Referrals Yet"
-            description="Share your referral link to earn 10% of their trading fees"
+            description="Share your link — earn up to 65% of their fees for life"
         />
     );
 }

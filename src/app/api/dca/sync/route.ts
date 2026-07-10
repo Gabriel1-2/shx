@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import { validateInternalOrigin } from "@/lib/security";
 import { recordFee } from "@/lib/feeLedger";
-import { getEffectiveFeeBps } from "@/lib/feeTiers";
 import {
     adminAddVolume,
     adminHasOrderBeenProcessed,
@@ -128,10 +127,9 @@ export async function POST(req: NextRequest) {
                 await adminMarkOrderProcessed(fillId, wallet, volumeUsd);
 
                 const outputMint = order.outputMint || order.outMint || "";
-                const feeBps = getEffectiveFeeBps(0, outputMint);
-                // Jupiter recurring takes 0.1% platform fee (not SHX referral); still track competitive volume
-                // SHX doesn't take referral on DCA — record 0 SHX fee for ledger honesty
-                const feeUsd = 0;
+                // Jupiter Recurring charges ~0.1% — use that for referral competition accounting
+                const feeBps = 10;
+                const feeUsd = (volumeUsd * feeBps) / 10000;
 
                 if (feeUsd > 0) {
                     await recordFee({
@@ -144,6 +142,19 @@ export async function POST(req: NextRequest) {
                         inputMint: inputMint || undefined,
                         outputMint: outputMint || undefined,
                     });
+                }
+
+                try {
+                    const { adminCreditTradeReferral } = await import("@/lib/referralEngine");
+                    await adminCreditTradeReferral({
+                        eventId: fillId,
+                        traderWallet: wallet,
+                        feeUsd,
+                        volumeUsd,
+                        source: "dca",
+                    });
+                } catch (e) {
+                    console.error("[DCA Sync] referral credit failed", e);
                 }
 
                 syncedVolume += volumeUsd;

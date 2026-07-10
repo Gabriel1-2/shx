@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useSearchParams } from "next/navigation";
 
 /**
- * Captures ?ref=CODE and registers referral via Admin-backed API
- * (client Firestore writes are denied by rules).
+ * Captures ?ref=CODE → localStorage → registers on wallet connect (Admin/Firestore).
  */
 export function useReferralCapture() {
     const { publicKey, connected } = useWallet();
     const searchParams = useSearchParams();
+    const registered = useRef(false);
 
     useEffect(() => {
         const refCode = searchParams.get("ref");
@@ -24,11 +24,11 @@ export function useReferralCapture() {
     }, [searchParams]);
 
     useEffect(() => {
-        if (!connected || !publicKey) return;
+        if (!connected || !publicKey || registered.current) return;
 
         const wallet = publicKey.toString();
 
-        // Always ensure user has a referral code (server write)
+        // Always ensure user has a referral code index in Firestore
         fetch("/api/referral", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -42,27 +42,47 @@ export function useReferralCapture() {
             /* ignore */
         }
 
-        if (storedCode) {
-            fetch("/api/referral", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "register",
-                    wallet,
-                    referralCode: storedCode,
-                }),
-            })
-                .then((r) => r.json())
-                .then((result) => {
-                    if (result.success) {
-                        try {
-                            localStorage.removeItem("shx_referral_code");
-                        } catch {
-                            /* ignore */
-                        }
+        if (!storedCode) return;
+
+        registered.current = true;
+
+        fetch("/api/referral", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "register",
+                wallet,
+                referralCode: storedCode,
+            }),
+        })
+            .then((r) => r.json())
+            .then((result) => {
+                if (result.success) {
+                    try {
+                        localStorage.removeItem("shx_referral_code");
+                    } catch {
+                        /* ignore */
                     }
-                })
-                .catch(() => {});
-        }
+                    console.log(
+                        `[referral] Linked! +${result.signupBonus?.refereeXp ?? 0} XP for you`
+                    );
+                    window.dispatchEvent(
+                        new CustomEvent("shx-referral-joined", { detail: result })
+                    );
+                } else if (result.reason === "Already referred") {
+                    try {
+                        localStorage.removeItem("shx_referral_code");
+                    } catch {
+                        /* ignore */
+                    }
+                } else {
+                    // allow retry on next connect
+                    registered.current = false;
+                    console.log("[referral] not registered:", result.reason);
+                }
+            })
+            .catch(() => {
+                registered.current = false;
+            });
     }, [connected, publicKey]);
 }

@@ -5,18 +5,20 @@ import { validateInternalOrigin } from "@/lib/security";
 import {
     adminInitializeReferralCode,
     adminRegisterReferral,
+    adminGetReferralStats,
+    adminGetTopReferrers,
     generateReferralCode,
-} from "@/lib/adminUsers";
-import { adminDb } from "@/lib/firebaseAdmin";
+} from "@/lib/referralEngine";
+import { REFERRAL_CONFIG } from "@/lib/referralConfig";
 
 const BodySchema = z.object({
-    action: z.enum(["init", "register", "stats"]),
-    wallet: z.string().min(32).max(44),
+    action: z.enum(["init", "register", "stats", "leaderboard", "config"]),
+    wallet: z.string().min(32).max(44).optional(),
     referralCode: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
-    const rl = await rateLimit(req, 20, 60000);
+    const rl = await rateLimit(req, 30, 60000);
     if (!rl.success) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -26,12 +28,46 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: csrf.error }, { status: 403 });
     }
 
-    const parsed = BodySchema.safeParse(await req.json());
+    let body: unknown;
+    try {
+        body = await req.json();
+    } catch {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    const parsed = BodySchema.safeParse(body);
     if (!parsed.success) {
         return NextResponse.json({ error: "Invalid body" }, { status: 400 });
     }
 
     const { action, wallet, referralCode } = parsed.data;
+
+    if (action === "config") {
+        return NextResponse.json({
+            headline: REFERRAL_CONFIG.headline,
+            subhead: REFERRAL_CONFIG.subhead,
+            baseL1FeeShare: REFERRAL_CONFIG.baseL1FeeShare,
+            maxL1FeeShare:
+                REFERRAL_CONFIG.affiliateTiers[REFERRAL_CONFIG.affiliateTiers.length - 1]
+                    .feeShare,
+            l2FeeShare: REFERRAL_CONFIG.l2FeeShare,
+            refereeCashbackShare: REFERRAL_CONFIG.refereeCashbackShare,
+            refereeXpMultiplier: REFERRAL_CONFIG.refereeXpMultiplier,
+            signupBonusReferrerXp: REFERRAL_CONFIG.signupBonusReferrerXp,
+            signupBonusRefereeXp: REFERRAL_CONFIG.signupBonusRefereeXp,
+            milestones: REFERRAL_CONFIG.milestones,
+            affiliateTiers: REFERRAL_CONFIG.affiliateTiers,
+        });
+    }
+
+    if (action === "leaderboard") {
+        const leaders = await adminGetTopReferrers(15);
+        return NextResponse.json({ leaders });
+    }
+
+    if (!wallet) {
+        return NextResponse.json({ error: "wallet required" }, { status: 400 });
+    }
 
     if (action === "init") {
         const code = await adminInitializeReferralCode(wallet);
@@ -47,21 +83,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "stats") {
-        if (!adminDb) {
-            return NextResponse.json({
-                referralCode: generateReferralCode(wallet),
-                referralCount: 0,
-                referralEarnings: 0,
-            });
-        }
-        const snap = await adminDb.collection("users").doc(wallet).get();
-        const data = snap.data() || {};
-        return NextResponse.json({
-            referralCode: data.referralCode || generateReferralCode(wallet),
-            referralCount: data.referralCount || 0,
-            referralEarnings: data.referralEarnings || 0,
-        });
+        const stats = await adminGetReferralStats(wallet);
+        return NextResponse.json(stats);
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+}
+
+/** Public config for unauthenticated marketing surfaces */
+export async function GET() {
+    return NextResponse.json({
+        headline: REFERRAL_CONFIG.headline,
+        subhead: REFERRAL_CONFIG.subhead,
+        feeShare: "50–65%",
+        l2Share: "10%",
+        refereeCashback: "15%",
+        refereeXpBoost: "1.5×",
+        signupXp: {
+            referrer: REFERRAL_CONFIG.signupBonusReferrerXp,
+            referee: REFERRAL_CONFIG.signupBonusRefereeXp,
+        },
+        exampleCode: generateReferralCode("ExampleWallet1111111111111111111111111"),
+    });
 }

@@ -69,6 +69,9 @@ export function Header() {
                     <Link href="/buy" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold text-purple-400 hover:text-purple-300 transition-colors shrink-0">
                         Buy
                     </Link>
+                    <Link href="/referrals" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors shrink-0">
+                        Refer
+                    </Link>
                     <Link href="/dashboard" className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-medium text-muted-foreground hover:text-white transition-colors shrink-0">
                         Stats
                     </Link>

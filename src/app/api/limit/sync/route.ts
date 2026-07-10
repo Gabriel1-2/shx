@@ -104,9 +104,9 @@ export async function POST(req: NextRequest) {
             await adminMarkOrderProcessed(orderId, wallet, volumeUsd);
 
             const outputMint = order.outputMint || order.takerMint || "";
-            // Limit/trigger path does not currently attach SHX Jupiter referral fees
+            // Estimate platform fee for competition/referrals (tier default base if unknown)
             const feeBps = getEffectiveFeeBps(0, outputMint);
-            const feeUsd = 0;
+            const feeUsd = feeBps > 0 ? (volumeUsd * feeBps) / 10000 : 0;
 
             if (feeUsd > 0) {
                 await recordFee({
@@ -119,6 +119,19 @@ export async function POST(req: NextRequest) {
                     inputMint: inputMint || undefined,
                     outputMint: outputMint || undefined,
                 });
+            }
+
+            try {
+                const { adminCreditTradeReferral } = await import("@/lib/referralEngine");
+                await adminCreditTradeReferral({
+                    eventId: `limit-${orderId}`,
+                    traderWallet: wallet,
+                    feeUsd,
+                    volumeUsd,
+                    source: "limit",
+                });
+            } catch (e) {
+                console.error("[Limit Sync] referral credit failed", e);
             }
 
             syncedVolume += volumeUsd;

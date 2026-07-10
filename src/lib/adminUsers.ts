@@ -119,74 +119,15 @@ export async function adminAddVolume(
     }
 }
 
-export async function adminRegisterReferral(
-    newUserWallet: string,
-    referralCode: string
-): Promise<{ success: boolean; reason?: string; referrer?: string }> {
-    if (!adminDb) return { success: false, reason: "Database unavailable" };
-
-    try {
-        const snap = await adminDb
-            .collection("users")
-            .where("referralCode", "==", referralCode.toUpperCase())
-            .limit(1)
-            .get();
-
-        if (snap.empty) return { success: false, reason: "Invalid referral code" };
-
-        const referrerWallet = snap.docs[0].id;
-        if (referrerWallet === newUserWallet) {
-            return { success: false, reason: "Cannot refer yourself" };
-        }
-
-        const newUserRef = adminDb.collection("users").doc(newUserWallet);
-        const existing = await newUserRef.get();
-        if (existing.exists && existing.data()?.referredBy) {
-            return { success: false, reason: "Already referred" };
-        }
-
-        await newUserRef.set(
-            {
-                referredBy: referrerWallet,
-                referralCodeUsed: referralCode.toUpperCase(),
-                referralDate: new Date().toISOString(),
-                wallet: newUserWallet,
-            },
-            { merge: true }
-        );
-
-        await adminDb.collection("users").doc(referrerWallet).set(
-            { referralCount: FieldValue.increment(1) },
-            { merge: true }
-        );
-
-        return { success: true, referrer: referrerWallet };
-    } catch (e) {
-        console.error("[adminRegisterReferral]", e);
-        return { success: false, reason: "Database error" };
-    }
-}
-
-export function generateReferralCode(wallet: string): string {
-    return `SHX-${wallet.slice(0, 4)}${wallet.slice(-4)}`.toUpperCase();
-}
-
-export async function adminInitializeReferralCode(wallet: string): Promise<string> {
-    const code = generateReferralCode(wallet);
-    if (!adminDb) return code;
-
-    try {
-        const ref = adminDb.collection("users").doc(wallet);
-        const snap = await ref.get();
-        if (snap.exists && snap.data()?.referralCode) {
-            return snap.data()!.referralCode as string;
-        }
-        await ref.set({ referralCode: code, wallet }, { merge: true });
-        return code;
-    } catch {
-        return code;
-    }
-}
+// Referral writes live in referralEngine.ts (Admin SDK + event ledger)
+export {
+    generateReferralCode,
+    adminInitializeReferralCode,
+    adminRegisterReferral,
+    adminCreditTradeReferral,
+    adminGetReferralStats,
+    adminGetTopReferrers,
+} from "./referralEngine";
 
 /**
  * Rough USD volume from raw token amount + mint (stablecoins exact, SOL via price API, else fallback).
