@@ -61,7 +61,7 @@ export function ReferralBanner() {
                         </div>
                         <p className="text-[10px] md:text-xs text-muted-foreground truncate">
                             Code <span className="text-primary font-mono font-bold">{code}</span>
-                            {" · "}1.5× XP forever · 15% fee cashback · +750 XP on connect
+                            {" · "}+250 XP on connect · cashback after $100+ volume
                         </p>
                     </div>
                 </div>

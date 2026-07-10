@@ -10,9 +10,10 @@ import {
     generateReferralCode,
 } from "@/lib/referralEngine";
 import { REFERRAL_CONFIG } from "@/lib/referralConfig";
+import { tryAutoPayout } from "@/lib/referralPayout";
 
 const BodySchema = z.object({
-    action: z.enum(["init", "register", "stats", "leaderboard", "config"]),
+    action: z.enum(["init", "register", "stats", "leaderboard", "config", "payout"]),
     wallet: z.string().min(32).max(44).optional(),
     referralCode: z.string().optional(),
 });
@@ -46,6 +47,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             headline: REFERRAL_CONFIG.headline,
             subhead: REFERRAL_CONFIG.subhead,
+            minQualifyingVolumeUsd: REFERRAL_CONFIG.minQualifyingVolumeUsd,
+            minQualifyingTrades: REFERRAL_CONFIG.minQualifyingTrades,
             baseL1FeeShare: REFERRAL_CONFIG.baseL1FeeShare,
             maxL1FeeShare:
                 REFERRAL_CONFIG.affiliateTiers[REFERRAL_CONFIG.affiliateTiers.length - 1]
@@ -55,6 +58,7 @@ export async function POST(req: NextRequest) {
             refereeXpMultiplier: REFERRAL_CONFIG.refereeXpMultiplier,
             signupBonusReferrerXp: REFERRAL_CONFIG.signupBonusReferrerXp,
             signupBonusRefereeXp: REFERRAL_CONFIG.signupBonusRefereeXp,
+            minPayoutUsd: REFERRAL_CONFIG.minPayoutUsd,
             milestones: REFERRAL_CONFIG.milestones,
             affiliateTiers: REFERRAL_CONFIG.affiliateTiers,
         });
@@ -85,6 +89,14 @@ export async function POST(req: NextRequest) {
     if (action === "stats") {
         const stats = await adminGetReferralStats(wallet);
         return NextResponse.json(stats);
+    }
+
+    if (action === "payout") {
+        // Manual claim / force auto-payout attempt for this wallet
+        const result = await tryAutoPayout(wallet);
+        return NextResponse.json(result, {
+            status: result.success ? 200 : result.skipped ? 200 : 400,
+        });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

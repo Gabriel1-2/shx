@@ -11,8 +11,10 @@ import {
 interface ReferralStats {
     referralCode: string;
     referralCount: number;
+    qualifiedReferralCount?: number;
     referralEarnings: number;
     referralClaimableUsd: number;
+    referralPaidUsd?: number;
     referralVolumeGenerated: number;
     referralCashbackEarned: number;
     feeSharePercent: number;
@@ -25,6 +27,9 @@ interface ReferralStats {
     config?: {
         headline: string;
         subhead: string;
+        minQualifyingVolumeUsd?: number;
+        minQualifyingTrades?: number;
+        minPayoutUsd?: number;
         signupBonusReferrerXp: number;
         signupBonusRefereeXp: number;
         refereeCashbackShare: number;
@@ -33,7 +38,14 @@ interface ReferralStats {
         milestones: { volumeUsd: number; bonusXp: number; bonusUsd: number }[];
         affiliateTiers: { minRefs: number; feeShare: number; label: string; color: string }[];
     };
-    topReferrals?: { wallet: string; volume: number; tradeCount: number }[];
+    topReferrals?: {
+        wallet: string;
+        volume: number;
+        postLinkVolume?: number;
+        qualified?: boolean;
+        progressToQualify?: number;
+        tradeCount: number;
+    }[];
     recentEvents?: { type: string; l1Usd?: number; volumeUsd?: number; createdAt?: string }[];
 }
 
@@ -41,6 +53,8 @@ export function ReferralCard({ compact = false }: { compact?: boolean }) {
     const { publicKey, connected } = useWallet();
     const [stats, setStats] = useState<ReferralStats | null>(null);
     const [loading, setLoading] = useState(false);
+    const [paying, setPaying] = useState(false);
+    const [payoutMsg, setPayoutMsg] = useState<string | null>(null);
     const [copied, setCopied] = useState<"link" | "code" | null>(null);
 
     const load = useCallback(async () => {
@@ -91,7 +105,7 @@ export function ReferralCard({ compact = false }: { compact?: boolean }) {
 
     const share = async () => {
         if (!link) return;
-        const text = `Trade on SHX Exchange — I get paid when you trade. You get 1.5× XP + fee cashback. ${link}`;
+        const text = `Trade on SHX Exchange with my link — 1.25× XP + fee cashback after you trade. ${link}`;
         if (navigator.share) {
             try {
                 await navigator.share({ title: "SHX Referral", text, url: link });
@@ -103,21 +117,50 @@ export function ReferralCard({ compact = false }: { compact?: boolean }) {
         await copy("link");
     };
 
+    const claimPayout = async () => {
+        if (!publicKey) return;
+        setPaying(true);
+        setPayoutMsg(null);
+        try {
+            const res = await fetch("/api/referral", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "payout",
+                    wallet: publicKey.toString(),
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setPayoutMsg(
+                    `Paid $${Number(data.amountUsd).toFixed(2)} USDC · ${String(data.signature).slice(0, 12)}…`
+                );
+                load();
+            } else {
+                setPayoutMsg(data.reason || "Payout not available yet");
+            }
+        } catch {
+            setPayoutMsg("Payout request failed");
+        } finally {
+            setPaying(false);
+        }
+    };
+
     if (!connected) {
         return (
             <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-black/60 to-purple-500/10 p-5 backdrop-blur-xl">
                 <div className="flex items-center gap-2 mb-2">
                     <Gift className="text-primary" size={18} />
-                    <h4 className="text-sm font-black text-white">Earn up to 65% forever</h4>
+                    <h4 className="text-sm font-black text-white">Earn 25–35% · paid in USDC</h4>
                 </div>
                 <p className="text-xs text-muted-foreground mb-3">
-                    Connect your wallet to unlock lifetime fee rev-share on every trader you invite.
+                    Invites must trade $100+ before you earn. Auto-payout at $5 claimable.
                 </p>
                 <div className="grid grid-cols-3 gap-2 text-center">
                     {[
-                        { v: "50–65%", l: "Fee share" },
-                        { v: "1.5×", l: "Friend XP" },
-                        { v: "15%", l: "Their cashback" },
+                        { v: "25–35%", l: "Fee share" },
+                        { v: "$100+", l: "Min volume" },
+                        { v: "USDC", l: "Auto-pay" },
                     ].map((x) => (
                         <div key={x.l} className="rounded-lg bg-black/40 border border-white/5 p-2">
                             <div className="text-sm font-black text-primary">{x.v}</div>
@@ -177,46 +220,65 @@ export function ReferralCard({ compact = false }: { compact?: boolean }) {
                 <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-xl bg-black/50 border border-white/5 p-3">
                         <div className="text-[10px] text-muted-foreground uppercase mb-1">
-                            Claimable credits
+                            Claimable USDC
                         </div>
                         <div className="text-2xl font-black text-green-400 font-mono">
-                            ${(stats?.referralClaimableUsd ?? stats?.referralEarnings ?? 0).toFixed(2)}
+                            ${(stats?.referralClaimableUsd ?? 0).toFixed(2)}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5">
-                            Lifetime: ${(stats?.referralEarnings ?? 0).toFixed(2)}
+                            Paid out: ${(stats?.referralPaidUsd ?? 0).toFixed(2)} · Life $
+                            {(stats?.referralEarnings ?? 0).toFixed(2)}
                         </div>
                     </div>
                     <div className="rounded-xl bg-black/50 border border-white/5 p-3">
                         <div className="text-[10px] text-muted-foreground uppercase mb-1">
-                            Network volume
+                            Qualified network vol
                         </div>
                         <div className="text-2xl font-black text-white font-mono">
                             ${formatCompact(stats?.referralVolumeGenerated || 0)}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5">
-                            {stats?.referralCount || 0} traders invited
+                            {stats?.qualifiedReferralCount ?? 0} qualified /{" "}
+                            {stats?.referralCount || 0} invites
                         </div>
                     </div>
                 </div>
+
+                {(stats?.referralClaimableUsd ?? 0) >=
+                    (stats?.config?.minPayoutUsd ?? 5) && (
+                    <button
+                        type="button"
+                        onClick={claimPayout}
+                        disabled={paying}
+                        className="w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-400 text-black font-black text-sm disabled:opacity-60"
+                    >
+                        {paying
+                            ? "Sending USDC…"
+                            : `Cash out $${(stats?.referralClaimableUsd ?? 0).toFixed(2)} USDC`}
+                    </button>
+                )}
+                {payoutMsg && (
+                    <p className="text-[11px] text-center text-muted-foreground">{payoutMsg}</p>
+                )}
 
                 {!compact && (
                     <div className="grid grid-cols-3 gap-2">
                         <MiniStat
                             icon={Zap}
                             label="Your cut"
-                            value={`${stats?.feeSharePercent ?? 50}%`}
+                            value={`${stats?.feeSharePercent ?? 25}%`}
                             color="text-primary"
                         />
                         <MiniStat
                             icon={Gift}
-                            label="Friend cashback"
-                            value="15%"
+                            label="Friend needs"
+                            value={`$${stats?.config?.minQualifyingVolumeUsd ?? 100}`}
                             color="text-emerald-400"
                         />
                         <MiniStat
                             icon={TrendingUp}
-                            label="Friend XP"
-                            value="1.5×"
+                            label="Auto-pay"
+                            value={`$${stats?.config?.minPayoutUsd ?? 5}+`}
                             color="text-yellow-400"
                         />
                     </div>
@@ -267,45 +329,55 @@ export function ReferralCard({ compact = false }: { compact?: boolean }) {
                         </button>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1.5">
-                        Signup: +{stats?.config?.signupBonusReferrerXp ?? 1500} XP for you · +
-                        {stats?.config?.signupBonusRefereeXp ?? 750} XP for them
+                        Signup XP only · fee share starts after they trade $
+                        {stats?.config?.minQualifyingVolumeUsd ?? 100}+ (
+                        {stats?.config?.minQualifyingTrades ?? 2} trades)
                     </p>
                 </div>
 
-                {/* Why it's good */}
                 {!compact && (
                     <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-3 space-y-1.5">
                         <div className="text-[11px] font-bold text-green-400 flex items-center gap-1">
-                            <Users size={12} /> Why people click
+                            <Users size={12} /> Rules (anti-sybil)
                         </div>
                         <ul className="text-[11px] text-muted-foreground space-y-1">
-                            <li>• They keep 15% of platform fees as cashback credit</li>
-                            <li>• 1.5× XP on every trade (leaderboard rocket fuel)</li>
-                            <li>• You earn 50–65% of their fees for life + L2 overrides</li>
                             <li>
-                                • Volume milestones: up to $200 + 75k XP per whale invite
+                                • Invitee must trade $
+                                {stats?.config?.minQualifyingVolumeUsd ?? 100}+ and{" "}
+                                {stats?.config?.minQualifyingTrades ?? 2}+ trades before you earn
                             </li>
+                            <li>• You get 25–35% of platform fees (lifetime) after they qualify</li>
+                            <li>• Auto USDC payout when claimable hits $
+                                {stats?.config?.minPayoutUsd ?? 5}+</li>
+                            <li>• They get 5% fee cashback + 1.25× XP once qualified</li>
                         </ul>
                     </div>
                 )}
 
-                {/* Top invites */}
                 {!compact && stats?.topReferrals && stats.topReferrals.length > 0 && (
                     <div>
                         <div className="text-[10px] uppercase text-muted-foreground mb-2">
-                            Your top traders
+                            Your invites
                         </div>
                         <div className="space-y-1.5">
                             {stats.topReferrals.slice(0, 5).map((r) => (
                                 <div
                                     key={r.wallet}
-                                    className="flex items-center justify-between text-xs bg-white/[0.03] rounded-lg px-2.5 py-1.5"
+                                    className="flex items-center justify-between text-xs bg-white/[0.03] rounded-lg px-2.5 py-1.5 gap-2"
                                 >
-                                    <span className="font-mono text-muted-foreground">
+                                    <span className="font-mono text-muted-foreground shrink-0">
                                         {r.wallet.slice(0, 4)}…{r.wallet.slice(-4)}
                                     </span>
-                                    <span className="text-white font-bold">
-                                        ${formatCompact(r.volume)} · {r.tradeCount} tx
+                                    <span className="text-white font-bold text-right">
+                                        {r.qualified ? (
+                                            <span className="text-green-400">Qualified</span>
+                                        ) : (
+                                            <span className="text-amber-400">
+                                                {(r.progressToQualify ?? 0).toFixed(0)}% to qualify
+                                            </span>
+                                        )}
+                                        {" · "}$
+                                        {formatCompact(r.postLinkVolume ?? r.volume)}
                                     </span>
                                 </div>
                             ))}

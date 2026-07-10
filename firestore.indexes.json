@@ -4,24 +4,8 @@
       "collectionGroup": "users",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "referralCode", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
         { "fieldPath": "referredBy", "order": "ASCENDING" },
         { "fieldPath": "volume", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "referralEarnings", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
       ]
     },
     {

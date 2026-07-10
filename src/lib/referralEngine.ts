@@ -1,5 +1,5 @@
 /**
- * Server-side referral engine — all Firestore writes via Admin SDK.
+ * Server-side referral engine — Firestore Admin + volume qualification + auto-payout.
  */
 import { adminDb } from "./firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
@@ -8,6 +8,7 @@ import {
     getAffiliateTier,
     getL1FeeShare,
 } from "./referralConfig";
+import { tryAutoPayout } from "./referralPayout";
 
 export function generateReferralCode(wallet: string): string {
     return `SHX-${wallet.slice(0, 4)}${wallet.slice(-4)}`.toUpperCase();
@@ -17,7 +18,6 @@ function normalizeCode(code: string): string {
     return code.trim().toUpperCase().replace(/^REF[-_]?/, "SHX-");
 }
 
-/** Ensure user has a code + code→wallet index doc */
 export async function adminInitializeReferralCode(wallet: string): Promise<string> {
     const code = generateReferralCode(wallet);
     if (!adminDb) return code;
@@ -25,7 +25,9 @@ export async function adminInitializeReferralCode(wallet: string): Promise<strin
     try {
         const userRef = adminDb.collection("users").doc(wallet);
         const snap = await userRef.get();
-        const existing = snap.exists ? (snap.data()?.referralCode as string | undefined) : undefined;
+        const existing = snap.exists
+            ? (snap.data()?.referralCode as string | undefined)
+            : undefined;
         const finalCode = existing || code;
 
         if (!existing) {
@@ -34,22 +36,18 @@ export async function adminInitializeReferralCode(wallet: string): Promise<strin
                     wallet,
                     referralCode: finalCode,
                     referralCount: 0,
+                    qualifiedReferralCount: 0,
                     referralEarnings: 0,
                     referralClaimableUsd: 0,
+                    referralPaidUsd: 0,
                     referralVolumeGenerated: 0,
-                    referredVolume: 0,
                 },
                 { merge: true }
             );
         }
 
-        // Index for O(1) code lookup
         await adminDb.collection("referral_codes").doc(finalCode).set(
-            {
-                code: finalCode,
-                wallet,
-                updatedAt: new Date().toISOString(),
-            },
+            { code: finalCode, wallet, updatedAt: new Date().toISOString() },
             { merge: true }
         );
 
@@ -64,13 +62,9 @@ async function resolveCodeToWallet(code: string): Promise<string | null> {
     if (!adminDb) return null;
     const normalized = normalizeCode(code);
 
-    // Prefer index collection
     const idx = await adminDb.collection("referral_codes").doc(normalized).get();
-    if (idx.exists && idx.data()?.wallet) {
-        return idx.data()!.wallet as string;
-    }
+    if (idx.exists && idx.data()?.wallet) return idx.data()!.wallet as string;
 
-    // Fallback: scan users by referralCode
     const snap = await adminDb
         .collection("users")
         .where("referralCode", "==", normalized)
@@ -108,12 +102,19 @@ export async function adminRegisterReferral(
         const newUserRef = adminDb.collection("users").doc(newUserWallet);
         const existing = await newUserRef.get();
         if (existing.exists && existing.data()?.referredBy) {
-            return { success: false, reason: "Already referred", referrer: existing.data()!.referredBy };
+            return {
+                success: false,
+                reason: "Already referred",
+                referrer: existing.data()!.referredBy,
+            };
         }
 
-        // Capture L2 (referrer of referrer)
         const referrerDoc = await adminDb.collection("users").doc(referrerWallet).get();
         const l2 = (referrerDoc.data()?.referredBy as string | undefined) || null;
+
+        // Snapshot volume at link so only post-link trading counts toward qualification
+        const volumeAtLink = Number(existing.data()?.volume || 0);
+        const tradesAtLink = Number(existing.data()?.tradeCount || 0);
 
         const signupReferrerXp = REFERRAL_CONFIG.signupBonusReferrerXp;
         const signupRefereeXp = REFERRAL_CONFIG.signupBonusRefereeXp;
@@ -127,6 +128,11 @@ export async function adminRegisterReferral(
                     referredByL2: l2,
                     referralCodeUsed: normalizeCode(referralCode),
                     referralDate: new Date().toISOString(),
+                    volumeAtReferralLink: volumeAtLink,
+                    tradesAtReferralLink: tradesAtLink,
+                    postLinkVolume: 0,
+                    postLinkTrades: 0,
+                    referralQualified: false,
                     points: FieldValue.increment(signupRefereeXp),
                     referralCashbackEarned: 0,
                     isReferred: true,
@@ -148,26 +154,21 @@ export async function adminRegisterReferral(
             );
         });
 
-        // Event log
         await adminDb.collection("referral_events").add({
             type: "signup",
             referrer: referrerWallet,
             referee: newUserWallet,
-            l2: l2,
+            l2,
             referrerXp: signupReferrerXp,
             refereeXp: signupRefereeXp,
             code: normalizeCode(referralCode),
+            note: `No fee share until invitee trades $${REFERRAL_CONFIG.minQualifyingVolumeUsd}+ (${REFERRAL_CONFIG.minQualifyingTrades} trades)`,
             timestamp: FieldValue.serverTimestamp(),
             createdAt: new Date().toISOString(),
         });
 
-        // Ensure both have codes
         await adminInitializeReferralCode(newUserWallet);
         await adminInitializeReferralCode(referrerWallet);
-
-        console.log(
-            `[referral] Linked ${newUserWallet.slice(0, 8)} → ${referrerWallet.slice(0, 8)} (+${signupReferrerXp}/${signupRefereeXp} XP)`
-        );
 
         return {
             success: true,
@@ -182,20 +183,24 @@ export async function adminRegisterReferral(
 
 export interface TradeReferralResult {
     credited: boolean;
+    qualified: boolean;
     l1Usd: number;
     l2Usd: number;
     refereeCashbackUsd: number;
     referrerXp: number;
     refereeXpBonus: number;
     milestonesHit: number[];
+    postLinkVolume: number;
+    payout?: unknown;
 }
 
 /**
  * Credit referral rewards for a completed trade.
+ * Fee USD only accrues after invitee hits volume + trade qualification.
  * Idempotent via referral_events doc id = `trade-{eventId}`.
  */
 export async function adminCreditTradeReferral(params: {
-    eventId: string; // txid or order fill id
+    eventId: string;
     traderWallet: string;
     feeUsd: number;
     volumeUsd: number;
@@ -203,20 +208,21 @@ export async function adminCreditTradeReferral(params: {
 }): Promise<TradeReferralResult> {
     const empty: TradeReferralResult = {
         credited: false,
+        qualified: false,
         l1Usd: 0,
         l2Usd: 0,
         refereeCashbackUsd: 0,
         referrerXp: 0,
         refereeXpBonus: 0,
         milestonesHit: [],
+        postLinkVolume: 0,
     };
 
     if (!adminDb || (params.feeUsd <= 0 && params.volumeUsd <= 0)) return empty;
 
     const eventRef = adminDb.collection("referral_events").doc(`trade-${params.eventId}`);
     try {
-        const existing = await eventRef.get();
-        if (existing.exists) return empty;
+        if ((await eventRef.get()).exists) return empty;
 
         const traderRef = adminDb.collection("users").doc(params.traderWallet);
         const traderSnap = await traderRef.get();
@@ -225,74 +231,134 @@ export async function adminCreditTradeReferral(params: {
         if (!l1) return empty;
 
         const l2 = (trader.referredByL2 as string | undefined) || null;
+        const vol = Math.max(0, params.volumeUsd);
+        const fee = Math.max(0, params.feeUsd);
 
-        const l1User = (await adminDb.collection("users").doc(l1).get()).data() || {};
-        const l1Count = (l1User.referralCount as number) || 0;
-        let l1Share = getL1FeeShare(l1Count);
-        let l2Share = l2 ? REFERRAL_CONFIG.l2FeeShare : 0;
+        // Post-link volume accounting (volume field may already include this trade)
+        const volumeAtLink = Number(trader.volumeAtReferralLink || 0);
+        const tradesAtLink = Number(trader.tradesAtReferralLink || 0);
+        const totalVolume = Number(trader.volume || 0);
+        const totalTrades = Number(trader.tradeCount || 0);
 
-        // Cap total share
-        if (l1Share + l2Share > REFERRAL_CONFIG.maxTotalFeeShare) {
-            l2Share = Math.max(0, REFERRAL_CONFIG.maxTotalFeeShare - l1Share);
+        // Prefer explicit postLink counters + this trade
+        let postLinkVolume = Number(trader.postLinkVolume || 0) + vol;
+        let postLinkTrades = Number(trader.postLinkTrades || 0) + 1;
+
+        // If counters never set, derive from totals
+        if (!trader.postLinkVolume && trader.volumeAtReferralLink != null) {
+            postLinkVolume = Math.max(0, totalVolume - volumeAtLink);
+            // Ensure this trade is included
+            if (postLinkVolume < vol) postLinkVolume = vol;
+        }
+        if (!trader.postLinkTrades && trader.tradesAtReferralLink != null) {
+            postLinkTrades = Math.max(1, totalTrades - tradesAtLink);
         }
 
-        const fee = Math.max(0, params.feeUsd);
-        const vol = Math.max(0, params.volumeUsd);
+        const wasQualified = !!trader.referralQualified;
+        const nowQualified =
+            postLinkVolume >= REFERRAL_CONFIG.minQualifyingVolumeUsd &&
+            postLinkTrades >= REFERRAL_CONFIG.minQualifyingTrades;
 
-        let l1Usd = fee * l1Share;
-        let l2Usd = l2 ? fee * l2Share : 0;
-        let refereeCashbackUsd = fee * REFERRAL_CONFIG.refereeCashbackShare;
-
-        // XP: base volume XP already awarded elsewhere; bonus for referee + referrer kick
+        // Always track post-link volume; XP boost can apply pre-qualification
         const baseXp = Math.max(1, Math.floor(vol));
         const refereeXpBonus = Math.floor(
             baseXp * (REFERRAL_CONFIG.refereeXpMultiplier - 1)
         );
-        // Referrer earns XP equal to 50% of referred volume (growth flywheel for leaderboard)
-        let referrerXp = Math.floor(vol * 0.5);
+        // Small XP for referrer even before qualify (engagement, not cash)
+        let referrerXp = nowQualified ? Math.floor(vol * 0.25) : Math.floor(vol * 0.05);
 
-        // First trade bonus
-        let firstTrade = false;
-        if (
-            !trader.firstTradeBonusClaimed &&
-            vol >= REFERRAL_CONFIG.firstTradeMinVolumeUsd
-        ) {
-            firstTrade = true;
-            referrerXp += REFERRAL_CONFIG.firstTradeBonusReferrerXp;
-            l1Usd += REFERRAL_CONFIG.firstTradeBonusReferrerUsd;
-        }
-
-        // Milestones on this referee's cumulative referred volume for L1
-        const prevVol = (trader.volume as number) || 0;
-        // volume may already include this trade if called after volume write — use pre/post carefully
-        // We pass volume of THIS trade; cumulative after trade ≈ trader.volume (if already updated) or +vol
-        const cumulative = Math.max(prevVol, vol); // if track updated first, prevVol includes trade
+        let l1Usd = 0;
+        let l2Usd = 0;
+        let refereeCashbackUsd = 0;
+        let l1Share = 0;
+        let l2Share = 0;
+        let firstQualify = false;
         const milestonesHit: number[] = [];
         const claimed: number[] = (trader.referralMilestonesClaimed as number[]) || [];
 
-        for (const m of REFERRAL_CONFIG.milestones) {
-            if (cumulative >= m.volumeUsd && !claimed.includes(m.volumeUsd)) {
-                milestonesHit.push(m.volumeUsd);
-                referrerXp += m.bonusXp;
-                l1Usd += m.bonusUsd;
+        if (nowQualified) {
+            const l1User = (await adminDb.collection("users").doc(l1).get()).data() || {};
+            const qualifiedCount = Number(l1User.qualifiedReferralCount || 0);
+            l1Share = getL1FeeShare(qualifiedCount);
+            l2Share = l2 ? REFERRAL_CONFIG.l2FeeShare : 0;
+            if (l1Share + l2Share > REFERRAL_CONFIG.maxTotalFeeShare) {
+                l2Share = Math.max(0, REFERRAL_CONFIG.maxTotalFeeShare - l1Share);
+            }
+
+            l1Usd = fee * l1Share;
+            l2Usd = l2 ? fee * l2Share : 0;
+            refereeCashbackUsd = fee * REFERRAL_CONFIG.refereeCashbackShare;
+
+            // First time crossing qualification gate
+            if (!wasQualified) {
+                firstQualify = true;
+                referrerXp += REFERRAL_CONFIG.firstTradeBonusReferrerXp;
+                l1Usd += REFERRAL_CONFIG.firstTradeBonusReferrerUsd;
+            }
+
+            // Milestones on post-link volume
+            for (const m of REFERRAL_CONFIG.milestones) {
+                if (postLinkVolume >= m.volumeUsd && !claimed.includes(m.volumeUsd)) {
+                    milestonesHit.push(m.volumeUsd);
+                    referrerXp += m.bonusXp;
+                    l1Usd += m.bonusUsd;
+                }
             }
         }
 
         const batch = adminDb.batch();
 
-        // L1 referrer
-        batch.set(
-            adminDb.collection("users").doc(l1),
-            {
-                referralEarnings: FieldValue.increment(l1Usd),
-                referralClaimableUsd: FieldValue.increment(l1Usd),
-                referralVolumeGenerated: FieldValue.increment(vol),
-                points: FieldValue.increment(referrerXp),
-                lastReferralEarning: new Date().toISOString(),
+        // Trader (invitee)
+        const traderUpdate: Record<string, unknown> = {
+            postLinkVolume,
+            postLinkTrades,
+            wallet: params.traderWallet,
+        };
+        if (refereeXpBonus > 0) {
+            traderUpdate.points = FieldValue.increment(
+                refereeXpBonus +
+                    (firstQualify ? REFERRAL_CONFIG.firstTradeBonusRefereeXp : 0)
+            );
+        } else if (firstQualify) {
+            traderUpdate.points = FieldValue.increment(
+                REFERRAL_CONFIG.firstTradeBonusRefereeXp
+            );
+        }
+        if (nowQualified) {
+            traderUpdate.referralQualified = true;
+            if (firstQualify) traderUpdate.referralQualifiedAt = new Date().toISOString();
+        }
+        if (refereeCashbackUsd > 0) {
+            traderUpdate.referralCashbackEarned = FieldValue.increment(refereeCashbackUsd);
+            traderUpdate.referralClaimableUsd = FieldValue.increment(refereeCashbackUsd);
+        }
+        if (firstQualify) traderUpdate.firstTradeBonusClaimed = true;
+        if (milestonesHit.length) {
+            traderUpdate.referralMilestonesClaimed = [
+                ...new Set([...claimed, ...milestonesHit]),
+            ];
+        }
+        batch.set(traderRef, traderUpdate, { merge: true });
+
+        // L1
+        if (l1Usd > 0 || referrerXp > 0 || firstQualify) {
+            const l1Update: Record<string, unknown> = {
                 wallet: l1,
-            },
-            { merge: true }
-        );
+                lastReferralEarning: new Date().toISOString(),
+            };
+            if (referrerXp > 0) l1Update.points = FieldValue.increment(referrerXp);
+            if (l1Usd > 0) {
+                l1Update.referralEarnings = FieldValue.increment(l1Usd);
+                l1Update.referralClaimableUsd = FieldValue.increment(l1Usd);
+            }
+            if (vol > 0 && nowQualified) {
+                l1Update.referralVolumeGenerated = FieldValue.increment(vol);
+            }
+            if (firstQualify) {
+                l1Update.qualifiedReferralCount = FieldValue.increment(1);
+            }
+            batch.set(adminDb.collection("users").doc(l1), l1Update, { merge: true });
+        }
 
         // L2
         if (l2 && l2Usd > 0) {
@@ -302,33 +368,12 @@ export async function adminCreditTradeReferral(params: {
                     referralEarnings: FieldValue.increment(l2Usd),
                     referralClaimableUsd: FieldValue.increment(l2Usd),
                     referralL2Earnings: FieldValue.increment(l2Usd),
-                    points: FieldValue.increment(Math.floor(vol * 0.1)),
+                    points: FieldValue.increment(Math.floor(vol * 0.05)),
                     wallet: l2,
                 },
                 { merge: true }
             );
         }
-
-        // Referee updates (cashback + XP bonus + first-trade flags)
-        const refereeXpTotal =
-            refereeXpBonus + (firstTrade ? REFERRAL_CONFIG.firstTradeBonusRefereeXp : 0);
-        const traderUpdate: Record<string, unknown> = {
-            referralCashbackEarned: FieldValue.increment(refereeCashbackUsd),
-            referralClaimableUsd: FieldValue.increment(refereeCashbackUsd),
-            wallet: params.traderWallet,
-        };
-        if (refereeXpTotal > 0) {
-            traderUpdate.points = FieldValue.increment(refereeXpTotal);
-        }
-        if (firstTrade) {
-            traderUpdate.firstTradeBonusClaimed = true;
-        }
-        if (milestonesHit.length) {
-            traderUpdate.referralMilestonesClaimed = [
-                ...new Set([...claimed, ...milestonesHit]),
-            ];
-        }
-        batch.set(traderRef, traderUpdate, { merge: true });
 
         batch.set(eventRef, {
             type: "trade",
@@ -336,36 +381,63 @@ export async function adminCreditTradeReferral(params: {
             eventId: params.eventId,
             trader: params.traderWallet,
             referrer: l1,
-            l2: l2,
+            l2,
             feeUsd: fee,
             volumeUsd: vol,
+            postLinkVolume,
+            postLinkTrades,
+            qualified: nowQualified,
+            firstQualify,
             l1Usd,
             l2Usd,
             l1Share,
             l2Share,
             refereeCashbackUsd,
             referrerXp,
-            refereeXpBonus: refereeXpBonus + (firstTrade ? REFERRAL_CONFIG.firstTradeBonusRefereeXp : 0),
-            firstTrade,
+            refereeXpBonus:
+                refereeXpBonus +
+                (firstQualify ? REFERRAL_CONFIG.firstTradeBonusRefereeXp : 0),
             milestonesHit,
+            minQualifyingVolumeUsd: REFERRAL_CONFIG.minQualifyingVolumeUsd,
             timestamp: FieldValue.serverTimestamp(),
             createdAt: new Date().toISOString(),
         });
 
         await batch.commit();
 
+        // Auto-payout when claimable crosses threshold (L1, L2, referee)
+        const payoutTargets = new Set<string>();
+        if (l1Usd > 0) payoutTargets.add(l1);
+        if (l2 && l2Usd > 0) payoutTargets.add(l2);
+        if (refereeCashbackUsd > 0) payoutTargets.add(params.traderWallet);
+
+        const payoutResults: unknown[] = [];
+        for (const w of payoutTargets) {
+            try {
+                const r = await tryAutoPayout(w);
+                if (!r.skipped || r.success) payoutResults.push({ wallet: w, ...r });
+            } catch (e) {
+                console.error("[referral] auto-payout error", w, e);
+            }
+        }
+
         console.log(
-            `[referral] trade ${params.eventId.slice(0, 10)}… L1=$${l1Usd.toFixed(4)} L2=$${l2Usd.toFixed(4)} cashback=$${refereeCashbackUsd.toFixed(4)}`
+            `[referral] ${params.eventId.slice(0, 10)}… qual=${nowQualified} L1=$${l1Usd.toFixed(4)} postVol=$${postLinkVolume.toFixed(0)}`
         );
 
         return {
             credited: true,
+            qualified: nowQualified,
             l1Usd,
             l2Usd,
             refereeCashbackUsd,
             referrerXp,
-            refereeXpBonus: refereeXpBonus + (firstTrade ? REFERRAL_CONFIG.firstTradeBonusRefereeXp : 0),
+            refereeXpBonus:
+                refereeXpBonus +
+                (firstQualify ? REFERRAL_CONFIG.firstTradeBonusRefereeXp : 0),
             milestonesHit,
+            postLinkVolume,
+            payout: payoutResults.length ? payoutResults : undefined,
         };
     } catch (e) {
         console.error("[referral] credit trade", e);
@@ -379,8 +451,10 @@ export async function adminGetReferralStats(wallet: string) {
         return {
             referralCode: code,
             referralCount: 0,
+            qualifiedReferralCount: 0,
             referralEarnings: 0,
             referralClaimableUsd: 0,
+            referralPaidUsd: 0,
             referralVolumeGenerated: 0,
             referralCashbackEarned: 0,
             referredBy: null as string | null,
@@ -395,10 +469,9 @@ export async function adminGetReferralStats(wallet: string) {
 
     const userSnap = await adminDb.collection("users").doc(wallet).get();
     const data = userSnap.data() || {};
-    const count = data.referralCount || 0;
-    const tier = getAffiliateTier(count);
+    const qualifiedCount = Number(data.qualifiedReferralCount || 0);
+    const tier = getAffiliateTier(qualifiedCount);
 
-    // Recent events involving this wallet as referrer
     let recentEvents: unknown[] = [];
     try {
         const ev = await adminDb
@@ -409,7 +482,6 @@ export async function adminGetReferralStats(wallet: string) {
             .get();
         recentEvents = ev.docs.map((d) => ({ id: d.id, ...d.data() }));
     } catch {
-        // Index may be missing — fall back unordered
         try {
             const ev = await adminDb
                 .collection("referral_events")
@@ -427,41 +499,59 @@ export async function adminGetReferralStats(wallet: string) {
         }
     }
 
-    // Sample of referred users
     let topReferrals: unknown[] = [];
     try {
         const refs = await adminDb
             .collection("users")
             .where("referredBy", "==", wallet)
-            .limit(20)
+            .limit(30)
             .get();
         topReferrals = refs.docs
             .map((d) => {
                 const u = d.data();
+                const postVol = Number(u.postLinkVolume || 0);
+                const need = REFERRAL_CONFIG.minQualifyingVolumeUsd;
                 return {
                     wallet: d.id,
                     volume: u.volume || 0,
+                    postLinkVolume: postVol,
+                    postLinkTrades: u.postLinkTrades || 0,
+                    qualified: !!u.referralQualified,
+                    progressToQualify: Math.min(100, (postVol / need) * 100),
                     tradeCount: u.tradeCount || 0,
                     totalFeesPaid: u.totalFeesPaid || 0,
                     lastActive: u.lastActive || null,
                 };
             })
-            .sort((a, b) => b.volume - a.volume)
+            .sort((a, b) => b.postLinkVolume - a.postLinkVolume)
             .slice(0, 10);
     } catch {
         topReferrals = [];
     }
 
+    // Own qualification if this wallet was referred
+    const ownPostVol = Number(data.postLinkVolume || 0);
+    const ownPostTrades = Number(data.postLinkTrades || 0);
+
     return {
         referralCode: data.referralCode || code,
-        referralCount: count,
+        referralCount: data.referralCount || 0,
+        qualifiedReferralCount: qualifiedCount,
         referralEarnings: data.referralEarnings || 0,
-        referralClaimableUsd: data.referralClaimableUsd || data.referralEarnings || 0,
+        referralClaimableUsd: data.referralClaimableUsd || 0,
+        referralPaidUsd: data.referralPaidUsd || 0,
         referralVolumeGenerated: data.referralVolumeGenerated || 0,
         referralCashbackEarned: data.referralCashbackEarned || 0,
         referralL2Earnings: data.referralL2Earnings || 0,
         referredBy: data.referredBy || null,
         isReferred: !!data.referredBy,
+        referralQualified: !!data.referralQualified,
+        postLinkVolume: ownPostVol,
+        postLinkTrades: ownPostTrades,
+        qualifyProgress: Math.min(
+            100,
+            (ownPostVol / REFERRAL_CONFIG.minQualifyingVolumeUsd) * 100
+        ),
         affiliateTier: tier,
         feeSharePercent: Math.round(tier.tier.feeShare * 100),
         config: publicConfig(),
@@ -484,18 +574,23 @@ export async function adminGetTopReferrers(limitCount = 10) {
                 rank: i + 1,
                 wallet: d.id,
                 referralCount: d.data().referralCount || 0,
+                qualifiedReferralCount: d.data().qualifiedReferralCount || 0,
                 referralEarnings: d.data().referralEarnings || 0,
+                referralPaidUsd: d.data().referralPaidUsd || 0,
                 referralVolumeGenerated: d.data().referralVolumeGenerated || 0,
-                tier: getAffiliateTier(d.data().referralCount || 0).tier.label,
+                tier: getAffiliateTier(
+                    d.data().qualifiedReferralCount || d.data().referralCount || 0
+                ).tier.label,
             }));
     } catch {
-        // Fallback without index
         const snap = await adminDb.collection("users").limit(200).get();
         return snap.docs
             .map((d) => ({
                 wallet: d.id,
                 referralCount: d.data().referralCount || 0,
+                qualifiedReferralCount: d.data().qualifiedReferralCount || 0,
                 referralEarnings: d.data().referralEarnings || 0,
+                referralPaidUsd: d.data().referralPaidUsd || 0,
                 referralVolumeGenerated: d.data().referralVolumeGenerated || 0,
             }))
             .filter((u) => u.referralEarnings > 0)
@@ -504,7 +599,8 @@ export async function adminGetTopReferrers(limitCount = 10) {
             .map((u, i) => ({
                 rank: i + 1,
                 ...u,
-                tier: getAffiliateTier(u.referralCount).tier.label,
+                tier: getAffiliateTier(u.qualifiedReferralCount || u.referralCount).tier
+                    .label,
             }));
     }
 }
@@ -513,8 +609,12 @@ function publicConfig() {
     return {
         headline: REFERRAL_CONFIG.headline,
         subhead: REFERRAL_CONFIG.subhead,
+        minQualifyingVolumeUsd: REFERRAL_CONFIG.minQualifyingVolumeUsd,
+        minQualifyingTrades: REFERRAL_CONFIG.minQualifyingTrades,
         baseL1FeeShare: REFERRAL_CONFIG.baseL1FeeShare,
-        maxL1FeeShare: REFERRAL_CONFIG.affiliateTiers[REFERRAL_CONFIG.affiliateTiers.length - 1].feeShare,
+        maxL1FeeShare:
+            REFERRAL_CONFIG.affiliateTiers[REFERRAL_CONFIG.affiliateTiers.length - 1]
+                .feeShare,
         l2FeeShare: REFERRAL_CONFIG.l2FeeShare,
         refereeCashbackShare: REFERRAL_CONFIG.refereeCashbackShare,
         refereeXpMultiplier: REFERRAL_CONFIG.refereeXpMultiplier,
@@ -525,5 +625,8 @@ function publicConfig() {
         firstTradeBonusReferrerUsd: REFERRAL_CONFIG.firstTradeBonusReferrerUsd,
         milestones: REFERRAL_CONFIG.milestones,
         affiliateTiers: REFERRAL_CONFIG.affiliateTiers,
+        minPayoutUsd: REFERRAL_CONFIG.minPayoutUsd,
+        maxPayoutUsd: REFERRAL_CONFIG.maxPayoutUsd,
+        payoutMint: "USDC",
     };
 }

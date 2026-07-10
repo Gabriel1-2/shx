@@ -45,10 +45,11 @@ export default function ReferralsPage() {
                         <Gift size={12} /> LIFETIME REV-SHARE
                     </div>
                     <h1 className="text-3xl md:text-5xl font-black text-white mb-3 tracking-tight">
-                        Get paid when{" "}
+                        Get paid in{" "}
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400">
-                            your people trade
-                        </span>
+                            USDC
+                        </span>{" "}
+                        for real volume
                     </h1>
                     <p className="text-muted-foreground max-w-2xl mx-auto text-sm md:text-base">
                         {REFERRAL_CONFIG.subhead}
@@ -60,26 +61,26 @@ export default function ReferralsPage() {
                     {[
                         {
                             icon: Zap,
-                            title: "50–65%",
-                            sub: "of their fees to you",
+                            title: "25–35%",
+                            sub: "of platform fees (L1)",
                             color: "text-primary",
                         },
                         {
                             icon: Layers,
-                            title: "10% L2",
-                            sub: "earn on your network",
+                            title: `$${REFERRAL_CONFIG.minQualifyingVolumeUsd}+`,
+                            sub: "min invitee volume",
                             color: "text-cyan-400",
                         },
                         {
                             icon: Gift,
-                            title: "15%",
-                            sub: "cashback for invites",
+                            title: `$${REFERRAL_CONFIG.minPayoutUsd}`,
+                            sub: "auto USDC payout",
                             color: "text-emerald-400",
                         },
                         {
                             icon: TrendingUp,
-                            title: "1.5× XP",
-                            sub: "for every invitee",
+                            title: "5% L2",
+                            sub: "+ 5% friend cashback",
                             color: "text-yellow-400",
                         },
                     ].map((c) => (
@@ -219,17 +220,17 @@ export default function ReferralsPage() {
                             {
                                 n: "2",
                                 t: "They connect",
-                                d: `You both bank XP instantly (+${REFERRAL_CONFIG.signupBonusReferrerXp.toLocaleString()} / +${REFERRAL_CONFIG.signupBonusRefereeXp.toLocaleString()}).`,
+                                d: `XP only at signup (+${REFERRAL_CONFIG.signupBonusReferrerXp} / +${REFERRAL_CONFIG.signupBonusRefereeXp}). No fee share yet.`,
                             },
                             {
                                 n: "3",
-                                t: "They trade",
-                                d: "You earn up to 65% of platform fees + XP. They get 1.5× XP and 15% cashback.",
+                                t: "They qualify",
+                                d: `After $${REFERRAL_CONFIG.minQualifyingVolumeUsd}+ volume and ${REFERRAL_CONFIG.minQualifyingTrades}+ trades, fee share starts.`,
                             },
                             {
                                 n: "4",
-                                t: "Stack forever",
-                                d: "Lifetime L1. L2 pays 10% when your invites refer others. Milestones print extras.",
+                                t: "Auto USDC",
+                                d: `Claimable ≥ $${REFERRAL_CONFIG.minPayoutUsd} → automatic USDC to their wallet (hourly cron + on-credit).`,
                             },
                         ].map((s) => (
                             <div key={s.n} className="rounded-xl bg-white/[0.03] border border-white/5 p-4">
