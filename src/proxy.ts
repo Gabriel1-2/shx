@@ -1,6 +1,29 @@
-/**
- * @deprecated Geo compliance runs in `src/middleware.ts` (Next.js requires that filename).
- * Kept only so old imports do not break; do not add logic here.
- */
-export { middleware as proxy, config } from "./middleware";
+import { NextRequest, NextResponse } from "next/server";
 
+/**
+ * Next.js 16 network boundary (formerly middleware.ts).
+ * Geo-block sanctioned countries for the web UI; APIs handle compliance separately.
+ */
+const SANCTIONED_COUNTRIES = ["CU", "IR", "KP", "SY", "BY", "RU", "VE"];
+
+export function proxy(req: NextRequest) {
+    if (req.nextUrl.pathname.startsWith("/unsupported")) {
+        return NextResponse.next();
+    }
+
+    const country = req.headers.get("x-vercel-ip-country");
+    if (country && SANCTIONED_COUNTRIES.includes(country)) {
+        console.warn(`[Compliance] Blocked request from sanctioned country: ${country}`);
+        const url = req.nextUrl.clone();
+        url.pathname = "/unsupported";
+        return NextResponse.redirect(url);
+    }
+
+    return NextResponse.next();
+}
+
+export const config = {
+    matcher: [
+        "/((?!api|_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js|workbox).*)",
+    ],
+};
