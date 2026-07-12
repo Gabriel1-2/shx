@@ -13,6 +13,10 @@ import { AnimatedCurrency, AnimatedCounter } from "@/components/AnimatedCounter"
 import { TierBadge } from "@/components/TierBadge";
 import { ReferralCard } from "@/components/ReferralCard";
 import { LiveTradersTracker } from "@/components/LiveTradersTracker";
+import { PortfolioCard } from "@/components/PortfolioCard";
+import { SavingsCalculator } from "@/components/SavingsCalculator";
+import { QualifyProgress } from "@/components/QualifyProgress";
+import { PayoutsFeed } from "@/components/PayoutsFeed";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { FEE_TIERS } from "@/lib/feeTiers";
 
@@ -138,6 +142,9 @@ function DashboardContent() {
             </div>
 
             <div className="relative z-10 container mx-auto p-4 md:p-6 lg:p-8">
+                <div className="mb-4">
+                    <QualifyProgress />
+                </div>
                 {/* Hero Header */}
                 <div className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                     <div>
@@ -347,6 +354,12 @@ function DashboardContent() {
                     {/* Right Column - Sidebar */}
                     <div className="space-y-4">
                         <LiveTradersTracker />
+
+                        <PortfolioCard />
+
+                        <SavingsCalculator />
+
+                        <PayoutsFeed />
 
                         <MarketWatch />
 

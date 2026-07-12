@@ -7,6 +7,10 @@ import { SystemStatus } from "@/components/SystemStatus";
 import { MarketWatch } from "@/components/MarketWatch";
 import { LiveFeed } from "@/components/LiveFeed";
 import { LiveTradersTracker } from "@/components/LiveTradersTracker";
+import { WhySHX } from "@/components/WhySHX";
+import { SavingsCalculator } from "@/components/SavingsCalculator";
+import { QualifyProgress } from "@/components/QualifyProgress";
+import { PayoutsFeed } from "@/components/PayoutsFeed";
 import dynamic from "next/dynamic";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 
@@ -48,15 +52,22 @@ function HomeContent() {
             <span className="text-[10px] md:text-xs font-medium text-primary">Jupiter Ultra • Best Routes</span>
           </div>
           <h1 className="text-2xl md:text-5xl lg:text-6xl font-black mb-2 md:mb-4">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
-              SHX EXCHANGE
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-lime-400 to-emerald-500">
+              SHULEVITZ EXCHANGE
             </span>
             <br />
-            <span className="text-white text-xl md:text-5xl lg:text-6xl">SWAP ANYTHING</span>
+            <span className="text-white text-xl md:text-4xl lg:text-5xl">
+              Elite execution. Paid loyalty.
+            </span>
           </h1>
-          <p className="text-muted-foreground max-w-xl mx-auto text-xs md:text-base px-4">
-            Best routes, best prices. Zero KYC. Self-custody.
+          <p className="text-muted-foreground max-w-2xl mx-auto text-xs md:text-base px-4">
+            Jupiter Ultra routes · SHX fee tiers · USDC referrals · Agent API · Limit &amp; DCA.
+            Self-custody. Zero KYC.
           </p>
+        </div>
+
+        <div className={`mb-4 max-w-2xl mx-auto ${isMarketsMobile ? "hidden md:block" : ""}`}>
+          <QualifyProgress />
         </div>
 
         {/* Live trader counter */}
@@ -149,6 +160,8 @@ function HomeContent() {
           {!isChartVisible && (
             <div className="hidden xl:block xl:col-span-3 space-y-4 animate-in fade-in slide-in-from-right duration-500">
               <LiveTradersTracker />
+              <SavingsCalculator />
+              <PayoutsFeed />
               <Leaderboard />
               <FeeTransparency />
               <SystemStatus />
@@ -156,10 +169,13 @@ function HomeContent() {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="mt-12 text-center">
+        <div className={`mt-14 md:mt-20 ${isMarketsMobile ? "hidden md:block" : ""}`}>
+          <WhySHX />
+        </div>
+
+        <div className="mt-12 text-center pb-4">
           <p className="text-xs text-muted-foreground tracking-[0.3em] uppercase opacity-50">
-            Non-Custodial • Solana Native • Jupiter Powered
+            Non-Custodial • Solana Native • Jupiter Powered • Agent Ready
           </p>
         </div>
 

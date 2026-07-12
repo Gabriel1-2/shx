@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { Loader2, Zap, Sparkles, TrendingDown } from "lucide-react";
+import { Loader2, Zap, Sparkles, TrendingDown, Flame, Shield } from "lucide-react";
+import confetti from "canvas-confetti";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { isSHXBuy, FEE_TIERS } from "@/lib/feeTiers";
 import { TierBadge } from "@/components/TierBadge";
@@ -32,9 +33,12 @@ export default function JupiterTerminal() {
     const [isInitialized, setIsInitialized] = useState(false);
     const [lastTx, setLastTx] = useState<string | null>(null);
     const [isBuyingSHX, setIsBuyingSHX] = useState(false);
+    const [apeMode, setApeMode] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const lastInitFeeBps = useRef<number | null>(null);
+    const lastInitKey = useRef<string | null>(null);
     const currentOutputMint = useRef<string>(USDC_MINT);
+    const apeModeRef = useRef(false);
+    apeModeRef.current = apeMode;
 
     // ─── REFS to avoid stale closures in Jupiter callbacks ───
     const publicKeyRef = useRef(publicKey);
@@ -67,8 +71,8 @@ export default function JupiterTerminal() {
         document.head.appendChild(script);
     }, []);
 
-    // Init Jupiter with a specific fee
-    const initJupiter = useCallback((feeBps: number) => {
+    // Init Jupiter with a specific fee (+ optional Ape Mode slippage)
+    const initJupiter = useCallback((feeBps: number, ape = apeModeRef.current) => {
         if (!isLoaded || !window.Jupiter) return;
 
         try {
@@ -76,8 +80,9 @@ export default function JupiterTerminal() {
                 fixedInputMint: false,
                 fixedOutputMint: false,
                 initialInputMint: SOL_MINT,
-                initialOutputMint: USDC_MINT,
-                initialSlippageBps: 50,
+                initialOutputMint: currentOutputMint.current || USDC_MINT,
+                // Ape Mode: 1% slippage for launches; default 0.5%
+                initialSlippageBps: ape ? 100 : 50,
             };
 
             // Only add referral fee if > 0 (SHX buys = 0% = no referral)
@@ -112,7 +117,7 @@ export default function JupiterTerminal() {
 
                             // Debounce re-init to avoid rapid re-renders
                             setTimeout(() => {
-                                lastInitFeeBps.current = null; // Force re-init
+                                lastInitKey.current = null; // Force re-init
                                 if (initJupiterRef.current) initJupiterRef.current(newFee);
                             }, 300);
                         }
@@ -124,6 +129,18 @@ export default function JupiterTerminal() {
                     const { txid } = params;
                     console.log("✅ Swap Successful!", txid);
                     setLastTx(txid);
+
+                    // Elite celebration
+                    try {
+                        confetti({
+                            particleCount: apeModeRef.current ? 120 : 60,
+                            spread: apeModeRef.current ? 80 : 55,
+                            origin: { y: 0.65 },
+                            colors: ["#22c55e", "#a3e635", "#ffffff", "#fbbf24"],
+                        });
+                    } catch {
+                        /* ignore */
+                    }
 
                     const currentPubKey = publicKeyRef.current;
                     if (!currentPubKey) {
@@ -147,8 +164,17 @@ export default function JupiterTerminal() {
                         const trackData = await trackRes.json();
                         if (trackData.success) {
                             console.log(`[SECURE ANALYTICS] Success: Recorded $${trackData.volumeUSD} volume, ${trackData.points} points`);
-                            // Dispatch event so UI components (MarketWatch/LiveFeed) can update
                             window.dispatchEvent(new Event("shx-swap-success"));
+                            window.dispatchEvent(
+                                new CustomEvent("shx-trade-toast", {
+                                    detail: {
+                                        volumeUSD: trackData.volumeUSD,
+                                        points: trackData.points,
+                                        txid,
+                                        isNewTrader: trackData.isNewTrader,
+                                    },
+                                })
+                            );
                         } else {
                             console.error("[SECURE ANALYTICS] Failed:", trackData.error);
                         }
@@ -161,7 +187,7 @@ export default function JupiterTerminal() {
                     console.error("❌ Swap Error:", error);
                 },
             });
-            lastInitFeeBps.current = feeBps;
+            lastInitKey.current = `${feeBps}:${ape ? "ape" : "std"}`;
             setIsInitialized(true);
         } catch (e) {
             console.error("[Jupiter] Init failed:", e);
@@ -172,20 +198,20 @@ export default function JupiterTerminal() {
         initJupiterRef.current = initJupiter;
     }, [initJupiter]);
 
-    // Initialize Jupiter when script loads, wallet changes, or fee tier changes
+    // Initialize Jupiter when script loads, wallet, fee tier, or Ape Mode changes
     useEffect(() => {
         if (!isLoaded || !window.Jupiter) return;
 
-        // Only re-init if the fee actually changed
         const effectiveFeeBps = isBuyingSHX ? 0 : tierData.feeBps;
-        if (lastInitFeeBps.current === effectiveFeeBps && isInitialized) return;
+        const key = `${effectiveFeeBps}:${apeMode ? "ape" : "std"}`;
+        if (lastInitKey.current === key && isInitialized) return;
 
         const timer = setTimeout(() => {
-            initJupiter(effectiveFeeBps);
+            initJupiter(effectiveFeeBps, apeMode);
         }, 200);
 
         return () => clearTimeout(timer);
-    }, [isLoaded, wallet, publicKey, tierData.feeBps, isBuyingSHX, initJupiter, isInitialized]);
+    }, [isLoaded, wallet, publicKey, tierData.feeBps, isBuyingSHX, apeMode, initJupiter, isInitialized]);
 
     // Compute savings message
     const baseFee = FEE_TIERS[0].feePercent;
@@ -234,17 +260,42 @@ export default function JupiterTerminal() {
             )}
 
             {/* Terminal Header */}
-            <div className="flex items-center justify-between rounded-t-2xl bg-black/60 px-4 md:px-5 py-3 md:py-3.5 border border-b-0 border-white/10 backdrop-blur-xl">
+            <div className={`flex items-center justify-between rounded-t-2xl px-4 md:px-5 py-3 md:py-3.5 border border-b-0 backdrop-blur-xl ${
+                apeMode
+                    ? "bg-gradient-to-r from-orange-500/20 via-black/70 to-red-500/15 border-orange-500/30"
+                    : "bg-black/60 border-white/10"
+            }`}>
                 <div className="flex items-center gap-2.5">
                     <div className="relative flex items-center justify-center">
-                        <div className="absolute w-5 h-5 bg-green-500 blur-sm opacity-50 animate-pulse rounded-full"></div>
-                        <Zap className="relative text-green-400 z-10" size={16} />
+                        <div className={`absolute w-5 h-5 blur-sm opacity-50 animate-pulse rounded-full ${apeMode ? "bg-orange-500" : "bg-green-500"}`}></div>
+                        {apeMode ? (
+                            <Flame className="relative text-orange-400 z-10" size={16} />
+                        ) : (
+                            <Zap className="relative text-green-400 z-10" size={16} />
+                        )}
                     </div>
-                    <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 text-sm tracking-wide">
-                        JUPITER ULTRA
+                    <span className={`font-bold text-sm tracking-wide ${
+                        apeMode
+                            ? "text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-400"
+                            : "text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500"
+                    }`}>
+                        {apeMode ? "APE MODE" : "JUPITER ULTRA"}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setApeMode((v) => !v)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border transition-all ${
+                            apeMode
+                                ? "bg-orange-500/25 border-orange-500/50 text-orange-300 shadow-[0_0_16px_rgba(249,115,22,0.35)]"
+                                : "bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:border-white/20"
+                        }`}
+                        title="1% slippage for sniping launches"
+                    >
+                        <Flame size={11} />
+                        Ape
+                    </button>
                     {lastTx && (
                         <a
                             href={`https://solscan.io/tx/${lastTx}`}
@@ -255,12 +306,15 @@ export default function JupiterTerminal() {
                             ✅ {lastTx.slice(0, 8)}...
                         </a>
                     )}
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium hidden sm:inline">
-                        Powered by Jupiter
-                    </span>
-                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                    <div className={`h-2 w-2 rounded-full animate-pulse ${apeMode ? "bg-orange-500" : "bg-green-500"}`} />
                 </div>
             </div>
+            {apeMode && (
+                <div className="px-3 py-1.5 bg-orange-500/10 border-x border-orange-500/20 text-[10px] text-orange-300 flex items-center gap-1.5">
+                    <Shield size={10} />
+                    1% slippage armed · best for launches &amp; thin books · size carefully
+                </div>
+            )}
 
             {/* Jupiter Terminal Container */}
             <div
