@@ -1,0 +1,35 @@
+{
+  "name": "SHX Exchange",
+  "version": "2.0.0",
+  "description": "Agent-native non-custodial Solana DEX — Jupiter Ultra routes, SHX fee tiers, local MCP signing",
+  "documentation": "https://shx.exchange/llms.txt",
+  "catalog": "https://shx.exchange/api/mcp",
+  "agentApi": "https://shx.exchange/api/agent/health",
+  "transport": {
+    "stdio": {
+      "repository": "https://github.com/Gabriel1-2/shx",
+      "path": "mcp-server",
+      "command": "node",
+      "args": ["mcp-server/build/index.js"],
+      "env": {
+        "SHX_API_URL": "https://shx.exchange"
+      }
+    },
+    "http": {
+      "catalog": "https://shx.exchange/api/mcp",
+      "note": "Read-oriented tool proxy. Signing stays in local stdio MCP."
+    }
+  },
+  "tools": [
+    "shx_health",
+    "shx_connect",
+    "shx_resolve",
+    "shx_tokens",
+    "shx_check_tier",
+    "shx_live_stats",
+    "shx_referral_link",
+    "shx_get_quote",
+    "shx_swap_intent",
+    "shx_execute_swap"
+  ]
+}

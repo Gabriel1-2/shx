@@ -34,13 +34,32 @@ export async function GET() {
 
     return NextResponse.json({
         status: "operational",
-        version: "1.0.0",
+        version: "1.1.0",
         name: "SHX Exchange Agent API",
         description: "Headless DEX — programmatic swap API for AI agents and bots on Solana",
         chain: "solana-mainnet",
         routingEngine: "Jupiter Ultra",
 
         jupiter: jupiterStatus,
+
+        mcp: {
+            version: "2.0.0",
+            catalog: "/api/mcp",
+            wellKnown: "/.well-known/mcp.json",
+            localServer: "mcp-server/ (stdio — local signing)",
+            tools: [
+                "shx_health",
+                "shx_connect",
+                "shx_resolve",
+                "shx_tokens",
+                "shx_check_tier",
+                "shx_live_stats",
+                "shx_referral_link",
+                "shx_get_quote",
+                "shx_swap_intent",
+                "shx_execute_swap",
+            ],
+        },
 
         endpoints: {
             "GET /api/agent/health": "This endpoint — status, discovery, and quickstart guide",
@@ -50,6 +69,8 @@ export async function GET() {
             "POST /api/agent/swap": "Execute a signed swap (body: signedTransaction, requestId)",
             "GET /api/agent/tier": "Check wallet fee tier and SHX balance (params: wallet)",
             "GET /api/agent/tokens": "List supported tokens with live prices (optional: mint)",
+            "GET /api/mcp": "MCP catalog + HTTP tool proxy (read tools)",
+            "GET /api/stats/live": "Public live traders / volume proof",
         },
 
         feeTiers: [
@@ -73,6 +94,7 @@ export async function GET() {
         },
 
         documentation: "/llms.txt",
+        mcpCatalog: "/api/mcp",
         source: "https://github.com/Gabriel1-2/shx",
         timestamp: new Date().toISOString(),
     }, { headers: corsHeaders() });

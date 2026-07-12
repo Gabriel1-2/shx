@@ -1,47 +1,95 @@
-# SHX Exchange MCP Server
+# SHX Exchange MCP Server v2
 
-An official Model Context Protocol (MCP) server for the SHX Exchange. 
-This server allows local AI assistants (like Claude Desktop, Cursor, or local CLI agents) to fetch quotes and execute secure, local-signed trades on the Solana blockchain.
+Official **Model Context Protocol** server for [SHX Exchange](https://shx.exchange).
 
-## Secure Local Signing
-The core advantage of using this MCP server is that your AI agent never sees your private key. You configure the server locally with a `.env` file, and when the AI requests to execute a trade, the MCP server will securely sign the transaction locally on your machine before submitting it to the network!
+Lets Claude Desktop, Cursor, and local agents:
 
-## Installation & Setup
+- Discover health / fee tiers / live stats  
+- Resolve symbols → mints  
+- Quote via Jupiter Ultra with SHX fee tiers  
+- **Optionally sign & execute locally** (private key never sent to SHX servers)
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Tools
 
-2. Build the server:
-   ```bash
-   npm run build
-   ```
+| Tool | Auth | Purpose |
+|------|------|---------|
+| `shx_health` | none | API status + MCP mode |
+| `shx_connect` | wallet | Balances, tier, gas, symbol map |
+| `shx_resolve` | none | SOL/USDC/SHX → mint |
+| `shx_tokens` | none | Watchlist + prices |
+| `shx_check_tier` | wallet | Fee tier |
+| `shx_live_stats` | none | Public platform proof |
+| `shx_referral_link` | optional | Share / deep links |
+| `shx_get_quote` | wallet | Quote + unsigned tx |
+| `shx_swap_intent` | wallet | Symbol-based quote (dry-run default) |
+| `shx_execute_swap` | **local key** | Sign + submit (`confirm: true`) |
 
-3. Configure your local wallet:
-   Create a `.env` file in this directory and paste your base58 Solana private key:
-   ```env
-   WALLET_PRIVATE_KEY=your_base58_private_key_here
-   SHX_API_URL=https://shx.exchange
-   ```
-   *Note: If no private key is provided, the server will run in read-only mode.*
+## Setup
 
-## Usage with Claude Desktop
+```bash
+cd mcp-server
+npm install
+npm run build
+```
 
-Add the following to your `claude_desktop_config.json` (usually located at `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+Create `.env` (optional for read-only):
+
+```env
+SHX_API_URL=https://shx.exchange
+# Optional — enables shx_execute_swap
+WALLET_PRIVATE_KEY=your_base58_secret
+# Safety cap on SOL sells (lamports). Default 5 SOL.
+SHX_MAX_SWAP_LAMPORTS=5000000000
+# Set to 0 to disable execute entirely
+SHX_ALLOW_EXECUTE=1
+```
+
+## Claude Desktop
+
+`%APPDATA%\Claude\claude_desktop_config.json` (Windows) or  
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 
 ```json
 {
   "mcpServers": {
     "shx-exchange": {
       "command": "node",
-      "args": [
-        "path/to/shx_exchange/mcp-server/build/index.js"
-      ]
+      "args": ["C:/absolute/path/to/shx_exchange/mcp-server/build/index.js"],
+      "env": {
+        "SHX_API_URL": "https://shx.exchange"
+      }
     }
   }
 }
 ```
 
-Restart Claude Desktop, and you can now say:
-> "Buy 0.1 SOL worth of SHX using my connected wallet!"
+## Cursor
+
+Add the same server under MCP settings (command `node`, args → `build/index.js`).
+
+## Safe agent flow
+
+1. `shx_health`  
+2. `shx_connect`  
+3. `shx_swap_intent` with `dryRun: true` (default)  
+4. Review amounts / fees  
+5. `shx_get_quote` or intent with `dryRun: false`  
+6. `shx_execute_swap` with **`confirm: true`** only after review  
+
+## HTTP discovery (hosted)
+
+- Agent REST: `https://shx.exchange/api/agent/health`  
+- MCP catalog: `https://shx.exchange/api/mcp`  
+- Well-known: `https://shx.exchange/.well-known/mcp.json`  
+- Docs: `https://shx.exchange/llms.txt`  
+
+## Security
+
+- Prefer **read-only** MCP for untrusted hosts.  
+- Never put hot-wallet keys on shared machines.  
+- `confirm: true` is required for execute.  
+- SOL size cap via `SHX_MAX_SWAP_LAMPORTS`.  
+
+## License
+
+Same as parent SHX Exchange repo.

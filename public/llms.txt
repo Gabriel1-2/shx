@@ -419,14 +419,50 @@ GET /api/agent/health                     → API status
 
 ---
 
+## MCP Server (Model Context Protocol) v2
+
+SHX ships an official **stdio MCP** for Claude Desktop / Cursor / local agents.
+
+| Resource | URL / path |
+|----------|------------|
+| HTTP catalog | `GET https://shx.exchange/api/mcp` |
+| Well-known | `https://shx.exchange/.well-known/mcp.json` |
+| Local package | `mcp-server/` in the GitHub repo |
+| Docs | this file + `mcp-server/README.md` |
+
+### Tools
+
+`shx_health`, `shx_connect`, `shx_resolve`, `shx_tokens`, `shx_check_tier`,
+`shx_live_stats`, `shx_referral_link`, `shx_get_quote`, `shx_swap_intent`,
+`shx_execute_swap` (local sign only; requires `confirm: true`).
+
+### Safe flow
+
+1. `shx_health` / `shx_connect`
+2. `shx_swap_intent` with dry-run (default true)
+3. Review quote / fees
+4. `shx_execute_swap` with **confirm=true** (private key stays in local MCP process)
+
+```bash
+cd mcp-server && npm i && npm run build
+# Claude Desktop: command node, args [path/to/build/index.js]
+# env SHX_API_URL=https://shx.exchange
+```
+
+HTTP POST `/api/mcp` proxies **read** tools only. Signing never goes over the public web API.
+
+---
+
 ## Contact & Links
 
 - **Website:** https://shx.exchange
 - **Agent API:** https://shx.exchange/api/agent/health
+- **MCP catalog:** https://shx.exchange/api/mcp
 - **GitHub:** https://github.com/Gabriel1-2/shx
 - **Instagram:** @shulevitz
 
 ---
 
 *SHX Exchange: Built for agents. Optimized for speed. Zero friction.*
-*This file follows the llms.txt standard. Last updated: 2026-05-06.*
+*This file follows the llms.txt standard. Last updated: 2026-07-12.*
+

@@ -16,7 +16,9 @@
     "foley-ad": "node scripts/add-audio.js",
     "build-ad": "npm run generate-audio && npm run record-ad && npm run foley-ad",
     "generate-audio": "node scripts/generate-audio.js",
-    "install-ad-tools": "npm install --no-save puppeteer puppeteer-screen-recorder ghost-cursor ffmpeg-static fluent-ffmpeg gl google-tts-api sam-js"
+    "install-ad-tools": "npm install --no-save puppeteer puppeteer-screen-recorder ghost-cursor ffmpeg-static fluent-ffmpeg gl google-tts-api sam-js",
+    "mcp:build": "npm run build --prefix mcp-server",
+    "mcp:start": "npm run start --prefix mcp-server"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

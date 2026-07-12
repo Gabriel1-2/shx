@@ -1,11 +1,12 @@
 {
-  "name": "mcp-server",
-  "version": "1.0.0",
-  "description": "",
+  "name": "@shx/mcp-server",
+  "version": "2.0.0",
+  "description": "Official SHX Exchange Model Context Protocol server — quote, stats, local-signed swaps",
   "main": "build/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node build/index.js"
+    "start": "node build/index.js",
+    "dev": "ts-node src/index.ts"
   },
   "keywords": [],
   "author": "",
