@@ -53,18 +53,31 @@ function computeApy(volume24h: number, tvl: number): number {
 }
 
 // ─── Yield Calculator ──────────────────────────────────────────
-function YieldCalculator({ apy, shxPrice }: { apy: number; shxPrice: number }) {
+function YieldCalculator({
+    feeApy,
+    farmApy,
+    shxPrice,
+}: {
+    feeApy: number;
+    farmApy: number;
+    shxPrice: number;
+}) {
     const [amount, setAmount] = useState(1000);
-    const daily = (amount * (apy / 100)) / 365;
+    const totalApy = feeApy + farmApy;
+    const daily = (amount * (totalApy / 100)) / 365;
     const weekly = daily * 7;
     const monthly = daily * 30;
-    const yearly = amount * (apy / 100);
+    const yearly = amount * (totalApy / 100);
 
     return (
         <div className="bg-black/60 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
                 <BarChart2 size={18} className="text-green-400" /> Yield Calculator
             </h3>
+            <p className="text-[10px] text-muted-foreground mb-4">
+                Uses live trading-fee APY ({feeApy.toFixed(1)}%)
+                {farmApy > 0 ? ` + stated farm APY (${farmApy.toFixed(1)}%)` : ""}. Estimates only.
+            </p>
             <div className="mb-4">
                 <label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">
                     Your deposit (USD)
@@ -123,7 +136,7 @@ const FAQ_ITEMS = [
     },
     {
         q: "How is the APY calculated?",
-        a: "APY is calculated from actual 24h trading volume × the pool fee rate (0.25%), annualized. The formula: (dailyFees × 365 / TVL) × 100. This is a real-time estimate and fluctuates with volume.",
+        a: "Trading-fee APY is live: 24h volume × pool fee rate (typically ~0.25% on Raydium CLMM), annualized as (dailyFees × 365 / TVL) × 100. Farm/reward APY (if any) is separate and labeled — never mixed silently into one number. Figures fluctuate with volume and are estimates only.",
     },
     {
         q: "Can I withdraw anytime?",
@@ -186,7 +199,12 @@ export default function EarnPage() {
         return () => clearInterval(interval);
     }, []);
 
-    const displayApy = 15; // Fixed 15% as requested by user
+    // Live trading-fee APY from volume/TVL (honest, fluctuates)
+    const feeApy = pool ? computeApy(pool.volume24h, pool.tvl) : 0;
+    // Farm rewards: only show if we have a verified figure; otherwise 0 + disclaimer
+    // Do NOT hardcode fake farm APY — users should verify on Raydium Farms page.
+    const farmApy = 0;
+    const totalApy = feeApy + farmApy;
 
     const openRaydiumPopup = () => {
         const width = 600;
@@ -242,12 +260,12 @@ export default function EarnPage() {
                             glow: "from-primary/10 to-emerald-500/10",
                         },
                         {
-                            label: "Total APY",
-                            value: loading ? "..." : `${displayApy.toFixed(1)}%`,
+                            label: "Fee APY (live)",
+                            value: loading ? "..." : `${feeApy.toFixed(1)}%`,
                             icon: Flame,
                             color: "text-green-400",
                             glow: "from-green-500/10 to-lime-500/10",
-                            sub: `Yield Farm Rewards`,
+                            sub: "From 24h volume · trading fees only",
                         },
                         {
                             label: "24h Volume",
@@ -285,8 +303,12 @@ export default function EarnPage() {
                                     {stat.value}
                                 </div>
                                 {stat.sub && (
-                                    <div className={`text-xs font-bold mt-1 ${(pool?.priceChange24h || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                        {stat.sub} (24h)
+                                    <div className={`text-[10px] font-medium mt-1 ${
+                                        i === 3
+                                            ? (pool?.priceChange24h || 0) >= 0 ? "text-green-400" : "text-red-400"
+                                            : "text-muted-foreground"
+                                    }`}>
+                                        {stat.sub}{i === 3 ? " (24h)" : ""}
                                     </div>
                                 )}
                             </div>
@@ -328,11 +350,30 @@ export default function EarnPage() {
                                         </p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[10px] text-muted-foreground uppercase mb-0.5">APY</p>
+                                        <p className="text-[10px] text-muted-foreground uppercase mb-0.5">Fee APY</p>
                                         <p className="font-mono text-green-400 font-bold text-lg">
-                                            {loading ? "..." : `${displayApy.toFixed(1)}%`}
+                                            {loading ? "..." : `${feeApy.toFixed(1)}%`}
                                         </p>
+                                        <p className="text-[9px] text-muted-foreground">live · volume-based</p>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Honest APY breakdown */}
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                <div className="rounded-xl bg-white/5 border border-white/5 p-3">
+                                    <p className="text-[9px] text-muted-foreground uppercase mb-0.5">Trading fee APY</p>
+                                    <p className="text-lg font-black text-green-400 font-mono">
+                                        {loading ? "…" : `${feeApy.toFixed(2)}%`}
+                                    </p>
+                                    <p className="text-[9px] text-muted-foreground">Live from DexScreener volume</p>
+                                </div>
+                                <div className="rounded-xl bg-white/5 border border-white/5 p-3">
+                                    <p className="text-[9px] text-muted-foreground uppercase mb-0.5">Farm / rewards APY</p>
+                                    <p className="text-lg font-black text-white font-mono">
+                                        {farmApy > 0 ? `${farmApy.toFixed(1)}%` : "Check farm"}
+                                    </p>
+                                    <p className="text-[9px] text-muted-foreground">Verify on Raydium Farms (not estimated here)</p>
                                 </div>
                             </div>
 
@@ -340,7 +381,14 @@ export default function EarnPage() {
                             <div className="bg-green-500/5 border border-green-500/15 rounded-xl p-4 mb-5 flex items-start gap-3">
                                 <Pickaxe className="text-green-400 shrink-0 mt-0.5" size={18} />
                                 <div className="text-sm text-muted-foreground">
-                                    <strong className="text-white">Yield Farm is LIVE!</strong> Provide liquidity and stake your LP tokens in the Raydium Ecosystem Farm to earn a massive 15% bonus APY in SHX rewards.
+                                    <strong className="text-white">LP is non-custodial on Raydium.</strong>{" "}
+                                    Fee APY above is a live estimate from 24h volume. Any farm rewards (SHX or otherwise)
+                                    are separate — always confirm the current farm rate on Raydium before staking LP.
+                                    Combined estimate:{" "}
+                                    <span className="text-white font-mono font-bold">
+                                        {loading ? "…" : `~${totalApy.toFixed(1)}% fee APY`}
+                                    </span>
+                                    {farmApy <= 0 ? " + farm (external)" : ` + ${farmApy.toFixed(1)}% farm`}.
                                 </div>
                             </div>
 
@@ -363,7 +411,11 @@ export default function EarnPage() {
                         </div>
 
                         {/* Yield Calculator */}
-                        <YieldCalculator apy={displayApy} shxPrice={pool?.priceUsd || 0} />
+                        <YieldCalculator
+                            feeApy={feeApy}
+                            farmApy={farmApy}
+                            shxPrice={pool?.priceUsd || 0}
+                        />
 
                         {/* Orca Pool — Coming Soon */}
                         <div className="bg-black/30 border border-white/5 rounded-2xl p-6 opacity-50">
@@ -424,7 +476,7 @@ export default function EarnPage() {
                                 <span className="text-xs font-bold text-yellow-400 uppercase">Risk Disclosure</span>
                             </div>
                             <p className="text-xs text-muted-foreground leading-relaxed">
-                                Providing liquidity involves risk including impermanent loss. APY figures are estimates based on recent trading volume and may fluctuate. Your funds are held in audited Raydium smart contracts — not by SHX Exchange.
+                                Providing liquidity involves risk including impermanent loss. Fee APY is a live estimate from 24h volume; farm rates must be verified on Raydium and are not guaranteed. Your LP is held in Raydium contracts — not by SHX Exchange.
                             </p>
                         </div>
 

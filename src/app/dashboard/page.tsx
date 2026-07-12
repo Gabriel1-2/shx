@@ -17,6 +17,7 @@ import { PortfolioCard } from "@/components/PortfolioCard";
 import { SavingsCalculator } from "@/components/SavingsCalculator";
 import { QualifyProgress } from "@/components/QualifyProgress";
 import { PayoutsFeed } from "@/components/PayoutsFeed";
+import { ShareCard } from "@/components/ShareCard";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { FEE_TIERS } from "@/lib/feeTiers";
 
@@ -364,6 +365,15 @@ function DashboardContent() {
                         <MarketWatch />
 
                         <ReferralCard />
+
+                        {publicKey && (
+                            <ShareCard
+                                kind="stats"
+                                volume={stats.totalVolume}
+                                points={stats.totalPoints}
+                                tierLabel={tierData.label}
+                            />
+                        )}
 
                         <SystemStatus />
 

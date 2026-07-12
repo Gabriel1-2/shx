@@ -232,7 +232,7 @@ export default function WhitepaperPage() {
                                 { title: "Fee Tier Discounts", desc: "Hold SHX to unlock progressively lower trading fees — from 0.65% at Base to 0.50% at Diamond tier.", active: true },
                                 { title: "Zero-Fee SHX Purchases", desc: "Buying SHX on the platform incurs a 0% platform fee, encouraging token acquisition.", active: true },
                                 { title: "Leaderboard & Rewards", desc: "Top traders by weekly fees paid share a $250 reward pool (top 10, min $10 fees).", active: true },
-                                { title: "Referral Revenue Share", desc: "Lifetime 50–65% of platform fees from L1 invites, 10% L2, plus 15% cashback and 1.5× XP for invited traders.", active: true },
+                                { title: "Referral Revenue Share", desc: "Lifetime 25–35% of platform fees from qualified L1 invites (after $100+ volume), 5% L2, 5% invitee cashback, 1.25× XP. Auto USDC at $5 claimable.", active: true },
                                 { title: "Governance (Upcoming)", desc: "Shulevitz holders will vote on fee structures, reward pool sizes, and platform features.", active: false },
                                 { title: "Revenue Sharing (Upcoming)", desc: "Diamond tier holders will receive a share of platform trading fees.", active: false },
                                 { title: "Staking Rewards (Upcoming)", desc: "Lock Shulevitz tokens to earn yield from platform revenue.", active: false },

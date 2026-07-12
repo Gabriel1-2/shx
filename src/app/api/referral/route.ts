@@ -104,13 +104,18 @@ export async function POST(req: NextRequest) {
 
 /** Public config for unauthenticated marketing surfaces */
 export async function GET() {
+    const maxL1 =
+        REFERRAL_CONFIG.affiliateTiers[REFERRAL_CONFIG.affiliateTiers.length - 1].feeShare;
     return NextResponse.json({
         headline: REFERRAL_CONFIG.headline,
         subhead: REFERRAL_CONFIG.subhead,
-        feeShare: "50–65%",
-        l2Share: "10%",
-        refereeCashback: "15%",
-        refereeXpBoost: "1.5×",
+        feeShare: `${Math.round(REFERRAL_CONFIG.baseL1FeeShare * 100)}–${Math.round(maxL1 * 100)}%`,
+        l2Share: `${Math.round(REFERRAL_CONFIG.l2FeeShare * 100)}%`,
+        refereeCashback: `${Math.round(REFERRAL_CONFIG.refereeCashbackShare * 100)}%`,
+        refereeXpBoost: `${REFERRAL_CONFIG.refereeXpMultiplier}×`,
+        minQualifyingVolumeUsd: REFERRAL_CONFIG.minQualifyingVolumeUsd,
+        minQualifyingTrades: REFERRAL_CONFIG.minQualifyingTrades,
+        minPayoutUsd: REFERRAL_CONFIG.minPayoutUsd,
         signupXp: {
             referrer: REFERRAL_CONFIG.signupBonusReferrerXp,
             referee: REFERRAL_CONFIG.signupBonusRefereeXp,

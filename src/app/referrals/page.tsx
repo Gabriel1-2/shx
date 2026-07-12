@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ReferralCard } from "@/components/ReferralCard";
+import { ShareCard } from "@/components/ShareCard";
 import {
     Trophy, Gift, Users, Zap, TrendingUp, Layers, Crown, Loader2,
 } from "lucide-react";
@@ -18,9 +19,10 @@ interface Leader {
 }
 
 export default function ReferralsPage() {
-    const { connected } = useWallet();
+    const { connected, publicKey } = useWallet();
     const [leaders, setLeaders] = useState<Leader[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refCode, setRefCode] = useState("");
 
     useEffect(() => {
         fetch("/api/referral", {
@@ -33,6 +35,19 @@ export default function ReferralsPage() {
             .catch(() => {})
             .finally(() => setLoading(false));
     }, []);
+
+    useEffect(() => {
+        if (!publicKey) return;
+        const wallet = publicKey.toString();
+        fetch("/api/referral", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "init", wallet }),
+        })
+            .then((r) => r.json())
+            .then((d) => setRefCode(d.referralCode || ""))
+            .catch(() => {});
+    }, [publicKey]);
 
     return (
         <main className="min-h-screen bg-background relative overflow-hidden pb-20">
@@ -97,8 +112,9 @@ export default function ReferralsPage() {
 
                 <div className="grid lg:grid-cols-12 gap-6">
                     {/* Main card */}
-                    <div className="lg:col-span-5">
+                    <div className="lg:col-span-5 space-y-4">
                         <ReferralCard />
+                        <ShareCard kind="referral" referralCode={refCode} />
                     </div>
 
                     {/* Tiers + milestones */}
