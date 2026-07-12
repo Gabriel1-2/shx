@@ -49,7 +49,7 @@ const PILLARS = [
     {
         icon: Crown,
         title: "Live proof, not marketing",
-        desc: "Unique wallets traded, volume, fees, and referral payouts — live from our ledger.",
+        desc: "Hot tape + SHX trade tape + unique wallets, fees, weekly race, referral payouts — from our ledger.",
         color: "text-primary",
         border: "border-primary/20",
         bg: "from-primary/10",
@@ -57,10 +57,10 @@ const PILLARS = [
 ];
 
 const VS = [
-    { them: "Jupiter UI", us: "Same Ultra routes + loyalty tiers + USDC referrals + agent API" },
-    { them: "Photon / Axiom", us: "Less casino chrome — real self-custody, fee share you can cash out" },
-    { them: "TG bots", us: "Full web desk, charts, DCA, compliance, public stats" },
-    { them: "Points-only DEXs", us: "Auto USDC after real volume qualification" },
+    { them: "Jupiter UI", us: "Same Ultra routes + loyalty tiers + USDC referrals + agent API + race" },
+    { them: "Photon / Axiom", us: "Self-custody desk + real USDC fee share + public SHX trade tape" },
+    { them: "TG bots", us: "Full web desk, charts, DCA, compliance, live ledger proof" },
+    { them: "Points-only DEXs", us: "Auto USDC after volume qualification + weekly cash race" },
 ];
 
 export function WhySHX() {

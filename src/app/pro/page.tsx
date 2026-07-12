@@ -7,6 +7,8 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { APP_TOKENS, SHULEVITZ_MINT, TokenInfo } from "@/lib/constants";
 import { HotPairs } from "@/components/HotPairs";
+import { PlatformTape } from "@/components/PlatformTape";
+import { WeeklyRace } from "@/components/WeeklyRace";
 import { BuySHXButton } from "@/components/BuySHXButton";
 import { useStore } from "@/store";
 import {
@@ -480,6 +482,8 @@ function ProPageInner() {
                             });
                         }}
                     />
+                    <PlatformTape variant="panel" />
+                    <WeeklyRace />
                 </div>
             </div>
         </main>

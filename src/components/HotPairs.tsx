@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Flame, TrendingUp, TrendingDown, Zap, ExternalLink } from "lucide-react";
 import { useStore } from "@/store";
 import { SHULEVITZ_MINT } from "@/lib/constants";
+import { resolveTokenImage } from "@/lib/tokenImage";
+import { TokenAvatar } from "@/components/TokenAvatar";
 
 export interface HotPair {
     address: string;
@@ -53,7 +55,10 @@ async function fetchHotPairs(): Promise<HotPair[]> {
                 change24h: pair.priceChange?.h24 || 0,
                 volume24h: pair.volume?.h24 || 0,
                 liquidity: pair.liquidity?.usd || 0,
-                imageUrl: "/icons/icon-192.png",
+                imageUrl: resolveTokenImage({
+                    mint: SHULEVITZ_MINT,
+                    imageUrl: pair.info?.imageUrl,
+                }),
             });
         }
     } catch {
@@ -74,7 +79,6 @@ async function fetchHotPairs(): Promise<HotPair[]> {
                 if (seen.has(mint)) continue;
                 seen.add(mint);
 
-                // Enrich with pair data
                 try {
                     const pr = await fetch(
                         `https://api.dexscreener.com/latest/dex/tokens/${mint}`
@@ -87,6 +91,14 @@ async function fetchHotPairs(): Promise<HotPair[]> {
                                 (b.volume?.h24 || 0) - (a.volume?.h24 || 0)
                         )[0];
                     if (!pair) continue;
+
+                    // CRITICAL: b.icon is a CMS id, not a URL — never use raw
+                    const imageUrl = resolveTokenImage({
+                        mint,
+                        icon: b.icon,
+                        imageUrl: pair.info?.imageUrl,
+                    });
+
                     results.push({
                         address: mint,
                         symbol: pair.baseToken?.symbol || b.symbol || "???",
@@ -95,7 +107,7 @@ async function fetchHotPairs(): Promise<HotPair[]> {
                         change24h: pair.priceChange?.h24 || 0,
                         volume24h: pair.volume?.h24 || 0,
                         liquidity: pair.liquidity?.usd || 0,
-                        imageUrl: b.icon || pair.info?.imageUrl,
+                        imageUrl,
                     });
                 } catch {
                     /* skip */
@@ -107,7 +119,7 @@ async function fetchHotPairs(): Promise<HotPair[]> {
         /* fallback below */
     }
 
-    // Fallback: high-volume search if boosts empty
+    // Fallback: high-volume majors if boosts empty
     if (results.length < 4) {
         try {
             const majors = [
@@ -135,7 +147,10 @@ async function fetchHotPairs(): Promise<HotPair[]> {
                     change24h: pair.priceChange?.h24 || 0,
                     volume24h: pair.volume?.h24 || 0,
                     liquidity: pair.liquidity?.usd || 0,
-                    imageUrl: pair.info?.imageUrl,
+                    imageUrl: resolveTokenImage({
+                        mint,
+                        imageUrl: pair.info?.imageUrl,
+                    }),
                 });
             }
         } catch {
@@ -187,7 +202,6 @@ export function HotPairs({
         setChartToken({ address: p.address, symbol: p.symbol });
         setPreferredOutputMint(p.address);
         setChartVisible(true);
-        // Pro desk with this token
         router.push(`/pro?mint=${p.address}&symbol=${encodeURIComponent(p.symbol)}`);
     };
 
@@ -212,12 +226,12 @@ export function HotPairs({
                             onClick={() => handleClick(p)}
                             className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left"
                         >
-                            {p.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={p.imageUrl} alt="" className="w-8 h-8 rounded-full" />
-                            ) : (
-                                <div className="w-8 h-8 rounded-full bg-white/10" />
-                            )}
+                            <TokenAvatar
+                                mint={p.address}
+                                symbol={p.symbol}
+                                imageUrl={p.imageUrl}
+                                size={32}
+                            />
                             <div className="flex-1 min-w-0">
                                 <div className="text-sm font-bold text-white">{p.symbol}</div>
                                 <div className="text-[10px] text-muted-foreground truncate">
@@ -280,16 +294,12 @@ export function HotPairs({
                             }`}
                         >
                             <div className="flex items-center gap-1.5 mb-1.5">
-                                {p.imageUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                        src={p.imageUrl}
-                                        alt=""
-                                        className="w-5 h-5 rounded-full"
-                                    />
-                                ) : (
-                                    <div className="w-5 h-5 rounded-full bg-white/10" />
-                                )}
+                                <TokenAvatar
+                                    mint={p.address}
+                                    symbol={p.symbol}
+                                    imageUrl={p.imageUrl}
+                                    size={20}
+                                />
                                 <span className="text-xs font-black text-white truncate">
                                     {p.symbol}
                                 </span>

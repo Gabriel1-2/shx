@@ -12,6 +12,8 @@ import { SavingsCalculator } from "@/components/SavingsCalculator";
 import { QualifyProgress } from "@/components/QualifyProgress";
 import { PayoutsFeed } from "@/components/PayoutsFeed";
 import { HotPairs } from "@/components/HotPairs";
+import { PlatformTape } from "@/components/PlatformTape";
+import { WeeklyRace } from "@/components/WeeklyRace";
 import { BuySHXButton } from "@/components/BuySHXButton";
 import dynamic from "next/dynamic";
 import { SHULEVITZ_MINT } from "@/lib/constants";
@@ -81,8 +83,12 @@ function HomeContent() {
           <QualifyProgress />
         </div>
 
-        <div className={`mb-6 ${isMarketsMobile ? "hidden md:block" : ""}`}>
+        <div className={`mb-4 ${isMarketsMobile ? "hidden md:block" : ""}`}>
           <HotPairs />
+        </div>
+
+        <div className={`mb-6 ${isMarketsMobile ? "hidden md:block" : ""}`}>
+          <PlatformTape />
         </div>
 
         {/* Live trader counter */}
@@ -175,6 +181,8 @@ function HomeContent() {
           {!isChartVisible && (
             <div className="hidden xl:block xl:col-span-3 space-y-4 animate-in fade-in slide-in-from-right duration-500">
               <LiveTradersTracker />
+              <WeeklyRace />
+              <PlatformTape variant="panel" />
               <SavingsCalculator />
               <PayoutsFeed />
               <Leaderboard />
