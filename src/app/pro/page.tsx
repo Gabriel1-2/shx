@@ -1,15 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { APP_TOKENS, SHULEVITZ_MINT } from "@/lib/constants";
+import { APP_TOKENS, SHULEVITZ_MINT, TokenInfo } from "@/lib/constants";
+import { HotPairs } from "@/components/HotPairs";
+import { BuySHXButton } from "@/components/BuySHXButton";
+import { useStore } from "@/store";
 import {
     TrendingUp, TrendingDown, Activity, Zap,
     ChevronDown, BarChart2, Loader2, ExternalLink,
     DollarSign, ArrowDownUp, Droplets, PieChart,
-    Target, RefreshCw, List
+    Target, RefreshCw, List, Search
 } from "lucide-react";
 
 const JupiterTerminal = dynamic(() => import("@/components/JupiterTerminal"), {
@@ -164,14 +168,97 @@ function MarketStats({ pairData, symbol }: { pairData: PairData | null; symbol: 
 }
 
 // ── Main Page ──
-export default function ProPage() {
+function ProPageInner() {
     const { connected } = useWallet();
-    const [activeToken, setActiveToken] = useState(APP_TOKENS[0]);
+    const searchParams = useSearchParams();
+    const setPreferredOutputMint = useStore((s) => s.setPreferredOutputMint);
+    const setChartToken = useStore((s) => s.setChartToken);
+    const [activeToken, setActiveToken] = useState<TokenInfo>(APP_TOKENS[0]);
     const [pairData, setPairData] = useState<PairData | null>(null);
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(true);
     const [showTokenList, setShowTokenList] = useState(false);
+    const [tokenSearch, setTokenSearch] = useState("");
+    const [searchHits, setSearchHits] = useState<TokenInfo[]>([]);
+    const [searching, setSearching] = useState(false);
     const [activeTab, setActiveTab] = useState<"swap" | "limit" | "dca" | "orders">("swap");
+
+    // Deep-link ?mint= & symbol=
+    useEffect(() => {
+        const mint = searchParams.get("mint");
+        const symbol = searchParams.get("symbol") || "TOKEN";
+        if (mint) {
+            const known = APP_TOKENS.find((t) => t.address === mint);
+            const tok: TokenInfo = known || {
+                symbol,
+                name: symbol,
+                address: mint,
+                logo: "◎",
+                isImage: false,
+                decimals: 9,
+            };
+            setActiveToken(tok);
+            setPreferredOutputMint(mint);
+            setChartToken({ address: mint, symbol });
+        }
+    }, [searchParams, setPreferredOutputMint, setChartToken]);
+
+    const selectToken = (tok: TokenInfo) => {
+        setActiveToken(tok);
+        setPreferredOutputMint(tok.address);
+        setChartToken({ address: tok.address, symbol: tok.symbol });
+        setShowTokenList(false);
+        setTokenSearch("");
+        setSearchHits([]);
+        setChartLoading(true);
+        setActiveTab("swap");
+    };
+
+    // Jupiter token search for full Solana universe
+    useEffect(() => {
+        if (!tokenSearch || tokenSearch.length < 2) {
+            setSearchHits([]);
+            return;
+        }
+        let cancelled = false;
+        setSearching(true);
+        const t = setTimeout(async () => {
+            try {
+                const ds = await fetch(
+                    `https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(tokenSearch)}`
+                );
+                const data = await ds.json();
+                if (cancelled) return;
+                const pairs = (data.pairs || [])
+                    .filter((p: any) => p.chainId === "solana")
+                    .slice(0, 15);
+                const mapped: TokenInfo[] = pairs.map((p: any) => ({
+                    symbol: p.baseToken?.symbol || "???",
+                    name: p.baseToken?.name || "",
+                    address: p.baseToken?.address || "",
+                    logo: p.info?.imageUrl || "◎",
+                    isImage: !!p.info?.imageUrl,
+                    decimals: 9,
+                })).filter((t: TokenInfo) => t.address);
+                // Dedupe
+                const seen = new Set<string>();
+                const unique = mapped.filter((t) => {
+                    if (seen.has(t.address)) return false;
+                    seen.add(t.address);
+                    return true;
+                });
+                setSearchHits(unique);
+            } catch {
+                if (!cancelled) setSearchHits([]);
+            } finally {
+                if (!cancelled) setSearching(false);
+            }
+        }, 350);
+        return () => {
+            cancelled = true;
+            clearTimeout(t);
+        };
+    }, [tokenSearch]);
 
     const loadData = useCallback(async () => {
         const pair = await fetchPairData(activeToken.address);
@@ -218,21 +305,40 @@ export default function ProPage() {
                             <ChevronDown size={14} className={`text-muted-foreground transition-transform ${showTokenList ? "rotate-180" : ""}`} />
                         </button>
                         {showTokenList && (
-                            <div className="absolute top-full mt-1 left-0 z-50 bg-black/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl min-w-[200px]">
-                                {APP_TOKENS.map((token) => (
-                                    <button
-                                        key={token.address}
-                                        onClick={() => { setActiveToken(token); setShowTokenList(false); }}
-                                        className={`w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/10 transition-colors ${activeToken.address === token.address ? "bg-primary/10 text-primary" : "text-white"}`}
-                                    >
-                                        <TokenLogo token={token} size={20} />
-                                        <span className="font-bold text-sm">{token.symbol}</span>
-                                        <span className="text-xs text-muted-foreground ml-auto">{token.name}</span>
-                                    </button>
-                                ))}
+                            <div className="absolute top-full mt-1 left-0 z-50 bg-black/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl w-[280px]">
+                                <div className="p-2 border-b border-white/5">
+                                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/5">
+                                        <Search size={12} className="text-muted-foreground" />
+                                        <input
+                                            autoFocus
+                                            value={tokenSearch}
+                                            onChange={(e) => setTokenSearch(e.target.value)}
+                                            placeholder="Search any Solana token…"
+                                            className="flex-1 bg-transparent text-xs text-white outline-none"
+                                        />
+                                        {searching && <Loader2 size={12} className="animate-spin text-primary" />}
+                                    </div>
+                                </div>
+                                <div className="max-h-64 overflow-y-auto">
+                                    {(tokenSearch.length >= 2 ? searchHits : APP_TOKENS).map((token) => (
+                                        <button
+                                            key={token.address}
+                                            onClick={() => selectToken(token)}
+                                            className={`w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/10 transition-colors ${activeToken.address === token.address ? "bg-primary/10 text-primary" : "text-white"}`}
+                                        >
+                                            <TokenLogo token={token} size={20} />
+                                            <span className="font-bold text-sm">{token.symbol}</span>
+                                            <span className="text-xs text-muted-foreground ml-auto truncate max-w-[100px]">{token.name}</span>
+                                        </button>
+                                    ))}
+                                    {tokenSearch.length >= 2 && searchHits.length === 0 && !searching && (
+                                        <p className="text-xs text-muted-foreground text-center py-4">No results</p>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
+                    <BuySHXButton size="sm" />
 
                     {/* Live Price */}
                     <div className="flex items-center gap-2">
@@ -274,6 +380,22 @@ export default function ProPage() {
                 <TokenStat label="Liq" value={loading ? "..." : fmt(pairData?.liquidity || 0)} color="text-cyan-400" />
                 <TokenStat label="Buys" value={loading ? "..." : `${pairData?.txns24h.buys || 0}`} color="text-green-400" />
                 <TokenStat label="Sells" value={loading ? "..." : `${pairData?.txns24h.sells || 0}`} color="text-red-400" />
+            </div>
+
+            {/* Hot pairs discovery */}
+            <div className="max-w-[1800px] mx-auto px-3 lg:px-3 pt-3">
+                <HotPairs
+                    onSelect={(p) => {
+                        selectToken({
+                            symbol: p.symbol,
+                            name: p.name,
+                            address: p.address,
+                            logo: p.imageUrl || "◎",
+                            isImage: !!p.imageUrl,
+                            decimals: 9,
+                        });
+                    }}
+                />
             </div>
 
             {/* Main Grid */}
@@ -345,8 +467,29 @@ export default function ProPage() {
 
                     {/* Market Stats — 100% real data */}
                     <MarketStats pairData={pairData} symbol={activeToken.symbol} />
+                    <HotPairs
+                        variant="grid"
+                        onSelect={(p) => {
+                            selectToken({
+                                symbol: p.symbol,
+                                name: p.name,
+                                address: p.address,
+                                logo: p.imageUrl || "◎",
+                                isImage: !!p.imageUrl,
+                                decimals: 9,
+                            });
+                        }}
+                    />
                 </div>
             </div>
         </main>
+    );
+}
+
+export default function ProPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-background" />}>
+            <ProPageInner />
+        </Suspense>
     );
 }

@@ -8,6 +8,10 @@ interface GlobalState {
 
     chartToken: { address: string; symbol: string };
     setChartToken: (token: { address: string; symbol: string }) => void;
+
+    /** Preferred swap output mint (Hot pairs / Buy SHX / Pro deep-links) */
+    preferredOutputMint: string | null;
+    setPreferredOutputMint: (mint: string | null) => void;
 }
 
 export const useStore = create<GlobalState>((set) => ({
@@ -17,4 +21,7 @@ export const useStore = create<GlobalState>((set) => ({
 
     chartToken: { address: SHULEVITZ_MINT, symbol: "SHX" },
     setChartToken: (token) => set({ chartToken: token }),
+
+    preferredOutputMint: null,
+    setPreferredOutputMint: (mint) => set({ preferredOutputMint: mint }),
 }));

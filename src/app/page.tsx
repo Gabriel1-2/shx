@@ -11,6 +11,8 @@ import { WhySHX } from "@/components/WhySHX";
 import { SavingsCalculator } from "@/components/SavingsCalculator";
 import { QualifyProgress } from "@/components/QualifyProgress";
 import { PayoutsFeed } from "@/components/PayoutsFeed";
+import { HotPairs } from "@/components/HotPairs";
+import { BuySHXButton } from "@/components/BuySHXButton";
 import dynamic from "next/dynamic";
 import { SHULEVITZ_MINT } from "@/lib/constants";
 
@@ -64,10 +66,23 @@ function HomeContent() {
             Jupiter Ultra routes · SHX fee tiers · USDC referrals · Agent API · Limit &amp; DCA.
             Self-custody. Zero KYC.
           </p>
+          <div className={`mt-4 flex flex-wrap justify-center gap-2 ${isMarketsMobile ? "hidden md:flex" : ""}`}>
+            <BuySHXButton size="lg" />
+            <a
+              href="/pro"
+              className="inline-flex items-center px-6 py-3.5 rounded-xl border border-white/15 bg-white/5 text-white text-sm font-bold hover:bg-white/10"
+            >
+              Open Pro Desk
+            </a>
+          </div>
         </div>
 
         <div className={`mb-4 max-w-2xl mx-auto ${isMarketsMobile ? "hidden md:block" : ""}`}>
           <QualifyProgress />
+        </div>
+
+        <div className={`mb-6 ${isMarketsMobile ? "hidden md:block" : ""}`}>
+          <HotPairs />
         </div>
 
         {/* Live trader counter */}

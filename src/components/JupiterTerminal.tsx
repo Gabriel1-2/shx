@@ -9,6 +9,7 @@ import { useSHXTier } from "@/hooks/useSHXTier";
 import { isSHXBuy, FEE_TIERS } from "@/lib/feeTiers";
 import { TierBadge } from "@/components/TierBadge";
 import { SHULEVITZ_MINT } from "@/lib/constants";
+import { useStore } from "@/store";
 
 // Jupiter Plugin script URL (v1 — confirmed by Jupiter dev team)
 const JUPITER_SCRIPT_SRC = "https://plugin.jup.ag/plugin-v1.js";
@@ -29,16 +30,51 @@ declare global {
 export default function JupiterTerminal() {
     const { wallet, publicKey, connected } = useWallet();
     const { setVisible } = useWalletModal();
+    const preferredOutputMint = useStore((s) => s.preferredOutputMint);
+    const setPreferredOutputMint = useStore((s) => s.setPreferredOutputMint);
     const [isLoaded, setIsLoaded] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
     const [lastTx, setLastTx] = useState<string | null>(null);
     const [isBuyingSHX, setIsBuyingSHX] = useState(false);
     const [apeMode, setApeMode] = useState(false);
+    const [urlOutput, setUrlOutput] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const lastInitKey = useRef<string | null>(null);
+
+    // Deep-link from URL without useSearchParams (avoids Suspense requirement)
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sp = new URLSearchParams(window.location.search);
+        const out =
+            sp.get("output") ||
+            sp.get("outputMint") ||
+            (sp.get("focus") === "shx" ? SHULEVITZ_MINT : null) ||
+            sp.get("mint");
+        if (out) setUrlOutput(out);
+    }, []);
+
+    const initialOutput = preferredOutputMint || urlOutput || USDC_MINT;
+
     const currentOutputMint = useRef<string>(USDC_MINT);
     const apeModeRef = useRef(false);
     apeModeRef.current = apeMode;
+
+    useEffect(() => {
+        if (urlOutput) {
+            currentOutputMint.current = urlOutput;
+            setIsBuyingSHX(isSHXBuy(urlOutput));
+            setPreferredOutputMint(urlOutput);
+            lastInitKey.current = null;
+        }
+    }, [urlOutput, setPreferredOutputMint]);
+
+    useEffect(() => {
+        if (preferredOutputMint) {
+            currentOutputMint.current = preferredOutputMint;
+            setIsBuyingSHX(isSHXBuy(preferredOutputMint));
+            lastInitKey.current = null;
+        }
+    }, [preferredOutputMint]);
 
     // ─── REFS to avoid stale closures in Jupiter callbacks ───
     const publicKeyRef = useRef(publicKey);
@@ -80,7 +116,7 @@ export default function JupiterTerminal() {
                 fixedInputMint: false,
                 fixedOutputMint: false,
                 initialInputMint: SOL_MINT,
-                initialOutputMint: currentOutputMint.current || USDC_MINT,
+                initialOutputMint: currentOutputMint.current || initialOutput || USDC_MINT,
                 // Ape Mode: 1% slippage for launches; default 0.5%
                 initialSlippageBps: ape ? 100 : 50,
             };
@@ -192,18 +228,19 @@ export default function JupiterTerminal() {
         } catch (e) {
             console.error("[Jupiter] Init failed:", e);
         }
-    }, [isLoaded, wallet, publicKey, tierData.feeBps]);
+    }, [isLoaded, wallet, publicKey, tierData.feeBps, initialOutput]);
     
     useEffect(() => {
         initJupiterRef.current = initJupiter;
     }, [initJupiter]);
 
-    // Initialize Jupiter when script loads, wallet, fee tier, or Ape Mode changes
+    // Initialize Jupiter when script loads, wallet, fee tier, Ape Mode, or output mint changes
     useEffect(() => {
         if (!isLoaded || !window.Jupiter) return;
 
         const effectiveFeeBps = isBuyingSHX ? 0 : tierData.feeBps;
-        const key = `${effectiveFeeBps}:${apeMode ? "ape" : "std"}`;
+        const out = currentOutputMint.current || initialOutput;
+        const key = `${effectiveFeeBps}:${apeMode ? "ape" : "std"}:${out}`;
         if (lastInitKey.current === key && isInitialized) return;
 
         const timer = setTimeout(() => {
@@ -211,7 +248,7 @@ export default function JupiterTerminal() {
         }, 200);
 
         return () => clearTimeout(timer);
-    }, [isLoaded, wallet, publicKey, tierData.feeBps, isBuyingSHX, apeMode, initJupiter, isInitialized]);
+    }, [isLoaded, wallet, publicKey, tierData.feeBps, isBuyingSHX, apeMode, initJupiter, isInitialized, initialOutput, preferredOutputMint]);
 
     // Compute savings message
     const baseFee = FEE_TIERS[0].feePercent;

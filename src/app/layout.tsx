@@ -14,6 +14,7 @@ import { ReferralBanner } from "@/components/ReferralBanner";
 import { Onboarding } from "@/components/Onboarding";
 import { TradeToastListener } from "@/components/TradeToastListener";
 import { MobileNav } from "@/components/MobileNav";
+import { TrustProofBar } from "@/components/TrustProofBar";
 
 const mono = JetBrains_Mono({ subsets: ["latin"] });
 
@@ -73,6 +74,7 @@ export default function RootLayout({
                     <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[50%] bg-purple-500/10 blur-[120px] rounded-full mix-blend-screen animate-pulse" style={{ animationDelay: '2s' }} />
                 </div>
                 <Header />
+                <TrustProofBar />
                 <BackgroundSyncer />
                 <Suspense fallback={null}>
                   <ReferralCapture />

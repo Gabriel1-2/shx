@@ -266,7 +266,24 @@ export default function BuyPage() {
                     </h1>
                     <p className="text-muted-foreground text-base max-w-xl mx-auto">
                         Purchase SOL directly to your wallet — right here on SHX. Apple Pay, Google Pay, and cards accepted.
+                        Then swap into SHX at <span className="text-primary font-bold">0% platform fee</span>.
                     </p>
+                </div>
+
+                {/* One-flow: fiat → SHX */}
+                <div className="mb-8 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 to-emerald-500/5 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div>
+                        <p className="text-sm font-black text-white">Elite path: Buy SOL → Buy SHX 0%</p>
+                        <p className="text-xs text-muted-foreground">
+                            On-ramp here, then one tap to SHX with no platform fee. Hold SHX → lower trading fees forever.
+                        </p>
+                    </div>
+                    <a
+                        href="/?output=336xqC8BDQ4MBKyDBye2qtMhRvDKu3ccr5R5bnMbaU4Q&focus=shx"
+                        className="shrink-0 px-4 py-2.5 rounded-xl bg-primary text-black text-xs font-black hover:opacity-90"
+                    >
+                        Step 2 · Buy SHX 0% →
+                    </a>
                 </div>
 
                 {/* Trust Badges */}
