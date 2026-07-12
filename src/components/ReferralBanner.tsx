@@ -49,30 +49,30 @@ export function ReferralBanner() {
 
     return (
         <div className="relative z-40 border-b border-primary/30 bg-gradient-to-r from-primary/20 via-emerald-500/15 to-purple-500/20 backdrop-blur-xl">
-            <div className="max-w-7xl mx-auto px-3 py-2.5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0">
-                        <Gift size={16} className="text-primary" />
+            <div className="max-w-7xl mx-auto px-2.5 md:px-3 py-2 md:py-2.5 flex items-center justify-between gap-2 md:gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0">
+                        <Gift size={14} className="text-primary" />
                     </div>
                     <div className="min-w-0">
-                        <div className="text-xs md:text-sm font-black text-white flex items-center gap-1.5">
-                            <Sparkles size={12} className="text-primary shrink-0" />
-                            Invite active — claim your bonuses
+                        <div className="text-[11px] md:text-sm font-black text-white flex items-center gap-1.5">
+                            <Sparkles size={11} className="text-primary shrink-0" />
+                            <span className="truncate">Invite active</span>
                         </div>
-                        <p className="text-[10px] md:text-xs text-muted-foreground truncate">
-                            Code <span className="text-primary font-mono font-bold">{code}</span>
-                            {" · "}+250 XP on connect · cashback after $100+ volume
+                        <p className="text-[9px] md:text-xs text-muted-foreground truncate">
+                            <span className="text-primary font-mono font-bold">{code}</span>
+                            <span className="hidden sm:inline"> · +250 XP · cashback after $100+</span>
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
                     {!connected && (
                         <button
                             type="button"
                             onClick={() => setVisible(true)}
-                            className="px-3 py-1.5 rounded-lg bg-primary text-black text-xs font-black hover:opacity-90"
+                            className="px-2.5 md:px-3 py-1.5 rounded-full md:rounded-lg bg-primary text-black text-[10px] md:text-xs font-black active:scale-95 transition-transform min-h-[32px]"
                         >
-                            Connect & Claim
+                            Claim
                         </button>
                     )}
                     {connected && (

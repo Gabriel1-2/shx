@@ -145,27 +145,6 @@
   transform: translateY(-1px);
 }
 
-/* Mobile Wallet Button */
-@media (max-width: 768px) {
-  .shx-wallet-adapter .wallet-adapter-button {
-    height: 32px !important;
-    padding: 0 10px !important;
-    font-size: 10px !important;
-    max-width: 110px !important;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    display: flex;
-    justify-content: flex-start;
-  }
-  .shx-wallet-adapter .wallet-adapter-button-start-icon {
-    width: 14px !important;
-    height: 14px !important;
-    margin-right: 4px !important;
-    flex-shrink: 0;
-  }
-}
-
 /* Desktop Wallet Button */
 @media (min-width: 769px) {
   .shx-wallet-adapter .wallet-adapter-button {
@@ -175,61 +154,151 @@
   }
 }
 
-/* Mobile-first improvements */
-@media (max-width: 640px) {
-  /* Prevent overflow on small screens */
-  .container {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-  }
-
-  /* Bottom Navigation Bar Spacer */
-  body {
-    padding-bottom: 5rem;
-  }
-
-  /* Smoother touch scrolling */
-  * {
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  /* Wallet modal improvements */
-  .wallet-adapter-modal-wrapper {
-    padding: 16px !important;
-  }
-}
-
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Hide scrollbar utility */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+html,
+body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+
+/* ─── Mobile experience overhaul ─── */
+@media (max-width: 768px) {
+  .container {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Wallet button — pill, touch-friendly */
+  .shx-wallet-adapter .wallet-adapter-button {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 12px !important;
+    font-size: 11px !important;
+    max-width: 118px !important;
+    border-radius: 999px !important;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 0 18px rgba(34, 197, 94, 0.35) !important;
+  }
+  .shx-wallet-adapter .wallet-adapter-button-start-icon {
+    width: 14px !important;
+    height: 14px !important;
+    margin-right: 5px !important;
+    flex-shrink: 0;
+  }
+
+  .wallet-adapter-modal-wrapper {
+    padding: 12px !important;
+    align-items: flex-end !important;
+  }
+  .wallet-adapter-modal {
+    border-radius: 1.25rem 1.25rem 0 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+  .wallet-adapter-modal-list {
+    margin: 0 0 0.5rem !important;
+  }
+  .wallet-adapter-modal-list li {
+    border-radius: 0.85rem !important;
+  }
+
+  /* Jupiter terminal — tighter, full-bleed feel */
+  .mobile-terminal-shell {
+    border-radius: 1.25rem;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 20px 50px rgba(0, 0, 0, 0.45),
+      0 0 40px rgba(34, 197, 94, 0.08);
+  }
+
+  #jupiter-terminal {
+    min-height: 400px !important;
+  }
+
+  /* Horizontal tapes snap nicely */
+  .scrollbar-hide {
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Inputs: prevent iOS zoom (16px min) on wallet modal fields if any */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Floating dock polish */
+.mobile-dock {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.mobile-nav-item:active {
+  transform: scale(0.94);
+}
+
+/* Soft spring for open panels */
+@keyframes mobileSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fadeIn {
+  animation: mobileSlideUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeIn,
+  .animate-pulse,
+  .animate-ping {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ─── PWA Standalone Mode ─── */
 @media (display-mode: standalone) {
   body {
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
-  header {
-    padding-top: env(safe-area-inset-top) !important;
+}
+
+/* Touch-friendly focus rings for a11y */
+@media (max-width: 768px) {
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
   }
 }
 
-/* PWA Selection + Overscroll */
-html, body {
-  overscroll-behavior: none;
-  -webkit-user-select: none;
-  user-select: auto;
+/* Hot pair cards slightly smaller on phone */
+@media (max-width: 480px) {
+  .mobile-terminal-shell #jupiter-terminal {
+    min-height: 380px !important;
+  }
 }

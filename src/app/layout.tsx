@@ -47,11 +47,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#22c55e",
+  themeColor: "#0a0a0a",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -84,17 +85,21 @@ export default function RootLayout({
                 <Onboarding />
                 <TradeToastListener />
                 <DebugLogsViewer />
-                <div className="pb-20 md:pb-0">{children}</div>
-                <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto mb-16 md:mb-0">
-                  <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
-                    <span className="text-xs text-muted-foreground">© 2026 Shulevitz Holdings Inc. All rights reserved.</span>
-                    <div className="flex items-center gap-4 flex-wrap justify-center">
-                      <a href="/referrals" className="text-xs text-emerald-400/80 hover:text-emerald-400 transition-colors">Referrals</a>
-                      <a href="/pro" className="text-xs text-muted-foreground hover:text-primary transition-colors">Pro</a>
-                      <a href="/api/agent/health" className="text-xs text-muted-foreground hover:text-primary transition-colors">Agent API</a>
-                      <a href="/whitepaper" className="text-xs text-muted-foreground hover:text-primary transition-colors">White Paper</a>
-                      <a href="/privacy" className="text-xs text-muted-foreground hover:text-primary transition-colors">Privacy</a>
-                      <a href="/terms" className="text-xs text-muted-foreground hover:text-primary transition-colors">Terms</a>
+                <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 min-h-[50vh]">
+                  {children}
+                </div>
+                <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto mb-[calc(4.5rem+env(safe-area-inset-bottom))] md:mb-0">
+                  <div className="max-w-7xl mx-auto px-4 py-4 md:py-6 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-3">
+                    <span className="text-[10px] md:text-xs text-muted-foreground text-center">
+                      © 2026 Shulevitz Holdings Inc.
+                    </span>
+                    <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-center">
+                      <a href="/referrals" className="text-[10px] md:text-xs text-emerald-400/80 hover:text-emerald-400 transition-colors">Referrals</a>
+                      <a href="/pro" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Pro</a>
+                      <a href="/api/mcp" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors hidden sm:inline">MCP</a>
+                      <a href="/whitepaper" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Paper</a>
+                      <a href="/privacy" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Privacy</a>
+                      <a href="/terms" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Terms</a>
                     </div>
                   </div>
                 </footer>

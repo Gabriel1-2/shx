@@ -48,15 +48,16 @@ export function TrustProofBar() {
     };
 
     return (
-        <div className="border-b border-white/5 bg-black/70 backdrop-blur-xl">
-            <div className="max-w-[1600px] mx-auto px-3 md:px-6 py-1.5 flex items-center gap-3 md:gap-6 overflow-x-auto scrollbar-hide text-[10px] md:text-[11px]">
-                <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
+        <div className="border-b border-white/5 bg-black/80 backdrop-blur-xl">
+            <div className="max-w-[1600px] mx-auto px-2.5 md:px-6 py-1 md:py-1.5 flex items-center gap-2.5 md:gap-6 overflow-x-auto scrollbar-hide text-[9px] md:text-[11px] snap-x snap-mandatory">
+                <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground snap-start">
                     <span className="relative flex h-1.5 w-1.5">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
                         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-500" />
                     </span>
                     <Shield size={11} className="text-primary" />
-                    <span className="font-bold text-white/80">Live ledger</span>
+                    <span className="font-bold text-white/80 hidden sm:inline">Live ledger</span>
+                    <span className="font-bold text-white/80 sm:hidden">Live</span>
                 </div>
 
                 <Stat icon={Users} label="Wallets traded" value={stats.traders.toLocaleString()} />

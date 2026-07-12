@@ -193,12 +193,12 @@ export function PlatformTape({ variant = "tape" }: { variant?: "tape" | "panel" 
                 </span>
                 <Zap size={12} className="text-emerald-400 ml-auto" />
             </div>
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3 py-3">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3 py-2.5 md:py-3 snap-x snap-mandatory">
                 {loading && trades.length === 0 &&
                     Array.from({ length: 5 }).map((_, i) => (
                         <div
                             key={i}
-                            className="shrink-0 w-44 h-[72px] rounded-xl bg-white/5 animate-pulse"
+                            className="shrink-0 w-40 md:w-44 h-[68px] md:h-[72px] rounded-xl bg-white/5 animate-pulse snap-start"
                         />
                     ))}
                 {!loading && trades.length === 0 && (
@@ -215,7 +215,7 @@ export function PlatformTape({ variant = "tape" }: { variant?: "tape" | "panel" 
                             key={t.id}
                             type="button"
                             onClick={() => ape(t.outputMint, outSym)}
-                            className={`shrink-0 w-48 rounded-xl border p-2.5 text-left transition-all hover:scale-[1.02] ${
+                            className={`shrink-0 w-[11.5rem] md:w-48 snap-start rounded-xl border p-2.5 text-left transition-all active:scale-[0.97] hover:scale-[1.02] ${
                                 flashId === t.id
                                     ? "border-primary bg-primary/20"
                                     : isShx

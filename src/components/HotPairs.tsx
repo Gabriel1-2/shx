@@ -271,12 +271,12 @@ export function HotPairs({
                 </span>
                 <Zap size={12} className="text-primary ml-auto" />
             </div>
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3 py-3">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3 py-2.5 md:py-3 snap-x snap-mandatory">
                 {loading &&
                     Array.from({ length: 6 }).map((_, i) => (
                         <div
                             key={i}
-                            className="shrink-0 w-36 h-20 rounded-xl bg-white/5 animate-pulse"
+                            className="shrink-0 w-[8.5rem] md:w-36 h-[4.5rem] md:h-20 rounded-xl bg-white/5 animate-pulse snap-start"
                         />
                     ))}
                 {pairs.map((p) => {
@@ -287,7 +287,7 @@ export function HotPairs({
                             key={p.address}
                             type="button"
                             onClick={() => handleClick(p)}
-                            className={`shrink-0 w-40 rounded-xl border p-3 text-left transition-all hover:scale-[1.03] ${
+                            className={`shrink-0 w-[8.75rem] md:w-40 snap-start rounded-xl border p-2.5 md:p-3 text-left transition-all active:scale-[0.97] hover:scale-[1.03] ${
                                 isShx
                                     ? "border-primary/40 bg-primary/10 shadow-[0_0_20px_rgba(34,197,94,0.15)]"
                                     : "border-white/10 bg-black/50 hover:border-white/20"

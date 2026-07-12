@@ -460,29 +460,29 @@ export default function JupiterTerminal() {
                 </div>
             </div>
 
-            {/* Ape / turbo strip + size presets */}
+            {/* Ape / turbo strip + size presets — sticky-feel on mobile */}
             <div
-                className={`px-3 py-2 border-x space-y-2 ${
+                className={`px-2.5 md:px-3 py-2 border-x space-y-1.5 md:space-y-2 ${
                     apeMode || turboLand
                         ? "bg-orange-500/10 border-orange-500/20"
                         : "bg-black/40 border-white/10"
                 }`}
             >
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground flex-wrap">
+                <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] text-muted-foreground flex-wrap">
                     {(apeMode || turboLand) && (
                         <>
                             <Shield size={10} className="text-orange-300" />
                             <span className="text-orange-300">
                                 Slip {slippageForMode(apeMode, turboLand) / 100}%
-                                {turboLand ? " · turbo land" : ""} · size carefully
+                                {turboLand ? " · turbo" : ""}
                             </span>
                             <span className="text-white/20">·</span>
                         </>
                     )}
                     <Gauge size={10} />
-                    <span>Quick size (SOL → out)</span>
+                    <span>Quick size</span>
                 </div>
-                <div className="flex gap-1.5 flex-wrap">
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide snap-x pb-0.5 -mx-0.5 px-0.5">
                     {APE_SIZES.map((s) => {
                         const on = apeSizeLamports === s.lamports;
                         return (
@@ -492,13 +492,13 @@ export default function JupiterTerminal() {
                                 onClick={() =>
                                     selectSize(on ? null : s.lamports)
                                 }
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                                className={`snap-start shrink-0 min-h-[36px] min-w-[3.25rem] px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
                                     on
                                         ? "bg-primary/25 border-primary text-primary shadow-[0_0_12px_rgba(34,197,94,0.25)]"
-                                        : "bg-white/5 border-white/10 text-white hover:border-white/25"
+                                        : "bg-white/5 border-white/10 text-white active:border-white/25"
                                 }`}
                             >
-                                {s.label} SOL
+                                {s.label}
                             </button>
                         );
                     })}
@@ -506,7 +506,7 @@ export default function JupiterTerminal() {
                         <button
                             type="button"
                             onClick={() => selectSize(null)}
-                            className="px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-white"
+                            className="shrink-0 px-2 py-1.5 rounded-xl text-[10px] text-muted-foreground active:text-white"
                         >
                             Clear
                         </button>
@@ -520,7 +520,7 @@ export default function JupiterTerminal() {
             >
                 <div
                     id="jupiter-terminal"
-                    className="min-h-[440px] w-full flex items-center justify-center"
+                    className="min-h-[400px] md:min-h-[440px] w-full flex items-center justify-center"
                 >
                     {!isLoaded && (
                         <div className="flex flex-col items-center gap-3 text-muted-foreground py-20">
