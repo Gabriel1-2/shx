@@ -299,6 +299,120 @@ body {
 /* Hot pair cards slightly smaller on phone */
 @media (max-width: 480px) {
   .mobile-terminal-shell #jupiter-terminal {
-    min-height: 380px !important;
+    min-height: 360px !important;
+  }
+}
+
+/* ─── Massive mobile polish pack ─── */
+@media (max-width: 768px) {
+  /* Card system */
+  .m-card {
+    @apply rounded-2xl border border-white/10 bg-black/45 backdrop-blur-xl;
+  }
+
+  /* Compact type scale */
+  .m-title {
+    @apply text-base font-black tracking-tight text-white;
+  }
+  .m-sub {
+    @apply text-[10px] text-muted-foreground;
+  }
+
+  /* Touch targets */
+  button,
+  a.inline-flex,
+  a[role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* Limit/DCA panels breathe less on phone */
+  .limit-panel,
+  .dca-panel {
+    padding: 0.75rem !important;
+  }
+
+  /* Leaderboard / dense lists */
+  main .rounded-2xl {
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  /* Prevent horizontal page bounce */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Footer quieter */
+  footer {
+    font-size: 10px;
+  }
+
+  /* Jupiter integrated dark polish */
+  #jupiter-terminal iframe,
+  #jupiter-terminal > div {
+    border-radius: 0 0 1rem 1rem;
+  }
+
+  /* Segmented controls feel native */
+  .mobile-dock {
+    max-width: 28rem;
+  }
+
+  /* Safe bottom space for fixed dock when scrolling long pages */
+  main {
+    padding-bottom: 0.5rem;
+  }
+
+  /* Earn / buy / legal pages */
+  main > .max-w-6xl,
+  main > .max-w-7xl,
+  main > .max-w-4xl {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* Soft selection for monospaced prices */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* iOS momentum + nested scroll */
+.overscroll-contain {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sheet shadow for bottom modals */
+.mobile-sheet {
+  box-shadow:
+    0 -12px 40px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(34, 197, 94, 0.12);
+}
+
+/* Pulse live dot utility */
+.live-dot {
+  @apply relative flex h-1.5 w-1.5;
+}
+.live-dot::before {
+  content: "";
+  @apply absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75;
+}
+.live-dot::after {
+  content: "";
+  @apply relative inline-flex h-1.5 w-1.5 rounded-full bg-green-500;
+}
+
+/* Pro desk mobile chart chrome */
+@media (max-width: 768px) {
+  iframe[title="Chart"] {
+    min-height: 220px !important;
+  }
+}
+
+/* Dashboard 2-col cards tighter text */
+@media (max-width: 640px) {
+  .text-2xl.font-bold {
+    font-size: 1.125rem;
+    line-height: 1.3;
   }
 }

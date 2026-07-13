@@ -83,11 +83,12 @@ export function WhySHX() {
                 </p>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Mobile: horizontal snap cards · Desktop: grid */}
+            <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 overflow-x-auto md:overflow-visible scrollbar-hide snap-x snap-mandatory pb-1 -mx-1 px-1 md:mx-0 md:px-0">
                 {PILLARS.map((p) => (
                     <div
                         key={p.title}
-                        className={`rounded-2xl border ${p.border} bg-gradient-to-br ${p.bg} to-transparent p-4 backdrop-blur-sm hover:scale-[1.02] transition-transform`}
+                        className={`shrink-0 w-[78vw] max-w-[280px] md:w-auto md:max-w-none snap-start rounded-2xl border ${p.border} bg-gradient-to-br ${p.bg} to-transparent p-4 backdrop-blur-sm active:scale-[0.98] md:hover:scale-[1.02] transition-transform`}
                     >
                         <p.icon size={18} className={`${p.color} mb-2`} />
                         <h3 className="text-sm font-black text-white mb-1">{p.title}</h3>

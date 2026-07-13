@@ -219,25 +219,20 @@ export default function EarnPage() {
     };
 
     return (
-        <main className="min-h-screen bg-background relative overflow-hidden pb-20">
+        <main className="min-h-screen bg-background relative overflow-x-hidden pb-8">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] md:w-[900px] h-[220px] md:h-[500px] bg-green-500/15 blur-[100px] md:blur-[150px] rounded-full pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-[50%] h-[40%] bg-primary/8 blur-[100px] rounded-full pointer-events-none hidden sm:block" />
 
-
-            {/* Background effects */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-green-500/15 blur-[150px] rounded-full pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-primary/8 blur-[120px] rounded-full pointer-events-none" />
-            <div className="absolute top-[40%] left-0 w-[400px] h-[400px] bg-emerald-500/5 blur-[100px] rounded-full pointer-events-none" />
-
-            <div className="max-w-6xl mx-auto relative z-10 px-4 md:px-8 pt-8 md:pt-12">
-                {/* ── Hero ── */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold mb-6">
-                        <span className="relative flex h-2 w-2">
+            <div className="max-w-6xl mx-auto relative z-10 px-3 md:px-8 pt-3 md:pt-12">
+                <div className="text-center mb-6 md:mb-10">
+                    <div className="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1 md:py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] md:text-xs font-bold mb-3 md:mb-6">
+                        <span className="relative flex h-1.5 w-1.5 md:h-2 md:w-2">
                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                            <span className="relative inline-flex h-full w-full rounded-full bg-green-500" />
                         </span>
-                        LIQUIDITY MINING IS LIVE
+                        LIQUIDITY LIVE
                     </div>
-                    <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tight mb-4">
+                    <h1 className="text-xl md:text-5xl lg:text-6xl font-black text-white tracking-tight mb-2 md:mb-4 leading-tight">
                         Provide Liquidity.{" "}
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-emerald-500 to-green-600">
                             Earn Yield.

@@ -134,44 +134,71 @@ function DashboardContent() {
     };
 
     return (
-        <main className="min-h-screen bg-background relative overflow-hidden">
-            {/* Animated Background */}
+        <main className="min-h-screen bg-background relative overflow-x-hidden">
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary/15 blur-[200px] rounded-full animate-pulse"></div>
-                <div className="absolute bottom-[-30%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 blur-[180px] rounded-full"></div>
-                <div className="absolute top-[30%] right-[10%] w-[40%] h-[40%] bg-emerald-500/5 blur-[150px] rounded-full"></div>
+                <div className="absolute top-[-15%] left-[-15%] w-[70%] h-[45%] bg-primary/15 blur-[100px] md:blur-[200px] rounded-full" />
+                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[40%] bg-purple-500/10 blur-[120px] rounded-full hidden sm:block" />
             </div>
 
-            <div className="relative z-10 container mx-auto p-4 md:p-6 lg:p-8">
-                <div className="mb-4">
+            <div className="relative z-10 container mx-auto px-3 py-3 md:p-6 lg:p-8">
+                <div className="md:hidden mb-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <div>
+                            <h1 className="text-base font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-lime-400 to-green-500">
+                                Your dashboard
+                            </h1>
+                            <p className="text-[10px] text-muted-foreground">
+                                Tier · volume · race · referrals
+                            </p>
+                        </div>
+                        {publicKey && (
+                            <div className="flex items-center gap-1.5">
+                                <TierBadge tier={tierData.tier} size="sm" />
+                                {userRank && userRank <= 10 && (
+                                    <span className="flex items-center gap-0.5 px-2 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-[10px] font-black text-yellow-400">
+                                        <Award size={10} />#{userRank}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mb-3 md:mb-4">
                     <QualifyProgress />
                 </div>
-                {/* Hero Header */}
-                <div className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+
+                {/* Desktop Hero */}
+                <div className="hidden md:flex mb-8 flex-col md:flex-row items-start md:items-center justify-between gap-3">
                     <div>
-                        <div className="flex items-center gap-2 md:gap-3 mb-1">
-                            <div className="p-1.5 md:p-2 rounded-xl bg-primary/20 border border-primary/30">
+                        <div className="flex items-center gap-3 mb-1">
+                            <div className="p-2 rounded-xl bg-primary/20 border border-primary/30">
                                 <Trophy className="text-primary" size={20} />
                             </div>
-                            <h1 className="text-xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-lime-400 to-green-500">
+                            <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-lime-400 to-green-500">
                                 TRADER DASHBOARD
                             </h1>
                         </div>
-                        <p className="text-xs md:text-sm text-muted-foreground">Track your performance, tier status, and climb the leaderboard</p>
+                        <p className="text-sm text-muted-foreground">
+                            Track your performance, tier status, and climb the leaderboard
+                        </p>
                     </div>
                     {publicKey && (
                         <div className="flex items-center gap-3">
                             <TierBadge tier={tierData.tier} size="md" showFee />
                             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black/60 border border-white/10 backdrop-blur-xl">
-                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                 <span className="text-xs text-muted-foreground font-mono">
-                                    {publicKey.toString().slice(0, 6)}...{publicKey.toString().slice(-4)}
+                                    {publicKey.toString().slice(0, 6)}...
+                                    {publicKey.toString().slice(-4)}
                                 </span>
                             </div>
                             {userRank && userRank <= 10 && (
                                 <div className="flex items-center gap-1 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
                                     <Award size={14} className="text-yellow-500" />
-                                    <span className="text-xs font-bold text-yellow-500">#{userRank}</span>
+                                    <span className="text-xs font-bold text-yellow-500">
+                                        #{userRank}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -180,20 +207,20 @@ function DashboardContent() {
 
                 {/* ─── SHX HOLDINGS + TIER STATUS ─── */}
                 {publicKey && (
-                    <div className="mb-8 grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="mb-5 md:mb-8 grid gap-2.5 md:gap-4 grid-cols-2 lg:grid-cols-4">
                         {/* SHX Holdings */}
-                        <div className="group relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl p-5 hover:border-green-500/20 transition-all">
+                        <div className="group relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl p-3.5 md:p-5 hover:border-green-500/20 transition-all">
                             <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <div className="relative">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Coins size={16} className="text-green-400" />
                                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider">SHX Holdings</span>
                                 </div>
-                                <div className="text-2xl font-bold text-white mb-1">
+                                <div className="text-lg md:text-2xl font-bold text-white mb-0.5 md:mb-1">
                                     {tierData.loading ? "..." : tierData.shxBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                 </div>
-                                <div className="text-sm text-muted-foreground">
-                                    ≈ ${tierData.shxValueUSD.toFixed(2)} USD
+                                <div className="text-[11px] md:text-sm text-muted-foreground">
+                                    ≈ ${tierData.shxValueUSD.toFixed(2)}
                                 </div>
                             </div>
                         </div>
@@ -272,7 +299,7 @@ function DashboardContent() {
                 )}
 
                 {/* Platform Stats */}
-                <div className="mb-8 grid gap-3 grid-cols-2 lg:grid-cols-5">
+                <div className="mb-5 md:mb-8 grid gap-2 md:gap-3 grid-cols-2 lg:grid-cols-5">
                     {[
                         { label: "24h Volume", value: platformStats.dailyVolume, isCurrency: true, icon: Activity, gradient: "from-blue-500 to-cyan-500" },
                         { label: "24h Fees", value: platformStats.dailyFees, isCurrency: true, icon: DollarSign, gradient: "from-yellow-500 to-orange-500" },
@@ -280,16 +307,16 @@ function DashboardContent() {
                         { label: "All-Time Vol", value: platformStats.totalVolume, isCurrency: true, icon: TrendingUp, gradient: "from-green-500 to-emerald-500" },
                         { label: "All-Time Fees", value: platformStats.totalFees, isCurrency: true, icon: Coins, gradient: "from-amber-400 to-orange-500" },
                     ].map((stat, i) => (
-                        <div key={i} className="group relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl p-4 hover:border-white/10 transition-all duration-300 hover:scale-[1.02]">
+                        <div key={i} className={`group relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl p-3 md:p-4 hover:border-white/10 transition-all duration-300 ${i === 4 ? "col-span-2 lg:col-span-1" : ""}`}>
                             <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity`}></div>
                             <div className="relative">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className={`p-1.5 rounded-lg bg-gradient-to-br ${stat.gradient} bg-opacity-20`}>
-                                        <stat.icon size={12} className="text-white" />
+                                <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
+                                    <div className={`p-1 md:p-1.5 rounded-lg bg-gradient-to-br ${stat.gradient} bg-opacity-20`}>
+                                        <stat.icon size={11} className="text-white" />
                                     </div>
-                                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{stat.label}</span>
+                                    <span className="text-[9px] md:text-[10px] text-muted-foreground uppercase tracking-wider truncate">{stat.label}</span>
                                 </div>
-                                <div className="text-2xl font-bold text-white">
+                                <div className="text-lg md:text-2xl font-bold text-white">
                                     {stat.isCurrency ? (
                                         <AnimatedCurrency value={stat.value} />
                                     ) : (

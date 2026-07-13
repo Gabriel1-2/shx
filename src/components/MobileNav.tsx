@@ -67,10 +67,8 @@ export function MobileNav() {
             {/* Fade into content */}
             <div className="h-8 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none" />
 
-            <div
-                className="pointer-events-auto px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
-            >
-                <div className="mobile-dock mx-auto max-w-md flex items-end justify-between gap-0.5 rounded-[1.75rem] border border-white/10 bg-black/75 backdrop-blur-2xl px-1.5 pt-1.5 pb-1.5 shadow-[0_-8px_40px_rgba(0,0,0,0.55),0_0_0_1px_rgba(34,197,94,0.08),inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <div className="pointer-events-auto px-2.5 sm:px-3 pb-[max(0.4rem,env(safe-area-inset-bottom))]">
+                <div className="mobile-dock mx-auto max-w-md flex items-end justify-between gap-0.5 rounded-[1.75rem] border border-white/12 bg-black/80 backdrop-blur-2xl px-1 pt-1 pb-1 shadow-[0_-10px_40px_rgba(0,0,0,0.6),0_0_0_1px_rgba(34,197,94,0.1),inset_0_1px_0_rgba(255,255,255,0.07)]">
                     {items.map((item) => {
                         if (item.elevate) {
                             return (

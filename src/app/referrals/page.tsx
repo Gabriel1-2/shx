@@ -50,29 +50,45 @@ export default function ReferralsPage() {
     }, [publicKey]);
 
     return (
-        <main className="min-h-screen bg-background relative overflow-hidden pb-20">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-primary/15 blur-[160px] rounded-full pointer-events-none" />
+        <main className="min-h-screen bg-background relative overflow-x-hidden pb-8">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] md:w-[700px] h-[220px] md:h-[350px] bg-primary/15 blur-[100px] md:blur-[160px] rounded-full pointer-events-none" />
 
-            <div className="relative z-10 max-w-6xl mx-auto px-4 pt-8 md:pt-12">
-                {/* Hero */}
-                <div className="text-center mb-10">
+            <div className="relative z-10 max-w-6xl mx-auto px-3 md:px-4 pt-3 md:pt-12">
+                {/* Mobile hero */}
+                <div className="md:hidden mb-5 animate-fadeIn">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/15 border border-primary/30 text-primary text-[10px] font-black mb-2">
+                        <Gift size={11} /> USDC REFERRALS
+                    </div>
+                    <h1 className="text-xl font-black text-white tracking-tight leading-tight">
+                        Get paid in{" "}
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400">
+                            USDC
+                        </span>
+                    </h1>
+                    <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
+                        {REFERRAL_CONFIG.subhead}
+                    </p>
+                </div>
+
+                {/* Desktop hero */}
+                <div className="hidden md:block text-center mb-10">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/15 border border-primary/30 text-primary text-xs font-bold mb-4">
                         <Gift size={12} /> LIFETIME REV-SHARE
                     </div>
-                    <h1 className="text-3xl md:text-5xl font-black text-white mb-3 tracking-tight">
+                    <h1 className="text-5xl font-black text-white mb-3 tracking-tight">
                         Get paid in{" "}
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400">
                             USDC
                         </span>{" "}
                         for real volume
                     </h1>
-                    <p className="text-muted-foreground max-w-2xl mx-auto text-sm md:text-base">
+                    <p className="text-muted-foreground max-w-2xl mx-auto text-base">
                         {REFERRAL_CONFIG.subhead}
                     </p>
                 </div>
 
                 {/* Economics grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-6 md:mb-10">
                     {[
                         {
                             icon: Zap,

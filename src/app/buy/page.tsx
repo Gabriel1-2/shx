@@ -46,8 +46,11 @@ function MoonPayWidget({ wallet, amount, onClose }: { wallet: string; amount: nu
     const embedUrl = `https://buy.moonpay.com/?apiKey=${MOONPAY_API_KEY}&currencyCode=sol&walletAddress=${wallet}&baseCurrencyAmount=${amount}&colorCode=%2322c55e&theme=dark&showOnlyCurrencies=sol`;
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="relative w-full max-w-lg h-[700px] bg-black/90 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center sm:p-4">
+            <div className="relative w-full max-w-lg h-[min(92dvh,700px)] sm:h-[700px] bg-black/95 border border-white/10 rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]">
+                <div className="sm:hidden flex justify-center pt-2">
+                    <div className="h-1 w-10 rounded-full bg-white/20" />
+                </div>
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80">
                     <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
@@ -56,7 +59,7 @@ function MoonPayWidget({ wallet, amount, onClose }: { wallet: string; amount: nu
                         <span className="text-sm font-bold text-white">Buy SOL</span>
                         <span className="text-[10px] text-muted-foreground">• MoonPay</span>
                     </div>
-                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                    <button onClick={onClose} className="p-2 active:bg-white/10 rounded-xl transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center">
                         <X size={16} className="text-muted-foreground" />
                     </button>
                 </div>
@@ -142,12 +145,14 @@ function StripeWidget({ wallet, amount, onClose }: { wallet: string; amount: num
     }, [wallet, amount]);
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            {/* Load Stripe Crypto SDK */}
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center sm:p-4">
             <Script src="https://js.stripe.com/v3/" strategy="afterInteractive" />
             <Script src="https://crypto-js.stripe.com/crypto-onramp-outer.js" strategy="afterInteractive" />
 
-            <div className="relative w-full max-w-lg h-[700px] bg-black/90 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="relative w-full max-w-lg h-[min(92dvh,700px)] sm:h-[700px] bg-black/95 border border-white/10 rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl pb-[env(safe-area-inset-bottom)]">
+                <div className="sm:hidden flex justify-center pt-2">
+                    <div className="h-1 w-10 rounded-full bg-white/20" />
+                </div>
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/80">
                     <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
@@ -156,7 +161,7 @@ function StripeWidget({ wallet, amount, onClose }: { wallet: string; amount: num
                         <span className="text-sm font-bold text-white">Buy SOL</span>
                         <span className="text-[10px] text-muted-foreground">• Stripe</span>
                     </div>
-                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                    <button onClick={onClose} className="p-2 active:bg-white/10 rounded-xl transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center">
                         <X size={16} className="text-muted-foreground" />
                     </button>
                 </div>
@@ -238,12 +243,9 @@ export default function BuyPage() {
     const provider = providers.find((p) => p.id === selectedProvider)!;
 
     return (
-        <main className="min-h-screen bg-background relative overflow-hidden pb-20">
-            {/* Background */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-purple-500/15 blur-[150px] rounded-full pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-[500px] h-[400px] bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
+        <main className="min-h-screen bg-background relative overflow-x-hidden pb-8">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] md:w-[800px] h-[220px] md:h-[400px] bg-purple-500/15 blur-[100px] md:blur-[150px] rounded-full pointer-events-none" />
 
-            {/* ─── Widget Overlay ─── */}
             {showWidget && selectedProvider === "moonpay" && moonpayReady && (
                 <MoonPayWidget wallet={walletAddr} amount={effectiveAmount} onClose={() => setShowWidget(false)} />
             )}
@@ -251,14 +253,13 @@ export default function BuyPage() {
                 <StripeWidget wallet={walletAddr} amount={effectiveAmount} onClose={() => setShowWidget(false)} />
             )}
 
-            <div className="max-w-3xl mx-auto relative z-10 px-4 md:px-8 pt-8 md:pt-12">
-                {/* Hero */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-bold mb-6">
-                        <CreditCard size={14} />
+            <div className="max-w-3xl mx-auto relative z-10 px-3 md:px-8 pt-3 md:pt-12">
+                <div className="text-center mb-6 md:mb-10">
+                    <div className="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1 md:py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] md:text-xs font-bold mb-3 md:mb-6">
+                        <CreditCard size={12} />
                         FIAT ON-RAMP
                     </div>
-                    <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-4">
+                    <h1 className="text-xl md:text-5xl font-black text-white tracking-tight mb-2 md:mb-4">
                         Buy crypto with{" "}
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">
                             Apple Pay.
