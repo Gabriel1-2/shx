@@ -95,6 +95,7 @@ export default function RootLayout({
                     </span>
                     <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-center">
                       <a href="/referrals" className="text-[10px] md:text-xs text-emerald-400/80 hover:text-emerald-400 transition-colors">Referrals</a>
+                      <a href="/partners" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Partners</a>
                       <a href="/pro" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Pro</a>
                       <a href="/api/mcp" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors hidden sm:inline">MCP</a>
                       <a href="/whitepaper" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Paper</a>

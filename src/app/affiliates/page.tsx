@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Legacy path — affiliates = referrals program */
+/** Legacy path — affiliates program one-pager lives at /partners */
 export default function AffiliatesRedirect() {
-    redirect("/referrals");
+    redirect("/partners");
 }
