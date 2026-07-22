@@ -408,7 +408,7 @@ function CosmicCanvas({
             }
 
             // mode-specific trails
-            if (mode === "routes" || mode === "ultra" || intensity > 0.8) {
+            if (mode === "routes" || mode === "agent" || intensity > 0.8) {
                 if (Math.random() < 0.15 * intensity) {
                     trails.push({
                         x: Math.random() * w,
