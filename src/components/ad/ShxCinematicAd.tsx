@@ -1,12 +1,20 @@
 "use client";
 
 /**
- * Fully coded SHX cinematic ad — no AI video.
- * Timed scene sequencer + canvas particles + framer-motion.
+ * SHX Cinematic Ad v2 — fully coded, no AI video.
+ * Multi-layer canvas · kinetic type · scene spectacles · film grade · Web Audio score.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
+} from "react";
+import { AnimatePresence, motion, useMotionValue, useSpring } from "framer-motion";
 import Link from "next/link";
+import confetti from "canvas-confetti";
 import {
     Volume2,
     VolumeX,
@@ -21,402 +29,718 @@ import {
     Rocket,
     Activity,
     Bot,
+    Lock,
+    Unlock,
+    ChevronRight,
 } from "lucide-react";
+
+/* ───────────────── types ───────────────── */
+
+type Accent = "green" | "orange" | "cyan" | "purple" | "white";
+type Visual =
+    | "void"
+    | "vault"
+    | "routes"
+    | "tiers"
+    | "usdc"
+    | "pro"
+    | "proof"
+    | "agent"
+    | "split"
+    | "logo";
 
 type Scene = {
     id: string;
     durationMs: number;
-    kicker?: string;
+    kicker: string;
     title: string;
     sub?: string;
-    lines?: string[];
-    accent: "green" | "orange" | "cyan" | "purple" | "white";
-    visual: "vault" | "routes" | "tiers" | "usdc" | "pro" | "proof" | "agent" | "split" | "logo";
+    bullets?: string[];
+    accent: Accent;
+    visual: Visual;
+    flash?: boolean;
+};
+
+const C: Record<Accent, string> = {
+    green: "#22c55e",
+    orange: "#fb923c",
+    cyan: "#22d3ee",
+    purple: "#c084fc",
+    white: "#fafafa",
 };
 
 const SCENES: Scene[] = [
     {
+        id: "cold",
+        durationMs: 7000,
+        kicker: "SHULEVITZ EXCHANGE",
+        title: "The vault wants\nyour keys.",
+        sub: "Every CEX is a counterparty risk wearing a nice UI.",
+        accent: "white",
+        visual: "void",
+    },
+    {
         id: "hook",
         durationMs: 9000,
-        kicker: "0:00",
-        title: "They want your deposit.",
-        sub: "We want your edge.",
-        lines: ["Non-custodial. Always.", "Keys stay in your wallet."],
+        kicker: "NON-CUSTODIAL",
+        title: "We never\nhold them.",
+        sub: "Connect. Trade. Leave. Your wallet is the bank.",
+        bullets: ["Phantom · Solflare", "No deposit. No freeze."],
         accent: "green",
         visual: "vault",
+        flash: true,
     },
     {
         id: "ultra",
         durationMs: 9000,
-        kicker: "ULTRA",
-        title: "Best routes. On Solana.",
-        sub: "Jupiter Ultra under the hood.",
-        lines: ["Deep liquidity.", "Settled on-chain."],
+        kicker: "JUPITER ULTRA",
+        title: "Best route.\nEvery swap.",
+        sub: "Institutional-grade aggregation. Settled on Solana.",
+        bullets: ["Deepest liquidity", "MEV-aware execution"],
         accent: "cyan",
         visual: "routes",
     },
     {
         id: "tiers",
         durationMs: 9000,
-        kicker: "LOYALTY",
-        title: "Hold SHX. Pay less.",
-        sub: "0.65% → 0.50% · Buy SHX at 0% platform fee.",
-        lines: ["Base · Silver · Gold · Platinum · Diamond"],
+        kicker: "LOYALTY ENGINE",
+        title: "Hold SHX.\nPay less.",
+        sub: "0.65% → 0.50%. Buy SHX at zero platform fee.",
+        bullets: ["Diamond tier", "0% SHX buys"],
         accent: "purple",
         visual: "tiers",
     },
     {
         id: "refer",
         durationMs: 9000,
-        kicker: "USDC",
-        title: "Invite. Earn real cash.",
-        sub: "25–35% of fees after real volume — paid in USDC.",
-        lines: ["Not points.", "Not vapor seasons."],
+        kicker: "REAL MONEY",
+        title: "Invite traders.\nEarn USDC.",
+        sub: "25–35% of fees after real volume. Auto-paid. Not points.",
+        bullets: ["$100 qualify gate", "Lifetime fee share"],
         accent: "green",
         visual: "usdc",
     },
     {
         id: "pro",
-        durationMs: 8000,
+        durationMs: 8500,
         kicker: "PRO DESK",
-        title: "Limit. DCA. Ape.",
-        sub: "One terminal. Full control.",
-        lines: ["Turbo land · size chips · live tape"],
+        title: "Limit. DCA.\nApe Mode.",
+        sub: "One terminal for launches, ladders, and schedules.",
+        bullets: ["Turbo land", "Size chips", "Live tape"],
         accent: "orange",
         visual: "pro",
     },
     {
         id: "proof",
-        durationMs: 8000,
-        kicker: "LEDGER",
-        title: "Live proof. Not marketing.",
-        sub: "Traders · volume · public tape.",
-        lines: ["Transparency is the product."],
+        durationMs: 8500,
+        kicker: "PUBLIC LEDGER",
+        title: "Live proof.\nNot marketing.",
+        sub: "Unique wallets. Volume. Tape. On the product itself.",
         accent: "cyan",
         visual: "proof",
     },
     {
         id: "agent",
         durationMs: 8000,
-        kicker: "AGENTS",
-        title: "Built for humans.",
-        sub: "Ready for agents.",
-        lines: ["API · MCP · bots · your signature"],
+        kicker: "AGENT NATIVE",
+        title: "Humans trade.\nAgents connect.",
+        sub: "REST + MCP. Quote. Sign. Swap. You keep the keys.",
+        bullets: ["Open CORS", "Bot-ready"],
         accent: "purple",
         visual: "agent",
     },
     {
+        id: "split",
+        durationMs: 8000,
+        kicker: "CHOOSE",
+        title: "Deposit…\nor dominate.",
+        sub: "Old world freezes. New world settles.",
+        accent: "green",
+        visual: "split",
+        flash: true,
+    },
+    {
         id: "close",
-        durationMs: 10000,
+        durationMs: 11000,
         kicker: "SHX",
         title: "Trade Solana.\nKeep your keys.\nGet paid in USDC.",
         sub: "shx.exchange",
-        lines: ["Non-custodial · Jupiter Ultra · Partner program"],
+        bullets: ["Non-custodial", "Jupiter Ultra", "Partner program"],
         accent: "green",
         visual: "logo",
+        flash: true,
     },
 ];
 
-const ACCENT: Record<Scene["accent"], string> = {
-    green: "#22c55e",
-    orange: "#f97316",
-    cyan: "#22d3ee",
-    purple: "#a855f7",
-    white: "#f4f4f5",
-};
+/* ───────────────── hooks ───────────────── */
 
-function usePrefersReducedMotion() {
-    const [reduced, setReduced] = useState(false);
+function useReducedMotion() {
+    const [r, setR] = useState(false);
     useEffect(() => {
         const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-        setReduced(mq.matches);
-        const fn = () => setReduced(mq.matches);
-        mq.addEventListener("change", fn);
-        return () => mq.removeEventListener("change", fn);
+        setR(mq.matches);
+        const f = () => setR(mq.matches);
+        mq.addEventListener("change", f);
+        return () => mq.removeEventListener("change", f);
     }, []);
-    return reduced;
+    return r;
 }
 
-/** Lightweight sci-fi UI ticks via Web Audio (no assets). */
-function useAdAudio(enabled: boolean) {
-    const ctxRef = useRef<AudioContext | null>(null);
+function useAdScore(on: boolean) {
+    const ctx = useRef<AudioContext | null>(null);
+    const master = useRef<GainNode | null>(null);
 
-    const ensure = useCallback(() => {
+    const get = useCallback(() => {
         if (typeof window === "undefined") return null;
-        if (!ctxRef.current) {
+        if (!ctx.current) {
             const AC =
                 window.AudioContext ||
                 (window as unknown as { webkitAudioContext: typeof AudioContext })
                     .webkitAudioContext;
-            ctxRef.current = new AC();
+            ctx.current = new AC();
+            master.current = ctx.current.createGain();
+            master.current.gain.value = 0.12;
+            master.current.connect(ctx.current.destination);
         }
-        return ctxRef.current;
+        if (ctx.current.state === "suspended") void ctx.current.resume();
+        return ctx.current;
     }, []);
 
-    const blip = useCallback(
-        (freq = 440, dur = 0.08, type: OscillatorType = "sine", gain = 0.04) => {
-            if (!enabled) return;
-            const ctx = ensure();
-            if (!ctx) return;
-            if (ctx.state === "suspended") void ctx.resume();
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
+    const tone = useCallback(
+        (
+            freq: number,
+            dur = 0.12,
+            type: OscillatorType = "sine",
+            vol = 0.35,
+            when = 0
+        ) => {
+            if (!on) return;
+            const c = get();
+            if (!c || !master.current) return;
+            const t0 = c.currentTime + when;
+            const o = c.createOscillator();
+            const g = c.createGain();
             o.type = type;
-            o.frequency.value = freq;
-            g.gain.value = gain;
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+            o.frequency.setValueAtTime(freq, t0);
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
             o.connect(g);
-            g.connect(ctx.destination);
-            o.start();
-            o.stop(ctx.currentTime + dur);
+            g.connect(master.current);
+            o.start(t0);
+            o.stop(t0 + dur + 0.02);
         },
-        [enabled, ensure]
+        [on, get]
     );
 
-    const whoosh = useCallback(() => {
-        if (!enabled) return;
-        const ctx = ensure();
-        if (!ctx) return;
-        if (ctx.state === "suspended") void ctx.resume();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.type = "sawtooth";
-        o.frequency.setValueAtTime(120, ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.35);
-        g.gain.value = 0.025;
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.start();
-        o.stop(ctx.currentTime + 0.35);
-    }, [enabled, ensure]);
+    const hit = useCallback(() => {
+        if (!on) return;
+        tone(55, 0.35, "sine", 0.5);
+        tone(110, 0.2, "triangle", 0.2, 0.02);
+        tone(880, 0.08, "square", 0.08, 0.05);
+    }, [on, tone]);
 
-    return { blip, whoosh };
+    const whoosh = useCallback(() => {
+        if (!on) return;
+        const c = get();
+        if (!c || !master.current) return;
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "sawtooth";
+        o.frequency.setValueAtTime(180, c.currentTime);
+        o.frequency.exponentialRampToValueAtTime(36, c.currentTime + 0.45);
+        g.gain.setValueAtTime(0.08, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.45);
+        o.connect(g);
+        g.connect(master.current);
+        o.start();
+        o.stop(c.currentTime + 0.5);
+    }, [on, get]);
+
+    const arpeggio = useCallback(
+        (base = 220) => {
+            if (!on) return;
+            [0, 4, 7, 12].forEach((semi, i) => {
+                const f = base * Math.pow(2, semi / 12);
+                tone(f, 0.15, "sine", 0.18, i * 0.07);
+            });
+        },
+        [on, tone]
+    );
+
+    return { hit, whoosh, arpeggio, tone };
 }
 
-function ParticleField({ color, intensity }: { color: string; intensity: number }) {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const reduced = usePrefersReducedMotion();
+/* ───────────────── canvas nebula ───────────────── */
+
+function CosmicCanvas({
+    color,
+    intensity,
+    mode,
+}: {
+    color: string;
+    intensity: number;
+    mode: Visual;
+}) {
+    const ref = useRef<HTMLCanvasElement>(null);
+    const reduced = useReducedMotion();
+    const mouse = useRef({ x: 0.5, y: 0.5 });
 
     useEffect(() => {
-        const canvas = canvasRef.current;
+        const canvas = ref.current;
         if (!canvas || reduced) return;
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext("2d", { alpha: true });
         if (!ctx) return;
 
-        let raf = 0;
-        let w = 0;
-        let h = 0;
-        const particles = Array.from({ length: 60 }, () => ({
+        let w = 0,
+            h = 0,
+            raf = 0,
+            t = 0;
+
+        type P = {
+            x: number;
+            y: number;
+            z: number;
+            vx: number;
+            vy: number;
+            life: number;
+        };
+        const stars: P[] = Array.from({ length: 120 }, () => ({
             x: Math.random(),
             y: Math.random(),
-            z: Math.random() * 0.8 + 0.2,
-            vx: (Math.random() - 0.5) * 0.00035,
-            vy: -Math.random() * 0.00045 - 0.0001,
+            z: Math.random(),
+            vx: (Math.random() - 0.5) * 0.0002,
+            vy: (Math.random() - 0.5) * 0.0002,
+            life: Math.random(),
         }));
+        const trails: { x: number; y: number; vx: number; vy: number; a: number }[] =
+            [];
 
         const resize = () => {
-            w = canvas.width = canvas.offsetWidth * devicePixelRatio;
-            h = canvas.height = canvas.offsetHeight * devicePixelRatio;
-            ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+            const dpr = Math.min(devicePixelRatio || 1, 2);
+            w = canvas.offsetWidth;
+            h = canvas.offsetHeight;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         };
         resize();
         window.addEventListener("resize", resize);
 
+        const onMove = (e: PointerEvent) => {
+            mouse.current.x = e.clientX / window.innerWidth;
+            mouse.current.y = e.clientY / window.innerHeight;
+        };
+        window.addEventListener("pointermove", onMove);
+
+        const hexToRgb = (hex: string) => {
+            const n = parseInt(hex.slice(1), 16);
+            return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+        };
+
         const draw = () => {
-            ctx.clearRect(0, 0, w, h);
-            const cssW = canvas.offsetWidth;
-            const cssH = canvas.offsetHeight;
-            for (const p of particles) {
-                p.x += p.vx * intensity;
-                p.y += p.vy * intensity;
-                if (p.y < -0.05) p.y = 1.05;
-                if (p.x < -0.05) p.x = 1.05;
-                if (p.x > 1.05) p.x = -0.05;
-                const px = p.x * cssW;
-                const py = p.y * cssH;
-                const r = p.z * 2.2;
-                ctx.beginPath();
-                ctx.fillStyle = color;
-                ctx.globalAlpha = 0.15 + p.z * 0.45;
-                ctx.arc(px, py, r, 0, Math.PI * 2);
-                ctx.fill();
+            t += 0.008 * intensity;
+            const rgb = hexToRgb(color);
+            ctx.fillStyle = "#020203";
+            ctx.fillRect(0, 0, w, h);
+
+            // nebula blobs
+            const blobs = [
+                { x: 0.2 + Math.sin(t * 0.4) * 0.05, y: 0.3, s: 0.55 },
+                { x: 0.75 + Math.cos(t * 0.3) * 0.04, y: 0.65, s: 0.5 },
+                {
+                    x: mouse.current.x,
+                    y: mouse.current.y,
+                    s: 0.35,
+                },
+            ];
+            for (const b of blobs) {
+                const g = ctx.createRadialGradient(
+                    b.x * w,
+                    b.y * h,
+                    0,
+                    b.x * w,
+                    b.y * h,
+                    b.s * Math.max(w, h)
+                );
+                g.addColorStop(0, `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`);
+                g.addColorStop(0.4, `rgba(${rgb.r},${rgb.g},${rgb.b},0.05)`);
+                g.addColorStop(1, "transparent");
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, w, h);
             }
-            ctx.globalAlpha = 1;
-            // faint grid
-            ctx.strokeStyle = color;
-            ctx.globalAlpha = 0.04;
+
+            // perspective grid floor
+            ctx.save();
+            ctx.strokeStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},0.07)`;
             ctx.lineWidth = 1;
-            const step = 48;
-            for (let x = 0; x < cssW; x += step) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, cssH);
-                ctx.stroke();
-            }
-            for (let y = 0; y < cssH; y += step) {
+            const horizon = h * 0.55;
+            for (let i = 0; i < 16; i++) {
+                const y = horizon + ((h - horizon) * i) / 15;
+                const p = i / 15;
+                ctx.globalAlpha = 0.05 + p * 0.12;
                 ctx.beginPath();
                 ctx.moveTo(0, y);
-                ctx.lineTo(cssW, y);
+                ctx.lineTo(w, y);
                 ctx.stroke();
             }
-            ctx.globalAlpha = 1;
+            for (let i = -12; i <= 12; i++) {
+                ctx.globalAlpha = 0.06;
+                ctx.beginPath();
+                ctx.moveTo(w / 2 + i * 40, horizon);
+                ctx.lineTo(w / 2 + i * 180, h);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // stars
+            for (const s of stars) {
+                s.x += s.vx * intensity;
+                s.y += s.vy * intensity;
+                s.life += 0.01;
+                if (s.x < 0 || s.x > 1) s.vx *= -1;
+                if (s.y < 0 || s.y > 1) s.vy *= -1;
+                const tw = 0.4 + Math.sin(s.life * 4 + s.z * 10) * 0.4;
+                ctx.beginPath();
+                ctx.fillStyle = `rgba(255,255,255,${0.15 + s.z * 0.6 * tw})`;
+                ctx.arc(s.x * w, s.y * h, 0.6 + s.z * 1.8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // mode-specific trails
+            if (mode === "routes" || mode === "ultra" || intensity > 0.8) {
+                if (Math.random() < 0.15 * intensity) {
+                    trails.push({
+                        x: Math.random() * w,
+                        y: Math.random() * h * 0.7,
+                        vx: (2 + Math.random() * 6) * (Math.random() > 0.5 ? 1 : -1),
+                        vy: (Math.random() - 0.5) * 1.5,
+                        a: 1,
+                    });
+                }
+            }
+            for (let i = trails.length - 1; i >= 0; i--) {
+                const tr = trails[i];
+                tr.x += tr.vx;
+                tr.y += tr.vy;
+                tr.a -= 0.02;
+                if (tr.a <= 0) {
+                    trails.splice(i, 1);
+                    continue;
+                }
+                ctx.strokeStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${tr.a})`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(tr.x, tr.y);
+                ctx.lineTo(tr.x - tr.vx * 4, tr.y - tr.vy * 4);
+                ctx.stroke();
+            }
+
+            // film vignette
+            const vig = ctx.createRadialGradient(
+                w / 2,
+                h / 2,
+                h * 0.2,
+                w / 2,
+                h / 2,
+                h * 0.85
+            );
+            vig.addColorStop(0, "transparent");
+            vig.addColorStop(1, "rgba(0,0,0,0.72)");
+            ctx.fillStyle = vig;
+            ctx.fillRect(0, 0, w, h);
+
+            // scanline
+            ctx.fillStyle = "rgba(0,0,0,0.04)";
+            for (let y = 0; y < h; y += 3) {
+                ctx.fillRect(0, y, w, 1);
+            }
+
             raf = requestAnimationFrame(draw);
         };
         raf = requestAnimationFrame(draw);
         return () => {
             cancelAnimationFrame(raf);
             window.removeEventListener("resize", resize);
+            window.removeEventListener("pointermove", onMove);
         };
-    }, [color, intensity, reduced]);
+    }, [color, intensity, mode, reduced]);
 
     return (
         <canvas
-            ref={canvasRef}
+            ref={ref}
             className="absolute inset-0 w-full h-full pointer-events-none"
             aria-hidden
         />
     );
 }
 
-function VisualVault({ color }: { color: string }) {
+/* ───────────────── kinetic type ───────────────── */
+
+function KineticTitle({ text, color }: { text: string; color: string }) {
+    const lines = text.split("\n");
     return (
-        <div className="relative w-full max-w-md aspect-square mx-auto">
-            <motion.div
-                className="absolute inset-[12%] rounded-3xl border-2"
-                style={{ borderColor: `${color}55`, boxShadow: `0 0 80px ${color}33` }}
-                initial={{ scale: 0.85, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 1.2 }}
-            />
-            {[0, 1, 2, 3].map((i) => (
-                <motion.div
-                    key={i}
-                    className="absolute inset-0 rounded-3xl border"
-                    style={{ borderColor: `${color}33` }}
-                    initial={{ scale: 0.5 + i * 0.08, opacity: 0 }}
-                    animate={{ scale: [0.7 + i * 0.05, 1.15], opacity: [0.5, 0] }}
-                    transition={{ duration: 2.4, delay: i * 0.25, repeat: Infinity }}
-                />
+        <h1 className="text-[clamp(2rem,7vw,4.25rem)] font-black tracking-[-0.04em] leading-[0.95]">
+            {lines.map((line, li) => (
+                <span key={li} className="block overflow-hidden py-0.5">
+                    {line.split(" ").map((word, wi) => (
+                        <motion.span
+                            key={`${li}-${wi}`}
+                            className="inline-block mr-[0.28em] last:mr-0"
+                            style={
+                                wi === line.split(" ").length - 1
+                                    ? {
+                                          background: `linear-gradient(135deg, ${color}, #fff 70%)`,
+                                          WebkitBackgroundClip: "text",
+                                          WebkitTextFillColor: "transparent",
+                                      }
+                                    : undefined
+                            }
+                            initial={{ y: "110%", opacity: 0, rotate: 4 }}
+                            animate={{ y: 0, opacity: 1, rotate: 0 }}
+                            transition={{
+                                delay: 0.08 + li * 0.12 + wi * 0.06,
+                                duration: 0.7,
+                                ease: [0.16, 1, 0.3, 1],
+                            }}
+                        >
+                            {word}
+                        </motion.span>
+                    ))}
+                </span>
             ))}
+        </h1>
+    );
+}
+
+/* ───────────────── scene visuals ───────────────── */
+
+function VVoid({ color }: { color: string }) {
+    return (
+        <div className="relative w-full max-w-lg mx-auto h-56 md:h-72 flex items-center justify-center">
             <motion.div
-                className="absolute inset-[28%] rounded-2xl bg-black/60 border flex items-center justify-center"
-                style={{ borderColor: color, boxShadow: `inset 0 0 40px ${color}44` }}
-                animate={{ rotate: [0, 2, -2, 0] }}
-                transition={{ duration: 6, repeat: Infinity }}
+                className="absolute w-40 h-40 md:w-52 md:h-52 rounded-full border border-white/10"
+                animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.6, 0.3] }}
+                transition={{ duration: 4, repeat: Infinity }}
+            />
+            <motion.div
+                className="absolute w-28 h-28 md:w-36 md:h-36 rounded-full"
+                style={{
+                    boxShadow: `inset 0 0 60px ${color}33, 0 0 80px ${color}22`,
+                    border: `1px solid ${color}44`,
+                }}
+                animate={{ rotate: 360 }}
+                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+            />
+            <Lock size={48} className="text-white/80 relative z-10" strokeWidth={1.2} />
+            <motion.div
+                className="absolute inset-x-0 bottom-4 text-center text-[10px] font-mono tracking-[0.4em] text-white/30 uppercase"
+                animate={{ opacity: [0.2, 0.7, 0.2] }}
+                transition={{ duration: 2.5, repeat: Infinity }}
             >
-                <Shield size={56} style={{ color }} strokeWidth={1.25} />
+                custody · risk · wait
+            </motion.div>
+        </div>
+    );
+}
+
+function VVault({ color }: { color: string }) {
+    return (
+        <div className="relative w-full max-w-md mx-auto aspect-square max-h-[320px]">
+            {/* broken cage */}
+            {[...Array(12)].map((_, i) => {
+                const a = (i / 12) * Math.PI * 2;
+                return (
+                    <motion.div
+                        key={i}
+                        className="absolute left-1/2 top-1/2 origin-left h-[2px] rounded-full"
+                        style={{
+                            width: "42%",
+                            background: `linear-gradient(90deg, ${color}, transparent)`,
+                            rotate: `${(i * 30)}deg`,
+                        }}
+                        initial={{ scaleX: 0.3, opacity: 0 }}
+                        animate={{
+                            scaleX: [0.3, 1, 0.85],
+                            opacity: [0, 1, 0.4],
+                            x: [0, Math.cos(a) * 8],
+                        }}
+                        transition={{
+                            duration: 2.2,
+                            delay: 0.15 + i * 0.04,
+                            repeat: Infinity,
+                            repeatDelay: 1.5,
+                        }}
+                    />
+                );
+            })}
+            <motion.div
+                className="absolute inset-[22%] rounded-[1.75rem] border-2 bg-black/50 flex items-center justify-center"
+                style={{
+                    borderColor: color,
+                    boxShadow: `0 0 60px ${color}55, inset 0 0 40px ${color}22`,
+                }}
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 90, delay: 0.2 }}
+            >
+                <motion.div
+                    initial={{ scale: 0, rotate: -20 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.5, type: "spring" }}
+                >
+                    <Unlock size={52} style={{ color }} strokeWidth={1.25} />
+                </motion.div>
             </motion.div>
             <motion.div
-                className="absolute inset-[20%] rounded-3xl"
-                style={{ background: `radial-gradient(circle, ${color}22, transparent 70%)` }}
-                animate={{ opacity: [0.4, 0.9, 0.4] }}
+                className="absolute inset-0 rounded-full"
+                style={{
+                    background: `radial-gradient(circle, ${color}33 0%, transparent 55%)`,
+                }}
+                animate={{ scale: [0.9, 1.2, 0.9], opacity: [0.5, 0.9, 0.5] }}
                 transition={{ duration: 3, repeat: Infinity }}
             />
-            {/* shatter bars */}
-            {[...Array(8)].map((_, i) => (
+            {/* floating key shards */}
+            {[...Array(6)].map((_, i) => (
                 <motion.div
-                    key={`s${i}`}
-                    className="absolute left-1/2 top-1/2 h-px origin-left"
-                    style={{
-                        width: "40%",
-                        background: `linear-gradient(90deg, ${color}, transparent)`,
-                        rotate: `${i * 45}deg`,
+                    key={`k${i}`}
+                    className="absolute w-2 h-2 rounded-sm"
+                    style={{ background: color, left: "50%", top: "50%" }}
+                    animate={{
+                        x: [0, (i % 2 ? 1 : -1) * (60 + i * 18)],
+                        y: [0, -40 - i * 12, 20],
+                        opacity: [0, 1, 0],
+                        rotate: [0, 180 + i * 40],
                     }}
-                    initial={{ scaleX: 0, opacity: 0 }}
-                    animate={{ scaleX: [0, 1, 0.6], opacity: [0, 1, 0.3] }}
-                    transition={{ duration: 2, delay: 0.4 + i * 0.05, repeat: Infinity, repeatDelay: 2 }}
+                    transition={{
+                        duration: 2.4,
+                        delay: 0.6 + i * 0.1,
+                        repeat: Infinity,
+                        repeatDelay: 1,
+                    }}
                 />
             ))}
         </div>
     );
 }
 
-function VisualRoutes({ color }: { color: string }) {
+function VRoutes({ color }: { color: string }) {
     return (
-        <div className="relative w-full max-w-lg h-64 md:h-80 mx-auto">
-            {[0, 1, 2, 3, 4].map((i) => (
+        <div className="relative w-full max-w-xl h-64 md:h-80 mx-auto">
+            {/* highway lanes */}
+            {[0, 1, 2, 3, 4, 5].map((i) => (
                 <motion.div
                     key={i}
-                    className="absolute left-0 right-0 h-[2px] rounded-full"
-                    style={{
-                        top: `${18 + i * 14}%`,
-                        background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
-                        opacity: 0.35 + i * 0.1,
-                    }}
-                    animate={{ x: ["-20%", "20%", "-20%"] }}
-                    transition={{ duration: 2.5 + i * 0.3, repeat: Infinity, ease: "easeInOut" }}
-                />
+                    className="absolute h-[3px] left-0 right-0 rounded-full overflow-hidden"
+                    style={{ top: `${16 + i * 13}%` }}
+                >
+                    <motion.div
+                        className="h-full w-1/3 rounded-full"
+                        style={{
+                            background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+                            opacity: 0.4 + i * 0.08,
+                        }}
+                        animate={{ x: ["-100%", "400%"] }}
+                        transition={{
+                            duration: 1.6 + i * 0.15,
+                            repeat: Infinity,
+                            ease: "linear",
+                            delay: i * 0.12,
+                        }}
+                    />
+                </motion.div>
             ))}
+            {/* winning packet */}
             <motion.div
-                className="absolute left-[8%] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full"
-                style={{ background: color, boxShadow: `0 0 20px ${color}` }}
-                animate={{ left: ["8%", "88%"] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute top-[42%] w-4 h-4 rounded-full z-10"
+                style={{
+                    background: color,
+                    boxShadow: `0 0 30px ${color}, 0 0 60px ${color}`,
+                }}
+                animate={{ left: ["5%", "92%"] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
             />
             <motion.div
-                className="absolute right-[10%] top-[40%] px-3 py-1.5 rounded-lg border text-[10px] font-black tracking-widest"
-                style={{ borderColor: color, color, boxShadow: `0 0 24px ${color}44` }}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
+                className="absolute right-4 top-6 px-3 py-2 rounded-xl border bg-black/70 backdrop-blur text-[10px] font-black tracking-[0.2em]"
+                style={{ borderColor: color, color, boxShadow: `0 0 30px ${color}44` }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 }}
             >
-                JUPITER ULTRA
+                BEST ROUTE · ULTRA
             </motion.div>
             <motion.div
-                className="absolute left-[12%] bottom-[18%] px-3 py-1.5 rounded-lg bg-black/70 border border-white/10 text-[10px] font-mono text-white"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0, 1, 1, 0.7] }}
-                transition={{ duration: 3, repeat: Infinity }}
+                className="absolute left-4 bottom-8 px-3 py-2 rounded-xl bg-black/70 border border-white/10 font-mono text-[10px] text-white/80"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 2, repeat: Infinity }}
             >
-                ROUTE LOCKED · BEST OUT
+                latency &lt; block · settled ✓
             </motion.div>
             <Zap
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-30"
-                size={72}
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20"
+                size={96}
                 style={{ color }}
             />
         </div>
     );
 }
 
-function VisualTiers({ color }: { color: string }) {
+function VTiers({ color }: { color: string }) {
     const tiers = [
-        { name: "Base", fee: "0.65%" },
-        { name: "Silver", fee: "0.60%" },
-        { name: "Gold", fee: "0.55%" },
-        { name: "Platinum", fee: "0.52%" },
-        { name: "Diamond", fee: "0.50%" },
+        { n: "Base", f: "0.65%", dim: true },
+        { n: "Silver", f: "0.60%", dim: true },
+        { n: "Gold", f: "0.55%", dim: false },
+        { n: "Platinum", f: "0.52%", dim: false },
+        { n: "Diamond", f: "0.50%", hot: true },
     ];
     return (
         <div className="w-full max-w-sm mx-auto space-y-2">
             {tiers.map((t, i) => (
                 <motion.div
-                    key={t.name}
-                    className="flex items-center justify-between px-4 py-2.5 rounded-xl border bg-black/50"
+                    key={t.n}
+                    className="relative flex items-center justify-between px-4 py-3 rounded-2xl border overflow-hidden"
                     style={{
-                        borderColor: i === tiers.length - 1 ? color : "rgba(255,255,255,0.08)",
-                        boxShadow: i === tiers.length - 1 ? `0 0 30px ${color}33` : undefined,
+                        borderColor: t.hot ? color : "rgba(255,255,255,0.08)",
+                        background: t.hot ? `${color}14` : "rgba(0,0,0,0.45)",
+                        boxShadow: t.hot ? `0 0 40px ${color}33` : undefined,
                     }}
-                    initial={{ x: -40, opacity: 0 }}
+                    initial={{ x: -60, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: i * 0.12, type: "spring", stiffness: 120 }}
+                    transition={{ delay: i * 0.1, type: "spring", stiffness: 140 }}
                 >
-                    <span className="text-sm font-black text-white">{t.name}</span>
+                    {t.hot && (
+                        <motion.div
+                            className="absolute inset-0 opacity-30"
+                            style={{
+                                background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+                            }}
+                            animate={{ x: ["-100%", "100%"] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                        />
+                    )}
                     <span
-                        className="text-sm font-mono font-bold"
-                        style={{ color: i === tiers.length - 1 ? color : "#a1a1aa" }}
+                        className={`text-sm font-black relative ${t.dim ? "text-white/50" : "text-white"}`}
                     >
-                        {t.fee}
+                        {t.n}
+                    </span>
+                    <span
+                        className="text-sm font-mono font-bold relative"
+                        style={{ color: t.hot ? color : "#a1a1aa" }}
+                    >
+                        {t.f}
                     </span>
                 </motion.div>
             ))}
             <motion.div
-                className="text-center text-xs font-black mt-3"
-                style={{ color }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.9 }}
+                className="mt-3 text-center py-2.5 rounded-2xl font-black text-xs tracking-wide"
+                style={{
+                    background: `linear-gradient(90deg, ${color}, #a3e635)`,
+                    color: "#000",
+                    boxShadow: `0 0 30px ${color}66`,
+                }}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.7 }}
             >
                 BUY SHX · 0% PLATFORM FEE
             </motion.div>
@@ -424,195 +748,328 @@ function VisualTiers({ color }: { color: string }) {
     );
 }
 
-function VisualUsdc({ color }: { color: string }) {
+function VUsdc({ color }: { color: string }) {
     return (
-        <div className="relative w-full max-w-md h-64 mx-auto">
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                <Gift size={48} style={{ color }} />
-            </div>
-            {[...Array(12)].map((_, i) => {
-                const angle = (i / 12) * Math.PI * 2;
+        <div className="relative w-full max-w-md h-64 md:h-72 mx-auto">
+            {/* network nodes */}
+            {[...Array(8)].map((_, i) => {
+                const a = (i / 8) * Math.PI * 2;
+                const r = 100;
                 return (
                     <motion.div
                         key={i}
-                        className="absolute left-1/2 top-1/2 w-2.5 h-2.5 rounded-full"
-                        style={{ background: color, boxShadow: `0 0 12px ${color}` }}
+                        className="absolute left-1/2 top-1/2 w-3 h-3 -ml-1.5 -mt-1.5 rounded-full border-2"
+                        style={{ borderColor: color, background: "#000" }}
                         animate={{
-                            x: [0, Math.cos(angle) * 110],
-                            y: [0, Math.sin(angle) * 80],
-                            opacity: [1, 0.2],
-                            scale: [1, 0.4],
+                            x: Math.cos(a) * r,
+                            y: Math.sin(a) * r * 0.75,
+                            scale: [1, 1.3, 1],
                         }}
                         transition={{
-                            duration: 2.2,
-                            delay: i * 0.08,
+                            duration: 3,
+                            delay: i * 0.1,
                             repeat: Infinity,
-                            repeatDelay: 0.4,
                         }}
                     />
                 );
             })}
             <motion.div
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full border text-xs font-black tracking-wide"
-                style={{ borderColor: color, color }}
-                animate={{ y: [0, -4, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-2xl border-2 flex items-center justify-center bg-black/80"
+                style={{
+                    borderColor: color,
+                    boxShadow: `0 0 50px ${color}55`,
+                }}
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 5, repeat: Infinity }}
             >
-                AUTO USDC PAYOUTS
+                <Gift size={32} style={{ color }} />
+            </motion.div>
+            {/* USDC streams inward */}
+            {[...Array(10)].map((_, i) => {
+                const a = (i / 10) * Math.PI * 2;
+                return (
+                    <motion.div
+                        key={`d${i}`}
+                        className="absolute left-1/2 top-1/2 w-2 h-2 -ml-1 -mt-1 rounded-full"
+                        style={{ background: color, boxShadow: `0 0 10px ${color}` }}
+                        animate={{
+                            x: [Math.cos(a) * 130, 0],
+                            y: [Math.sin(a) * 100, 0],
+                            opacity: [0, 1, 0],
+                            scale: [0.5, 1, 0.2],
+                        }}
+                        transition={{
+                            duration: 1.8,
+                            delay: i * 0.12,
+                            repeat: Infinity,
+                        }}
+                    />
+                );
+            })}
+            <motion.div
+                className="absolute bottom-2 inset-x-0 text-center text-[11px] font-black tracking-[0.25em]"
+                style={{ color }}
+            >
+                25–35% · USDC · AUTO
             </motion.div>
         </div>
     );
 }
 
-function VisualPro({ color }: { color: string }) {
-    const chips = ["0.1", "0.25", "0.5", "1", "2"];
+function VPro({ color }: { color: string }) {
     return (
         <div className="w-full max-w-md mx-auto space-y-4">
             <div className="grid grid-cols-3 gap-2">
-                {["LIMIT", "DCA", "APE"].map((label, i) => (
+                {[
+                    { l: "LIMIT", i: Activity },
+                    { l: "DCA", i: Rocket },
+                    { l: "APE", i: Zap, hot: true },
+                ].map((x, i) => (
                     <motion.div
-                        key={label}
-                        className="rounded-2xl border bg-black/60 p-4 text-center"
+                        key={x.l}
+                        className="rounded-2xl border p-4 text-center bg-black/60 backdrop-blur"
                         style={{
-                            borderColor: i === 2 ? color : "rgba(255,255,255,0.1)",
-                            boxShadow: i === 2 ? `0 0 28px ${color}44` : undefined,
+                            borderColor: x.hot ? color : "rgba(255,255,255,0.1)",
+                            boxShadow: x.hot ? `0 0 40px ${color}44` : undefined,
                         }}
-                        initial={{ y: 24, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: i * 0.15 }}
+                        initial={{ y: 40, opacity: 0, rotateX: 40 }}
+                        animate={{ y: 0, opacity: 1, rotateX: 0 }}
+                        transition={{ delay: i * 0.12, type: "spring" }}
                     >
-                        <Rocket
-                            size={18}
-                            className="mx-auto mb-1"
-                            style={{ color: i === 2 ? color : "#a1a1aa" }}
+                        <x.i
+                            size={22}
+                            className="mx-auto mb-2"
+                            style={{ color: x.hot ? color : "#a1a1aa" }}
                         />
-                        <div className="text-[11px] font-black text-white">{label}</div>
+                        <div className="text-[11px] font-black text-white tracking-wider">
+                            {x.l}
+                        </div>
                     </motion.div>
                 ))}
             </div>
-            <div className="flex gap-2 justify-center flex-wrap">
-                {chips.map((c, i) => (
+            <div className="flex justify-center gap-2 flex-wrap">
+                {["0.1", "0.25", "0.5", "1", "2"].map((s, i) => (
                     <motion.span
-                        key={c}
-                        className="px-3 py-1.5 rounded-xl border text-xs font-bold"
+                        key={s}
+                        className="min-w-[3.25rem] text-center px-3 py-2 rounded-xl border text-xs font-bold"
                         style={{
                             borderColor: i === 2 ? color : "rgba(255,255,255,0.12)",
                             color: i === 2 ? color : "#fff",
                             background: i === 2 ? `${color}22` : "rgba(255,255,255,0.04)",
+                            boxShadow: i === 2 ? `0 0 20px ${color}33` : undefined,
                         }}
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.4 + i * 0.06 }}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.45 + i * 0.06, type: "spring" }}
                     >
-                        {c} SOL
+                        {s}
                     </motion.span>
                 ))}
             </div>
-        </div>
-    );
-}
-
-function VisualProof({ color }: { color: string }) {
-    const [n, setN] = useState(1284);
-    useEffect(() => {
-        const t = setInterval(() => setN((v) => v + Math.floor(Math.random() * 3)), 400);
-        return () => clearInterval(t);
-    }, []);
-    return (
-        <div className="w-full max-w-md mx-auto space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-black/50 p-5 text-center">
-                <div className="flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
-                    <Activity size={12} style={{ color }} /> Live ledger
-                </div>
-                <motion.div
-                    className="text-5xl font-black tabular-nums"
-                    style={{ color }}
-                    key={n}
-                    initial={{ opacity: 0.5, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                >
-                    {n.toLocaleString()}
-                </motion.div>
-                <div className="text-xs text-white/60 mt-1">wallets traded on SHX</div>
-            </div>
-            <div className="flex gap-2 overflow-hidden">
-                {["SHX", "SOL", "BONK", "WIF", "JUP"].map((s, i) => (
-                    <motion.div
-                        key={s}
-                        className="shrink-0 px-3 py-2 rounded-xl border border-white/10 bg-black/40 text-xs font-bold text-white"
-                        animate={{ x: [0, -8, 0] }}
-                        transition={{ duration: 2, delay: i * 0.1, repeat: Infinity }}
-                    >
-                        {s} <span style={{ color }}>+{(Math.random() * 4).toFixed(1)}%</span>
-                    </motion.div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function VisualAgent({ color }: { color: string }) {
-    const steps = ["CONNECT", "QUOTE", "SIGN", "SWAP"];
-    return (
-        <div className="w-full max-w-md mx-auto">
-            <div className="flex items-center justify-center gap-3 mb-6">
-                <Bot size={40} style={{ color }} />
-                <div className="h-px w-12 bg-white/20" />
-                <Shield size={40} className="text-white" />
-            </div>
-            <div className="flex flex-wrap justify-center gap-2">
-                {steps.map((s, i) => (
-                    <motion.div
-                        key={s}
-                        className="px-3 py-2 rounded-xl border text-[11px] font-black tracking-wider"
-                        style={{ borderColor: color, color }}
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.2 }}
-                    >
-                        {i + 1}. {s}
-                    </motion.div>
-                ))}
-            </div>
-            <motion.p
-                className="text-center text-[11px] text-white/50 mt-4 font-mono"
-                animate={{ opacity: [0.4, 1, 0.4] }}
+            <motion.div
+                className="text-center text-[10px] font-mono text-white/40 tracking-widest"
+                animate={{ opacity: [0.3, 1, 0.3] }}
                 transition={{ duration: 2, repeat: Infinity }}
             >
-                GET /api/agent · MCP · your keys sign
-            </motion.p>
+                TURBO · SIZE · LAND
+            </motion.div>
         </div>
     );
 }
 
-function VisualLogo({ color }: { color: string }) {
+function VProof({ color }: { color: string }) {
+    const [n, setN] = useState(2840);
+    const [vol, setVol] = useState(1.24);
+    useEffect(() => {
+        const t = setInterval(() => {
+            setN((v) => v + Math.floor(Math.random() * 4) + 1);
+            setVol((v) => v + Math.random() * 0.02);
+        }, 280);
+        return () => clearInterval(t);
+    }, []);
+    const pairs = ["SHX", "SOL", "BONK", "WIF", "JUP", "RAY"];
     return (
-        <div className="relative text-center py-6">
+        <div className="w-full max-w-md mx-auto space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-2xl border border-white/10 bg-black/55 p-4 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">
+                        Wallets
+                    </div>
+                    <div className="text-3xl font-black tabular-nums" style={{ color }}>
+                        {n.toLocaleString()}
+                    </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/55 p-4 text-center">
+                    <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">
+                        Volume
+                    </div>
+                    <div className="text-3xl font-black tabular-nums text-white">
+                        ${vol.toFixed(2)}M
+                    </div>
+                </div>
+            </div>
+            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/40 py-3">
+                <motion.div
+                    className="flex gap-3 whitespace-nowrap px-3"
+                    animate={{ x: [0, -200] }}
+                    transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                >
+                    {[...pairs, ...pairs].map((p, i) => (
+                        <span
+                            key={`${p}${i}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold"
+                        >
+                            {p}
+                            <span style={{ color }}>
+                                +{(1 + (i % 5) * 0.7).toFixed(1)}%
+                            </span>
+                        </span>
+                    ))}
+                </motion.div>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-[10px] text-white/50">
+                <span
+                    className="w-1.5 h-1.5 rounded-full animate-pulse"
+                    style={{ background: color }}
+                />
+                LIVE LEDGER · ON-PRODUCT
+            </div>
+        </div>
+    );
+}
+
+function VAgent({ color }: { color: string }) {
+    const steps = [
+        { t: "CONNECT", d: "wallet state" },
+        { t: "QUOTE", d: "ultra order" },
+        { t: "SIGN", d: "your keys" },
+        { t: "SWAP", d: "execute" },
+    ];
+    return (
+        <div className="w-full max-w-md mx-auto">
+            <div className="flex items-center justify-center gap-4 mb-8">
+                <motion.div
+                    className="w-16 h-16 rounded-2xl border flex items-center justify-center bg-black/60"
+                    style={{ borderColor: color, boxShadow: `0 0 30px ${color}44` }}
+                    animate={{ y: [0, -6, 0] }}
+                    transition={{ duration: 2.5, repeat: Infinity }}
+                >
+                    <Bot size={28} style={{ color }} />
+                </motion.div>
+                <motion.div
+                    className="h-px w-16"
+                    style={{
+                        background: `linear-gradient(90deg, ${color}, transparent)`,
+                    }}
+                    animate={{ scaleX: [0.5, 1, 0.5], opacity: [0.4, 1, 0.4] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                />
+                <motion.div
+                    className="w-16 h-16 rounded-2xl border border-white/20 flex items-center justify-center bg-black/60"
+                    animate={{ y: [0, 6, 0] }}
+                    transition={{ duration: 2.5, repeat: Infinity, delay: 0.3 }}
+                >
+                    <Shield size={28} className="text-white" />
+                </motion.div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+                {steps.map((s, i) => (
+                    <motion.div
+                        key={s.t}
+                        className="rounded-xl border border-white/10 bg-black/50 px-3 py-3"
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15 * i }}
+                    >
+                        <div className="text-[10px] font-black tracking-widest" style={{ color }}>
+                            0{i + 1} · {s.t}
+                        </div>
+                        <div className="text-[11px] text-white/50 mt-0.5">{s.d}</div>
+                    </motion.div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function VSplit({ color }: { color: string }) {
+    return (
+        <div className="w-full max-w-lg mx-auto grid grid-cols-2 gap-2 md:gap-3 h-56 md:h-64">
             <motion.div
-                className="text-7xl md:text-8xl font-black tracking-tighter"
+                className="rounded-2xl border border-white/10 bg-zinc-900/80 p-4 flex flex-col justify-between overflow-hidden relative"
+                initial={{ x: -40, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+            >
+                <div className="absolute inset-0 bg-gradient-to-b from-red-500/10 to-transparent" />
+                <div className="relative text-[10px] font-black tracking-widest text-red-400/80">
+                    OLD WORLD
+                </div>
+                <div className="relative space-y-2">
+                    {["Deposit", "Wait", "Freeze risk"].map((t) => (
+                        <div
+                            key={t}
+                            className="text-xs text-white/40 line-through decoration-red-500/50"
+                        >
+                            {t}
+                        </div>
+                    ))}
+                </div>
+                <Lock size={20} className="relative text-white/30" />
+            </motion.div>
+            <motion.div
+                className="rounded-2xl border p-4 flex flex-col justify-between overflow-hidden relative"
                 style={{
-                    background: `linear-gradient(135deg, ${color}, #a3e635, #fff)`,
+                    borderColor: color,
+                    boxShadow: `0 0 40px ${color}33`,
+                    background: `linear-gradient(160deg, ${color}22, #000 60%)`,
+                }}
+                initial={{ x: 40, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+            >
+                <div className="relative text-[10px] font-black tracking-widest" style={{ color }}>
+                    SHX
+                </div>
+                <div className="relative space-y-2">
+                    {["Connect", "Trade", "Keep keys"].map((t) => (
+                        <div key={t} className="text-xs font-bold text-white">
+                            {t}
+                        </div>
+                    ))}
+                </div>
+                <Unlock size={20} className="relative" style={{ color }} />
+            </motion.div>
+        </div>
+    );
+}
+
+function VLogo({ color }: { color: string }) {
+    return (
+        <div className="relative text-center py-4">
+            <motion.div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full blur-3xl opacity-50"
+                style={{ background: color }}
+                animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.3, 0.55, 0.3] }}
+                transition={{ duration: 3.5, repeat: Infinity }}
+            />
+            <motion.div
+                className="relative text-[clamp(4.5rem,18vw,8rem)] font-black tracking-tighter leading-none"
+                style={{
+                    background: `linear-gradient(145deg, ${color} 0%, #a3e635 45%, #fff 100%)`,
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
-                    filter: `drop-shadow(0 0 40px ${color}88)`,
+                    filter: `drop-shadow(0 0 50px ${color})`,
                 }}
-                initial={{ scale: 0.6, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 100 }}
+                initial={{ scale: 0.4, opacity: 0, letterSpacing: "0.4em" }}
+                animate={{ scale: 1, opacity: 1, letterSpacing: "-0.06em" }}
+                transition={{ type: "spring", stiffness: 80, damping: 12 }}
             >
                 SHX
             </motion.div>
-            <motion.div
-                className="absolute inset-0 -z-10 rounded-full blur-3xl opacity-40"
-                style={{ background: color }}
-                animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.25, 0.5, 0.25] }}
-                transition={{ duration: 4, repeat: Infinity }}
-            />
             <motion.p
-                className="mt-4 text-sm font-mono tracking-[0.35em] text-white/70 uppercase"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
+                className="relative mt-4 text-sm md:text-base font-mono tracking-[0.45em] uppercase text-white/70"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55 }}
             >
                 shx.exchange
             </motion.p>
@@ -620,28 +1077,23 @@ function VisualLogo({ color }: { color: string }) {
     );
 }
 
-function SceneVisual({ visual, color }: { visual: Scene["visual"]; color: string }) {
-    switch (visual) {
-        case "vault":
-            return <VisualVault color={color} />;
-        case "routes":
-            return <VisualRoutes color={color} />;
-        case "tiers":
-            return <VisualTiers color={color} />;
-        case "usdc":
-            return <VisualUsdc color={color} />;
-        case "pro":
-            return <VisualPro color={color} />;
-        case "proof":
-            return <VisualProof color={color} />;
-        case "agent":
-            return <VisualAgent color={color} />;
-        case "logo":
-            return <VisualLogo color={color} />;
-        default:
-            return <VisualLogo color={color} />;
-    }
+function SceneVisual({ visual, color }: { visual: Visual; color: string }) {
+    const map: Record<Visual, ReactNode> = {
+        void: <VVoid color={color} />,
+        vault: <VVault color={color} />,
+        routes: <VRoutes color={color} />,
+        tiers: <VTiers color={color} />,
+        usdc: <VUsdc color={color} />,
+        pro: <VPro color={color} />,
+        proof: <VProof color={color} />,
+        agent: <VAgent color={color} />,
+        split: <VSplit color={color} />,
+        logo: <VLogo color={color} />,
+    };
+    return <>{map[visual]}</>;
 }
+
+/* ───────────────── main ad ───────────────── */
 
 export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) {
     const [index, setIndex] = useState(0);
@@ -650,9 +1102,16 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
     const [progress, setProgress] = useState(0);
     const [started, setStarted] = useState(false);
     const [done, setDone] = useState(false);
+    const [flash, setFlash] = useState(false);
     const scene = SCENES[index];
-    const color = ACCENT[scene.accent];
-    const { blip, whoosh } = useAdAudio(sound && playing && started);
+    const color = C[scene.accent];
+    const { hit, whoosh, arpeggio } = useAdScore(sound && playing && started);
+
+    const mx = useMotionValue(0);
+    const my = useMotionValue(0);
+    const sx = useSpring(mx, { stiffness: 40, damping: 20 });
+    const sy = useSpring(my, { stiffness: 40, damping: 20 });
+
     const totalMs = useMemo(() => SCENES.reduce((a, s) => a + s.durationMs, 0), []);
     const elapsedBase = useMemo(
         () => SCENES.slice(0, index).reduce((a, s) => a + s.durationMs, 0),
@@ -664,6 +1123,16 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
             if (i >= SCENES.length - 1) {
                 setDone(true);
                 setPlaying(false);
+                try {
+                    confetti({
+                        particleCount: 100,
+                        spread: 80,
+                        origin: { y: 0.6 },
+                        colors: ["#22c55e", "#a3e635", "#ffffff", "#22d3ee"],
+                    });
+                } catch {
+                    /* ignore */
+                }
                 return i;
             }
             return i + 1;
@@ -676,8 +1145,7 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
         const start = performance.now();
         let raf = 0;
         const tick = (now: number) => {
-            const t = now - start;
-            const p = Math.min(1, t / scene.durationMs);
+            const p = Math.min(1, (now - start) / scene.durationMs);
             setProgress(p);
             if (p >= 1) {
                 goNext();
@@ -692,8 +1160,23 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
     useEffect(() => {
         if (!started || !playing) return;
         whoosh();
-        blip(520 + index * 40, 0.1, "triangle", 0.035);
-    }, [index, started, playing, whoosh, blip]);
+        if (scene.flash) {
+            setFlash(true);
+            hit();
+            const t = setTimeout(() => setFlash(false), 180);
+            return () => clearTimeout(t);
+        }
+        arpeggio(200 + index * 30);
+    }, [index, started, playing, whoosh, hit, arpeggio, scene.flash]);
+
+    useEffect(() => {
+        const onMove = (e: PointerEvent) => {
+            mx.set((e.clientX / window.innerWidth - 0.5) * 20);
+            my.set((e.clientY / window.innerHeight - 0.5) * 14);
+        };
+        window.addEventListener("pointermove", onMove);
+        return () => window.removeEventListener("pointermove", onMove);
+    }, [mx, my]);
 
     const globalProgress = (elapsedBase + progress * scene.durationMs) / totalMs;
 
@@ -703,7 +1186,7 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
         setDone(false);
         setIndex(0);
         setProgress(0);
-        blip(660, 0.12, "sine", 0.05);
+        hit();
     };
 
     const replay = () => {
@@ -712,6 +1195,7 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
         setProgress(0);
         setPlaying(true);
         setStarted(true);
+        hit();
     };
 
     return (
@@ -719,176 +1203,237 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
             data-ad-root
             className={`${
                 standalone ? "fixed inset-0 z-[200]" : "relative min-h-screen"
-            } bg-black text-white overflow-hidden select-none`}
+            } bg-[#020203] text-white overflow-hidden select-none`}
         >
-            <ParticleField color={color} intensity={playing ? 1 : 0.3} />
-
-            {/* ambient glows */}
-            <div
-                className="absolute top-[-20%] left-[-10%] w-[70%] h-[50%] rounded-full blur-[120px] opacity-30 pointer-events-none transition-colors duration-700"
-                style={{ background: color }}
+            <CosmicCanvas
+                color={color}
+                intensity={playing && started ? 1 : 0.35}
+                mode={scene.visual}
             />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[45%] rounded-full bg-purple-600/20 blur-[100px] pointer-events-none" />
+
+            {/* parallax glow */}
+            <motion.div
+                className="absolute w-[80vw] h-[80vw] max-w-[700px] max-h-[700px] rounded-full blur-[100px] opacity-25 pointer-events-none"
+                style={{
+                    background: color,
+                    x: sx,
+                    y: sy,
+                    left: "10%",
+                    top: "5%",
+                }}
+            />
+
+            {/* flash */}
+            <AnimatePresence>
+                {flash && (
+                    <motion.div
+                        className="absolute inset-0 z-50 pointer-events-none"
+                        style={{ background: color }}
+                        initial={{ opacity: 0.55 }}
+                        animate={{ opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.35 }}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* film grain overlay */}
+            <div
+                className="absolute inset-0 z-[5] pointer-events-none opacity-[0.07] mix-blend-overlay"
+                style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+                }}
+            />
 
             {/* top chrome */}
-            <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
+            <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3 sm:px-5 pt-[max(0.65rem,env(safe-area-inset-top))]">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-lime-400">
+                    <span className="text-sm font-black bg-gradient-to-r from-primary to-lime-300 bg-clip-text text-transparent">
                         SHX
                     </span>
-                    <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">
-                        Cinematic
+                    <span className="hidden sm:inline text-[9px] font-bold uppercase tracking-[0.28em] text-white/35">
+                        Cinema v2
                     </span>
                 </div>
                 <div className="flex items-center gap-1">
                     <button
                         type="button"
                         onClick={() => setSound((s) => !s)}
-                        className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/70 active:scale-95"
-                        aria-label={sound ? "Mute" : "Sound"}
+                        className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 active:scale-95 backdrop-blur"
                     >
-                        {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                        {sound ? <Volume2 size={15} /> : <VolumeX size={15} />}
                     </button>
                     {started && !done && (
-                        <button
-                            type="button"
-                            onClick={() => setPlaying((p) => !p)}
-                            className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/70 active:scale-95"
-                            aria-label={playing ? "Pause" : "Play"}
-                        >
-                            {playing ? <Pause size={16} /> : <Play size={16} />}
-                        </button>
-                    )}
-                    {started && !done && (
-                        <button
-                            type="button"
-                            onClick={goNext}
-                            className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/70 active:scale-95"
-                            aria-label="Skip scene"
-                        >
-                            <SkipForward size={16} />
-                        </button>
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => setPlaying((p) => !p)}
+                                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 active:scale-95"
+                            >
+                                {playing ? <Pause size={15} /> : <Play size={15} />}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={goNext}
+                                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 active:scale-95"
+                            >
+                                <SkipForward size={15} />
+                            </button>
+                        </>
                     )}
                     <Link
                         href="/"
-                        className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/70 active:scale-95"
-                        aria-label="Close"
+                        className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 active:scale-95"
                     >
-                        <X size={16} />
+                        <X size={15} />
                     </Link>
                 </div>
             </div>
 
-            {/* progress */}
+            {/* progress rail */}
             {started && (
-                <div className="absolute top-[calc(env(safe-area-inset-top)+3rem)] inset-x-4 z-20 h-0.5 rounded-full bg-white/10 overflow-hidden">
-                    <motion.div
-                        className="h-full rounded-full"
-                        style={{ background: color, width: `${globalProgress * 100}%` }}
-                    />
+                <div className="absolute top-[calc(env(safe-area-inset-top)+2.85rem)] inset-x-3 sm:inset-x-5 z-30">
+                    <div className="h-[3px] rounded-full bg-white/10 overflow-hidden flex gap-0.5">
+                        {SCENES.map((s, i) => {
+                            let w = 0;
+                            if (i < index) w = 100;
+                            else if (i === index) w = progress * 100;
+                            return (
+                                <div
+                                    key={s.id}
+                                    className="flex-1 h-full rounded-full bg-white/10 overflow-hidden"
+                                >
+                                    <div
+                                        className="h-full rounded-full transition-[width] duration-75"
+                                        style={{
+                                            width: `${w}%`,
+                                            background: i === index ? color : "#22c55e",
+                                        }}
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 
-            {/* intro gate */}
+            {/* INTRO */}
             {!started && (
-                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6 text-center">
+                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center px-6">
                     <motion.div
-                        initial={{ opacity: 0, y: 20 }}
+                        className="max-w-md w-full text-center"
+                        initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="max-w-md"
+                        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                     >
-                        <div className="text-6xl md:text-7xl font-black tracking-tighter mb-3 text-transparent bg-clip-text bg-gradient-to-br from-primary via-lime-300 to-white">
+                        <motion.div
+                            className="text-[clamp(3.5rem,14vw,6rem)] font-black tracking-tighter leading-none mb-3"
+                            style={{
+                                background:
+                                    "linear-gradient(145deg, #22c55e, #a3e635 50%, #fff)",
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                                filter: "drop-shadow(0 0 40px rgba(34,197,94,0.5))",
+                            }}
+                            animate={{ scale: [0.98, 1.02, 0.98] }}
+                            transition={{ duration: 4, repeat: Infinity }}
+                        >
                             SHX
-                        </div>
-                        <p className="text-sm text-white/60 mb-2">
-                            A coded cinematic — no stock footage, no AI video.
+                        </motion.div>
+                        <p className="text-white/55 text-sm mb-1">
+                            Fully coded cinematic. Zero stock footage.
                         </p>
-                        <p className="text-xs text-white/40 mb-8 font-mono">
-                            ~{Math.round(totalMs / 1000)}s · tap through scenes anytime
+                        <p className="text-white/30 text-[11px] font-mono mb-10">
+                            ~{Math.round(totalMs / 1000)}s · {SCENES.length} acts · tap to
+                            skip
                         </p>
                         <button
                             type="button"
                             onClick={start}
-                            className="min-h-[52px] px-10 rounded-2xl bg-gradient-to-r from-primary to-lime-400 text-black font-black text-sm shadow-[0_0_40px_rgba(34,197,94,0.45)] active:scale-95 transition-transform"
+                            className="group relative min-h-[56px] w-full sm:w-auto px-12 rounded-2xl font-black text-sm text-black overflow-hidden active:scale-[0.98] transition-transform"
                         >
-                            ▶ Play ad
+                            <span
+                                className="absolute inset-0"
+                                style={{
+                                    background:
+                                        "linear-gradient(90deg, #22c55e, #a3e635, #22c55e)",
+                                    backgroundSize: "200% 100%",
+                                }}
+                            />
+                            <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20" />
+                            <span className="relative flex items-center justify-center gap-2">
+                                ▶ Play the ad
+                            </span>
                         </button>
-                        <div className="mt-4">
-                            <Link href="/" className="text-[11px] text-white/40 hover:text-white">
-                                Skip to exchange →
-                            </Link>
-                        </div>
+                        <Link
+                            href="/"
+                            className="inline-flex items-center gap-1 mt-5 text-[11px] text-white/35 hover:text-white"
+                        >
+                            Skip to exchange <ChevronRight size={12} />
+                        </Link>
                     </motion.div>
                 </div>
             )}
 
-            {/* main stage */}
+            {/* STAGE */}
             {started && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center px-5 pt-20 pb-28">
+                <div className="absolute inset-0 z-10 flex flex-col justify-center px-4 sm:px-8 pt-24 pb-28">
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={scene.id}
-                            className="w-full max-w-2xl"
-                            initial={{ opacity: 0, y: 28, filter: "blur(8px)" }}
-                            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                            exit={{ opacity: 0, y: -20, filter: "blur(6px)" }}
-                            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                            className="w-full max-w-3xl mx-auto"
+                            initial={{ opacity: 0, scale: 0.96, filter: "blur(12px)" }}
+                            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                            exit={{ opacity: 0, scale: 1.03, filter: "blur(10px)" }}
+                            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                         >
-                            <div className="text-center mb-6 md:mb-8">
-                                {scene.kicker && (
-                                    <motion.div
-                                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-[0.25em] mb-4"
-                                        style={{ borderColor: `${color}66`, color }}
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                    >
-                                        <span
-                                            className="w-1.5 h-1.5 rounded-full animate-pulse"
-                                            style={{ background: color }}
-                                        />
-                                        {scene.kicker}
-                                    </motion.div>
-                                )}
-                                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-[1.1] whitespace-pre-line">
-                                    {scene.title.split("\n").map((line, i) => (
-                                        <motion.span
-                                            key={i}
-                                            className="block"
-                                            initial={{ opacity: 0, y: 16 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.1 + i * 0.12 }}
-                                        >
-                                            {line}
-                                        </motion.span>
-                                    ))}
-                                </h1>
+                            <div className="text-center mb-5 md:mb-8">
+                                <motion.div
+                                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[9px] sm:text-[10px] font-black uppercase tracking-[0.28em] mb-4"
+                                    style={{
+                                        borderColor: `${color}66`,
+                                        color,
+                                        boxShadow: `0 0 24px ${color}33`,
+                                    }}
+                                    initial={{ opacity: 0, y: -8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                >
+                                    <span
+                                        className="w-1.5 h-1.5 rounded-full animate-pulse"
+                                        style={{ background: color }}
+                                    />
+                                    {scene.kicker}
+                                </motion.div>
+
+                                <KineticTitle text={scene.title} color={color} />
+
                                 {scene.sub && (
                                     <motion.p
-                                        className="mt-3 text-sm md:text-base text-white/60 max-w-lg mx-auto"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        transition={{ delay: 0.35 }}
+                                        className="mt-4 text-sm md:text-base text-white/55 max-w-xl mx-auto leading-relaxed"
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.45 }}
                                     >
                                         {scene.sub}
                                     </motion.p>
                                 )}
                             </div>
 
-                            <div className="min-h-[220px] md:min-h-[280px] flex items-center justify-center">
+                            <div className="min-h-[200px] md:min-h-[280px] flex items-center justify-center">
                                 <SceneVisual visual={scene.visual} color={color} />
                             </div>
 
-                            {scene.lines && (
+                            {scene.bullets && (
                                 <div className="mt-6 flex flex-wrap justify-center gap-2">
-                                    {scene.lines.map((line, i) => (
+                                    {scene.bullets.map((b, i) => (
                                         <motion.span
-                                            key={line}
-                                            className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-semibold text-white/80"
-                                            initial={{ opacity: 0, y: 8 }}
+                                            key={b}
+                                            className="px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10 text-[11px] font-semibold text-white/75 backdrop-blur"
+                                            initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.5 + i * 0.1 }}
+                                            transition={{ delay: 0.55 + i * 0.08 }}
                                         >
-                                            {line}
+                                            {b}
                                         </motion.span>
                                     ))}
                                 </div>
@@ -898,40 +1443,52 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
                 </div>
             )}
 
-            {/* end card */}
+            {/* END */}
             <AnimatePresence>
                 {done && (
                     <motion.div
-                        className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md px-6 text-center"
+                        className="absolute inset-0 z-50 flex flex-col items-center justify-center px-6 bg-black/75 backdrop-blur-xl"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                     >
-                        <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-lime-400 mb-2">
+                        <motion.div
+                            className="text-6xl font-black bg-gradient-to-r from-primary to-lime-300 bg-clip-text text-transparent mb-2"
+                            initial={{ scale: 0.8 }}
+                            animate={{ scale: 1 }}
+                        >
                             SHX
-                        </div>
-                        <p className="text-white/70 text-sm mb-8 max-w-sm">
+                        </motion.div>
+                        <p className="text-white/60 text-sm mb-2 text-center">
                             Trade Solana. Keep your keys. Get paid in USDC.
+                        </p>
+                        <p className="text-white/30 text-[11px] font-mono mb-8">
+                            shx.exchange
                         </p>
                         <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
                             <Link
                                 href="/"
-                                className="flex-1 min-h-[48px] inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-primary to-lime-400 text-black font-black text-sm"
+                                className="flex-1 min-h-[50px] inline-flex items-center justify-center rounded-2xl font-black text-sm text-black"
+                                style={{
+                                    background:
+                                        "linear-gradient(90deg, #22c55e, #a3e635)",
+                                    boxShadow: "0 0 40px rgba(34,197,94,0.4)",
+                                }}
                             >
                                 Open exchange
                             </Link>
                             <Link
                                 href="/pro"
-                                className="flex-1 min-h-[48px] inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 font-bold text-sm"
+                                className="flex-1 min-h-[50px] inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 font-bold text-sm"
                             >
                                 Pro desk
                             </Link>
                         </div>
-                        <div className="flex gap-4 mt-6">
+                        <div className="flex gap-5 mt-7">
                             <button
                                 type="button"
                                 onClick={replay}
-                                className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white"
+                                className="flex items-center gap-1.5 text-xs text-white/45 hover:text-white"
                             >
                                 <RotateCcw size={12} /> Replay
                             </button>
@@ -941,31 +1498,46 @@ export function ShxCinematicAd({ standalone = true }: { standalone?: boolean }) 
                             >
                                 Partner program
                             </Link>
+                            <Link href="/ad" className="text-xs text-white/35 hover:text-white">
+                                Share /ad
+                            </Link>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* bottom scene dots */}
+            {/* scene scrub dots */}
             {started && !done && (
-                <div className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] inset-x-0 z-20 flex justify-center gap-1.5 px-4">
+                <div className="absolute bottom-[max(0.85rem,env(safe-area-inset-bottom))] inset-x-0 z-30 flex justify-center gap-1 px-4">
                     {SCENES.map((s, i) => (
                         <button
                             key={s.id}
                             type="button"
+                            title={s.kicker}
                             onClick={() => {
                                 setIndex(i);
                                 setProgress(0);
                                 setPlaying(true);
                             }}
-                            className="h-1 rounded-full transition-all"
+                            className="h-1 rounded-full transition-all duration-300"
                             style={{
-                                width: i === index ? 28 : 8,
-                                background: i === index ? color : "rgba(255,255,255,0.2)",
+                                width: i === index ? 26 : 7,
+                                background:
+                                    i === index
+                                        ? color
+                                        : i < index
+                                          ? "rgba(34,197,94,0.5)"
+                                          : "rgba(255,255,255,0.18)",
                             }}
-                            aria-label={`Scene ${i + 1}`}
                         />
                     ))}
+                </div>
+            )}
+
+            {/* global progress % corner */}
+            {started && !done && (
+                <div className="absolute bottom-[max(0.85rem,env(safe-area-inset-bottom))] right-4 z-30 text-[9px] font-mono text-white/25 tabular-nums">
+                    {Math.round(globalProgress * 100)}%
                 </div>
             )}
         </div>
