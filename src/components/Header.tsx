@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useSHXTier } from "@/hooks/useSHXTier";
 import { TierBadge } from "@/components/TierBadge";
@@ -21,12 +20,9 @@ const WalletMultiButton = dynamic(
 );
 
 export function Header() {
-    const pathname = usePathname();
     const { connected } = useWallet();
     const tierData = useSHXTier();
     const { setPreferredOutputMint, setChartToken } = useStore();
-
-    if (pathname === "/ad") return null;
 
     return (
         <header className="mobile-header sticky top-0 z-[100] w-full border-b border-white/10 bg-black/75 backdrop-blur-2xl supports-[backdrop-filter]:bg-black/60 pt-[env(safe-area-inset-top)]">

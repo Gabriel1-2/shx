@@ -85,7 +85,7 @@ export default function RootLayout({
                 <Onboarding />
                 <TradeToastListener />
                 <DebugLogsViewer />
-                <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 min-h-[50vh] [&:has([data-ad-root])]:p-0 [&:has([data-ad-root])]:min-h-0">
+                <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 min-h-[50vh]">
                   {children}
                 </div>
                 <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto mb-[calc(4.5rem+env(safe-area-inset-bottom))] md:mb-0 print:hidden">
@@ -96,7 +96,6 @@ export default function RootLayout({
                     <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-center">
                       <a href="/referrals" className="text-[10px] md:text-xs text-emerald-400/80 hover:text-emerald-400 transition-colors">Referrals</a>
                       <a href="/partners" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Partners</a>
-                      <a href="/ad" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Ad</a>
                       <a href="/pro" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Pro</a>
                       <a href="/api/mcp" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors hidden sm:inline">MCP</a>
                       <a href="/whitepaper" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Paper</a>

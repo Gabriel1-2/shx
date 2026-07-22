@@ -2,14 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Users, DollarSign, Banknote, Shield, Sparkles } from "lucide-react";
 
 /**
  * Always-on social proof — the moat competitors can't fake without real ledger data.
  */
 export function TrustProofBar() {
-    const pathname = usePathname();
     const [stats, setStats] = useState({
         traders: 0,
         volume: 0,
@@ -48,8 +46,6 @@ export function TrustProofBar() {
         if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
         return `$${n.toFixed(0)}`;
     };
-
-    if (pathname === "/ad") return null;
 
     return (
         <div className="border-b border-white/5 bg-black/80 backdrop-blur-xl">
