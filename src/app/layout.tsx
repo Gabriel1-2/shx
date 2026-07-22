@@ -85,10 +85,10 @@ export default function RootLayout({
                 <Onboarding />
                 <TradeToastListener />
                 <DebugLogsViewer />
-                <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 min-h-[50vh]">
+                <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 min-h-[50vh] [&:has([data-ad-root])]:p-0 [&:has([data-ad-root])]:min-h-0">
                   {children}
                 </div>
-                <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto mb-[calc(4.5rem+env(safe-area-inset-bottom))] md:mb-0">
+                <footer className="border-t border-white/5 bg-black/60 backdrop-blur-xl mt-auto mb-[calc(4.5rem+env(safe-area-inset-bottom))] md:mb-0 print:hidden">
                   <div className="max-w-7xl mx-auto px-4 py-4 md:py-6 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-3">
                     <span className="text-[10px] md:text-xs text-muted-foreground text-center">
                       © 2026 Shulevitz Holdings Inc.
@@ -96,6 +96,7 @@ export default function RootLayout({
                     <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-center">
                       <a href="/referrals" className="text-[10px] md:text-xs text-emerald-400/80 hover:text-emerald-400 transition-colors">Referrals</a>
                       <a href="/partners" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Partners</a>
+                      <a href="/ad" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Ad</a>
                       <a href="/pro" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Pro</a>
                       <a href="/api/mcp" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors hidden sm:inline">MCP</a>
                       <a href="/whitepaper" className="text-[10px] md:text-xs text-muted-foreground hover:text-primary transition-colors">Paper</a>

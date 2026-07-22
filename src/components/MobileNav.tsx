@@ -18,6 +18,8 @@ export function MobileNav() {
     const searchParams = useSearchParams();
     const tab = searchParams.get("tab");
 
+    if (pathname === "/ad") return null;
+
     const items = [
         {
             href: "/",
